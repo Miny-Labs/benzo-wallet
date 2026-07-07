@@ -59,7 +59,14 @@ export function createViemClients(account: BenzoAccount): {
 let eercCtorPromise: Promise<typeof EERC> | null = null;
 function loadEERC(): Promise<typeof EERC> {
   if (!eercCtorPromise) {
-    eercCtorPromise = import("@avalabs/eerc-sdk").then((m) => m.EERC);
+    eercCtorPromise = import("@avalabs/eerc-sdk")
+      .then((m) => m.EERC)
+      .catch((err) => {
+        // Never cache a rejected import — clear it so the next encrypted op
+        // retries instead of being stuck on the same failed load all session.
+        eercCtorPromise = null;
+        throw err;
+      });
   }
   return eercCtorPromise;
 }

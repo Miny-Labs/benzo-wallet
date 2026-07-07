@@ -24,7 +24,14 @@ let groth16Promise: Promise<Groth16> | null = null;
 function loadGroth16(): Promise<Groth16> {
   if (!groth16Promise) {
     // @ts-expect-error snarkjs ships no type declarations
-    groth16Promise = import("snarkjs").then((m) => m.groth16 as Groth16);
+    groth16Promise = import("snarkjs")
+      .then((m) => m.groth16 as Groth16)
+      .catch((err) => {
+        // Never cache a rejected import — clear it so the next call retries
+        // (a transient chunk/network failure must not wedge proving for good).
+        groth16Promise = null;
+        throw err;
+      });
   }
   return groth16Promise;
 }

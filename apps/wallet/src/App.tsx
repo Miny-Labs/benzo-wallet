@@ -11,7 +11,7 @@ import { StageVideo } from "./ui/StageVideo";
 import { LockGate } from "./ui/LockGate";
 import { shouldLockOnOpen } from "./lib/lock";
 import { spring } from "./ui/motion";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 // Screens are lazy-loaded so each route ships as its own chunk — only the first
 // view's code is parsed on load, the rest arrive on navigation. (Named exports,
 // so each import() is mapped to a `default` for React.lazy.)
@@ -101,6 +101,36 @@ function useIsDesktop() {
   return isDesktop;
 }
 
+/**
+ * `Suspense` handles the *pending* state of a lazy import, but NOT a failed one
+ * (a stale chunk after a redeploy, or a network drop mid-load). Without this, an
+ * import error would blank the whole shell. This boundary shows a reload path
+ * instead so the wallet stays recoverable.
+ */
+class RouteErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+  render() {
+    if (this.state.failed) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+          <p className="text-sm text-muted">Couldn’t load this screen.</p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+          >
+            Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export function App() {
   const loc = useLocation();
   const isDesktop = useIsDesktop();
@@ -160,6 +190,7 @@ export function App() {
           {showShell ? (
           <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
             <main className="no-scrollbar flex-1 overflow-y-auto">
+              <RouteErrorBoundary>
               <Suspense
                 fallback={
                   <div className="flex h-full items-center justify-center">
@@ -186,6 +217,7 @@ export function App() {
                 <Route path="*" element={<Home />} />
               </Routes>
               </Suspense>
+              </RouteErrorBoundary>
             </main>
             <BottomNav />
           </div>
