@@ -1,7 +1,12 @@
+import { usdcToStroops } from "./format";
+
 export function inviteAmountToStroops(amount: string): string {
-  const n = Number(amount);
-  if (!Number.isFinite(n) || n <= 0) return "0";
-  return BigInt(Math.round(n * 1e7)).toString();
+  try {
+    const value = usdcToStroops(amount);
+    return value > 0n ? value.toString() : "0";
+  } catch {
+    return "0";
+  }
 }
 
 function parseStroops(value?: string | null): bigint {

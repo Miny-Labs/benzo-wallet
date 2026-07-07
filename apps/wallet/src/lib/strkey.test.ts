@@ -1,43 +1,38 @@
-import { describe, it, expect } from "vitest";
-import { isValidStellarAddress, shortAddress } from "./strkey";
+import { describe, expect, it } from "vitest";
+import { isValidEvmAddress, isValidStellarAddress, normalizeEvmAddress, shortAddress } from "./strkey";
 
-// Real testnet ed25519 public keys (from network.ts) - must pass the checksum.
 const REAL = [
-  "GBRMUZELYDNXSBYF5KOLLSV4XLQYNZJQNLXQ3HTFCWNRIBS3I6EUBCMP",
-  "GD2U26BTLNEKRLM7AMXPO5T64I7SPRPUF26T44RHSJBLFI5YGRKLZMT7",
+  "0x00f6B82Ea91E429FDD6Dfed8f273190092dd14D6",
+  "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
 ];
 
-describe("isValidStellarAddress", () => {
-  it("accepts real checksum-valid G-addresses", () => {
-    for (const a of REAL) expect(isValidStellarAddress(a)).toBe(true);
+describe("EVM address helpers", () => {
+  it("accepts real Avalanche-style EVM addresses", () => {
+    for (const a of REAL) expect(isValidEvmAddress(a)).toBe(true);
   });
 
-  it("rejects a shape-valid but checksum-broken address (typo'd last char)", () => {
-    // same as REAL[0] with the final char flipped P→A: passes the regex, fails CRC
-    expect(isValidStellarAddress("GBRMUZELYDNXSBYF5KOLLSV4XLQYNZJQNLXQ3HTFCWNRIBS3I6EUBCMA")).toBe(false);
+  it("keeps the old Stellar-named alias pointed at EVM validation during the port", () => {
+    expect(isValidStellarAddress(REAL[0])).toBe(true);
   });
 
-  it("rejects all-padding garbage that matches the shape", () => {
-    expect(isValidStellarAddress("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")).toBe(false);
+  it("rejects wrong-shape inputs", () => {
+    expect(isValidEvmAddress("@alice")).toBe(false);
+    expect(isValidEvmAddress("")).toBe(false);
+    expect(isValidEvmAddress("0xabc")).toBe(false);
+    expect(isValidEvmAddress("0xzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")).toBe(false);
   });
 
-  it("rejects wrong-shape inputs (handles, empty, short)", () => {
-    expect(isValidStellarAddress("@alice")).toBe(false);
-    expect(isValidStellarAddress("")).toBe(false);
-    expect(isValidStellarAddress("GABC")).toBe(false);
-    // contract id (C…) is not an ed25519 public key
-    expect(isValidStellarAddress("CB4VS4OCF6HEGCLSPM4E3ILNGP4KF5ZJ7JEXUJIJBUU5IZC2VPDVSJOT")).toBe(false);
-  });
-
-  it("trims surrounding whitespace before validating", () => {
-    expect(isValidStellarAddress(`  ${REAL[0]}  `)).toBe(true);
+  it("trims surrounding whitespace before validating and normalizing", () => {
+    expect(isValidEvmAddress(`  ${REAL[0].toLowerCase()}  `)).toBe(true);
+    expect(normalizeEvmAddress(`  ${REAL[0].toLowerCase()}  `)).toBe(REAL[0]);
   });
 });
 
 describe("shortAddress", () => {
-  it("truncates long addresses to GABC…WXYZ form", () => {
-    expect(shortAddress(REAL[0])).toBe("GBRM…BCMP");
+  it("truncates long addresses to 0x0000...0000 form", () => {
+    expect(shortAddress(REAL[0])).toBe("0x00f6…14D6");
   });
+
   it("leaves short strings untouched", () => {
     expect(shortAddress("@bob")).toBe("@bob");
   });

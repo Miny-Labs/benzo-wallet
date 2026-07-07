@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 const mem = new Map<string, string>();
 (globalThis as unknown as { localStorage: Storage }).localStorage = {
@@ -10,15 +10,15 @@ const mem = new Map<string, string>();
   length: 0,
 } as Storage;
 
-import { normAddress, saveContact, removeContact, isSaved, listLocal, mergeContacts } from "./contacts.js";
+import { isSaved, listLocal, mergeContacts, normAddress, removeContact, saveContact } from "./contacts.js";
 
-const ADDR1 = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-const ADDR2 = "GBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+const ADDR1 = "0x00f6B82Ea91E429FDD6Dfed8f273190092dd14D6";
+const ADDR2 = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 
-describe("contacts (C6 - local-first recipient management)", () => {
+describe("contacts (local-first recipient management)", () => {
   beforeEach(() => mem.clear());
 
-  it("normalizes Stellar G-addresses", () => {
+  it("normalizes EVM addresses", () => {
     expect(normAddress(ADDR1)).toBe(ADDR1);
     expect(normAddress(`  ${ADDR1}  `)).toBe(ADDR1);
     expect(normAddress("not-an-address")).toBe("");
@@ -28,10 +28,10 @@ describe("contacts (C6 - local-first recipient management)", () => {
   it("saves and de-dupes by address (latest wins, most-recent first)", () => {
     saveContact(ADDR1, "Alex Rivera");
     saveContact(ADDR2, "Bob");
-    saveContact(ADDR1, "Alex R."); // same address, new nickname
+    saveContact(ADDR1, "Alex R.");
     const cs = listLocal();
     expect(cs).toHaveLength(2);
-    expect(cs[0]).toEqual({ handle: ADDR1, name: "Alex R." }); // updated + moved to front
+    expect(cs[0]).toEqual({ handle: ADDR1, name: "Alex R." });
     expect(isSaved(ADDR1)).toBe(true);
   });
 

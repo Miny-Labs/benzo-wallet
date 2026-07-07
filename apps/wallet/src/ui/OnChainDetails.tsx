@@ -4,8 +4,8 @@
  * the public ledger, WITHOUT cluttering the web2-clean default view.
  *
  * Collapsed by default ("Advanced · on-chain details"); one tap reveals the real
- * facts behind the abstracted UI: the settlement tx (Stellar Expert link), the
- * verifier + pool contract ids, what the ZK proof proved, where it was generated
+ * facts behind the abstracted UI: the settlement tx, the eERC contract ids,
+ * what the ZK proof proved, where it was generated
  * locally and how long it took, and the privacy
  * invariant in technical terms. Everything here is PUBLIC chain data - never a
  * secret - which is exactly the point: privacy holds even though the proof is
@@ -15,20 +15,19 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Copy, ExternalLink } from "lucide-react";
 import { copyTextToClipboard } from "../lib/clipboard";
-import { DEPLOYMENT, NETWORK, NETWORK_LABEL } from "../lib/network";
+import { DEPLOYMENT, EXPLORER_BASE_URL, NETWORK_LABEL } from "../lib/network";
 
-const EXPLORER = `https://stellar.expert/explorer/${NETWORK}`;
-export const explorerTx = (h: string) => `${EXPLORER}/tx/${h}`;
-export const explorerContract = (id: string) => `${EXPLORER}/contract/${id}`;
+export const explorerTx = (h: string) => `${EXPLORER_BASE_URL}/tx/${h}`;
+export const explorerContract = (id: string) => `${EXPLORER_BASE_URL}/address/${id}`;
 const short = (s: string, n = 6) => (s.length > n * 2 + 1 ? `${s.slice(0, n)}…${s.slice(-n)}` : s);
 
 export type OnChainKind = "shield" | "transfer" | "unshield" | "proof" | "public";
 type ZkOnChainKind = Exclude<OnChainKind, "public">;
 
 const KIND_PROOF: Record<ZkOnChainKind, { circuit: string; statement: string }> = {
-  shield: { circuit: "SHIELD", statement: "the deposit commits to a hidden note (amount + owner sealed) admitted by a KYC/ASP proof" },
-  transfer: { circuit: "TRANSFER (joinsplit)", statement: "inputs = outputs + fee, you own the inputs, and the nullifiers are fresh - amount + counterparty hidden" },
-  unshield: { circuit: "UNSHIELD", statement: "you own the note being withdrawn and it is NOT on the deny-list (proof-of-innocence)" },
+  shield: { circuit: "eERC DEPOSIT", statement: "public USDC was converted into encrypted balance owned by your wallet" },
+  transfer: { circuit: "eERC TRANSFER", statement: "the encrypted transfer is valid, balances update correctly, and amounts stay hidden" },
+  unshield: { circuit: "eERC WITHDRAW", statement: "you own enough encrypted balance to make this amount public" },
   proof: { circuit: "BALANCE / SUM", statement: "a balance/total claim holds - without revealing the amounts" },
 };
 
@@ -70,12 +69,12 @@ export function OnChainDetails({
               <Row k="Network" v={NETWORK_LABEL} />
               {kind === "public" ? (
                 <>
-                  <Row k="Settlement" v="Public Stellar USDC payment" />
-                  <Row k="Verified on-chain" v={<span className="font-semibold text-pos">Yes · Stellar ledger</span>} />
+                  <Row k="Settlement" v="Public Avalanche USDC payment" />
+                  <Row k="Verified on-chain" v={<span className="font-semibold text-pos">Yes · Avalanche ledger</span>} />
                   <Row k="What is public" v={<span className="text-ink">recipient and amount are visible on-chain</span>} />
                   {txHash ? <LinkRow k="Settlement tx" id={txHash} href={explorerTx(txHash)} /> : null}
                   <div className="pt-1 text-[11px] leading-snug text-muted">
-                    This receipt is for a normal Stellar USDC payment. It is not a shielded transfer, so the recipient and amount are public on-chain.
+                    This receipt is for a normal public USDC payment. It is not an encrypted eERC transfer, so the recipient and amount are public on-chain.
                   </div>
                 </>
               ) : <ShieldedProofRows kind={kind} proverLabel={proverLabel} provingMs={provingMs} txHash={txHash} />}
@@ -102,15 +101,15 @@ function ShieldedProofRows({
   return (
     <>
       <Row k="Proof" v={`Groth16 / BN254 · ${p.circuit}`} />
-      <Row k="Verified on-chain" v={<span className="font-semibold text-pos">Yes · inside the pool contract</span>} />
+      <Row k="Verified on-chain" v={<span className="font-semibold text-pos">Yes · inside the eERC contract</span>} />
       <Row k="What it proves" v={<span className="text-ink">{p.statement}</span>} />
       <Row k="Proven on" v={`${proverLabel}${provingMs ? ` · ${(provingMs / 1000).toFixed(2)}s` : ""}`} />
       {txHash ? <LinkRow k="Settlement tx" id={txHash} href={explorerTx(txHash)} /> : null}
-      <LinkRow k="Pool contract" id={DEPLOYMENT.pool} href={explorerContract(DEPLOYMENT.pool)} />
-      <LinkRow k="Groth16 verifier" id={DEPLOYMENT.verifier} href={explorerContract(DEPLOYMENT.verifier)} />
+      {DEPLOYMENT.contracts.EncryptedERC ? <LinkRow k="eERC contract" id={DEPLOYMENT.contracts.EncryptedERC} href={explorerContract(DEPLOYMENT.contracts.EncryptedERC)} /> : null}
+      {DEPLOYMENT.contracts.Registrar ? <LinkRow k="Registrar" id={DEPLOYMENT.contracts.Registrar} href={explorerContract(DEPLOYMENT.contracts.Registrar)} /> : null}
       <div className="pt-1 text-[11px] leading-snug text-muted">
-        Everything here is public - yet your amount, balance and counterparty stay hidden. That is the zero-knowledge guarantee:
-        the network verified the payment is valid without learning what it was.
+        Everything here is public chain data. eERC hides amounts with encryption and zero-knowledge proofs;
+        the network verifies the update without publishing your balance.
       </div>
     </>
   );
@@ -132,7 +131,7 @@ function LinkRow({ k, id, href }: { k: string; id: string; href: string }) {
       <span className="flex items-center gap-1.5">
         <a href={href} target="_blank" rel="noreferrer" className="font-mono text-[11.5px] text-accent hover:underline">{short(id)}</a>
         <button type="button" onClick={() => { void copyTextToClipboard(id); }} title="Copy" className="text-muted hover:text-ink"><Copy size={12} /></button>
-        <a href={href} target="_blank" rel="noreferrer" title="Open in Stellar Expert" className="text-muted hover:text-ink"><ExternalLink size={12} /></a>
+        <a href={href} target="_blank" rel="noreferrer" title="Open explorer" className="text-muted hover:text-ink"><ExternalLink size={12} /></a>
       </span>
     </div>
   );

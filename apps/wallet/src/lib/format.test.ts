@@ -1,38 +1,38 @@
 import { describe, expect, it } from "vitest";
 import { dayBucket, fmtSigned, fmtUsd, initials, relativeTime, splitAmount, usdFromStroops, usdcToStroops } from "./format";
 
-describe("money formatting (stroops ⇄ dollars)", () => {
-  it("formats stroops to grouped dollars with ≥2 decimals", () => {
-    expect(usdFromStroops("12405000000")).toBe("1,240.50");
-    expect(usdFromStroops("19500000")).toBe("1.95");
+describe("money formatting (USDC base units ⇄ dollars)", () => {
+  it("formats USDC base units to grouped dollars with ≥2 decimals", () => {
+    expect(usdFromStroops("1240500000")).toBe("1,240.50");
+    expect(usdFromStroops("1950000")).toBe("1.95");
     expect(usdFromStroops("0")).toBe("0.00");
-    expect(usdFromStroops("100000000000")).toBe("10,000.00");
+    expect(usdFromStroops("10000000000")).toBe("10,000.00");
   });
 
   it("trims trailing precision past cents but keeps real precision", () => {
-    expect(usdFromStroops("12345670")).toBe("1.234567");
-    expect(usdFromStroops("10000000")).toBe("1.00");
+    expect(usdFromStroops("1234567")).toBe("1.234567");
+    expect(usdFromStroops("1000000")).toBe("1.00");
   });
 
   it("fmtUsd adds the $ and handles negatives", () => {
-    expect(fmtUsd("12405000000")).toBe("$1,240.50");
-    expect(fmtUsd("-500000")).toBe("-$0.05");
+    expect(fmtUsd("1240500000")).toBe("$1,240.50");
+    expect(fmtUsd("-50000")).toBe("-$0.05");
   });
 
   it("fmtSigned signs by direction with a true minus glyph", () => {
-    expect(fmtSigned("2000000000", "in")).toBe("+$200.00");
-    expect(fmtSigned("500000", "out")).toBe("−$0.05");
+    expect(fmtSigned("200000000", "in")).toBe("+$200.00");
+    expect(fmtSigned("50000", "out")).toBe("−$0.05");
   });
 
-  it("usdcToStroops round-trips and rejects >7 decimals", () => {
-    expect(usdcToStroops("1240.50")).toBe(12405000000n);
-    expect(usdcToStroops("$1,240.50")).toBe(12405000000n);
-    expect(usdcToStroops("0.0000001")).toBe(1n);
-    expect(() => usdcToStroops("1.00000001")).toThrow();
+  it("usdcToStroops round-trips and rejects precision beyond USDC decimals", () => {
+    expect(usdcToStroops("1240.50")).toBe(1240500000n);
+    expect(usdcToStroops("$1,240.50")).toBe(1240500000n);
+    expect(usdcToStroops("0.000001")).toBe(1n);
+    expect(() => usdcToStroops("1.0000001")).toThrow();
   });
 
   it("splitAmount separates dollars and cents", () => {
-    expect(splitAmount("12405000000")).toEqual({ dollars: "1,240", cents: "50" });
+    expect(splitAmount("1240500000")).toEqual({ dollars: "1,240", cents: "50" });
   });
 });
 

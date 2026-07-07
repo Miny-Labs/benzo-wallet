@@ -2,9 +2,8 @@
  * Shared primitives for the Benzo B2B domain model.
  *
  * IDs are plain strings (aliased for documentation, not branded, to keep the
- * API/UI boundary friction-free). Money is integer MINOR UNITS encoded as a
- * string so it survives JSON without bigint loss — the on-chain truth is
- * 7-decimal USDC stroops; the product layer keeps the same convention.
+ * API/UI boundary friction-free). Money is integer USDC base units encoded as a
+ * string so it survives JSON without bigint loss.
  */
 
 /** ISO-8601 timestamp string (e.g. "2026-06-15T12:00:00Z"). */
@@ -26,7 +25,7 @@ export type ComplianceZoneId = Id;
 
 /** A monetary amount in integer minor units (string-encoded) + asset code. */
 export interface Money {
-  /** integer minor units (USDC: 7-decimal stroops), as a base-10 string */
+  /** integer USDC base units, as a base-10 string */
   amount: string;
   /** asset code, e.g. "USDC" */
   assetCode: string;

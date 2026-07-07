@@ -5,7 +5,7 @@ const LS = "benzo.contacts.local.v1";
 
 export function normAddress(a: string): string {
   const t = a.trim();
-  if (/^G[A-Z2-7]{55}$/.test(t)) return t;
+  if (/^0x[0-9a-fA-F]{40}$/.test(t)) return t;
   if (t.startsWith("bzr_") && decodeRecipient(t) !== null) return t;
   return "";
 }

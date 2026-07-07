@@ -56,7 +56,7 @@ function timeline(row: ActivityRow): Step[] {
     return [
       { label: "Public payment created", state: "done" },
       {
-        label: failed ? "Public send failed" : settled ? "Sent on Stellar testnet" : "Sending on Stellar testnet",
+        label: failed ? "Public send failed" : settled ? "Sent on Avalanche testnet" : "Sending on Avalanche testnet",
         hint: "Recipient and amount are public on-chain",
         state: failed ? "failed" : settled ? "done" : "active",
       },
@@ -76,7 +76,7 @@ function timeline(row: ActivityRow): Step[] {
       },
       {
         label: settled ? "Moved to Public balance" : "Moving to Public balance",
-        hint: settled ? undefined : "Stellar testnet settlement",
+        hint: settled ? undefined : "Avalanche testnet settlement",
         state: failed ? "upcoming" : settled ? "done" : "active",
       },
     ];
@@ -92,7 +92,7 @@ function timeline(row: ActivityRow): Step[] {
       },
       {
         label: settled ? "Returned to testnet reserve" : "Returning to testnet reserve",
-        hint: settled ? undefined : "Stellar testnet settlement",
+        hint: settled ? undefined : "Avalanche testnet settlement",
         state: failed ? "upcoming" : settled ? "done" : "active",
       },
     ];
@@ -201,7 +201,7 @@ export function TxDetail() {
           <div className="mt-3">
             {publicSend ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fbf1dd] px-3 py-1 text-[12px] font-semibold text-[#9a6b12]">
-                <Globe2 size={13} /> Public Stellar payment
+                <Globe2 size={13} /> Public Avalanche payment
               </span>
             ) : failed ? (
               <PrivateChip label="No on-chain transfer recorded" />

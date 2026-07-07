@@ -1,11 +1,12 @@
-import { IndexedDbKVStore, Keychain, passphraseWrappingKey, prfWrappingKey, newSalt } from "@benzo/wallet";
-import { createAccount, accountFromSignedMessage, type BenzoAccount } from "@benzo/core";
-import { StrKey } from "@stellar/stellar-sdk";
-import { derivePasskeySecret, registerPasskey, createDeviceAuthProof } from "./passkey";
+import { accountFromSignedMessage, createAccount, type BenzoAccount } from "@benzo/core";
+import { IndexedDbKVStore, Keychain, newSalt, passphraseWrappingKey, prfWrappingKey } from "@benzo/wallet";
+import type { Hex } from "viem";
 import { api } from "./api";
+import { createDeviceAuthProof, derivePasskeySecret, registerPasskey } from "./passkey";
 
 export interface WalletSecrets {
-  stellarSecret: string;
+  evmPrivateKey: Hex;
+  eercDecryptionKey: string;
   orgSpendId: string;
   mvkSeedHex: string;
 }
@@ -18,11 +19,30 @@ function toHex(b: Uint8Array): string {
 }
 
 function fromHex(s: string): Uint8Array {
-  const out = new Uint8Array(s.length / 2);
+  const clean = s.startsWith("0x") ? s.slice(2) : s;
+  const out = new Uint8Array(clean.length / 2);
   for (let i = 0; i < out.length; i++) {
-    out[i] = parseInt(s.slice(i * 2, i * 2 + 2), 16);
+    out[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
   }
   return out;
+}
+
+function secretsFromAccount(account: BenzoAccount, seed: Uint8Array): WalletSecrets {
+  return {
+    evmPrivateKey: account.evmPrivateKey,
+    eercDecryptionKey: account.eercDecryptionKey,
+    orgSpendId: account.spendSk.toString(),
+    mvkSeedHex: toHex(seed),
+  };
+}
+
+function accountFromSecrets(secrets: WalletSecrets): BenzoAccount {
+  return createAccount({
+    eercDecryptionKey: secrets.eercDecryptionKey,
+    evmPrivateKey: secrets.evmPrivateKey,
+    seed: fromHex(secrets.mvkSeedHex),
+    spendSk: BigInt(secrets.orgSpendId),
+  });
 }
 
 export async function getStore(): Promise<IndexedDbKVStore> {
@@ -42,17 +62,15 @@ export function isWalletUnlocked(): boolean {
   return activeAccount !== null;
 }
 
-async function loginDeviceBff() {
+async function loginSiweSession(): Promise<void> {
   const account = getLocalAccount();
-  if (!account) return;
+  if (!account || !activeKeychain) return;
   try {
-    const proof = createDeviceAuthProof(account, { ttlSeconds: 86400 * 7 });
-    const res = await api.deviceAuth(proof);
-    localStorage.setItem("benzo.googleCredential", res.token);
-    // Dispatch auth changed event so components react
+    const signer = activeKeychain.signer();
+    await api.signInWithSiwe(account.address, (message) => signer.signMessage(message));
     window.dispatchEvent(new Event("benzo:auth-changed"));
   } catch (e) {
-    console.error("Failed to authenticate local wallet with BFF:", e);
+    console.error("Failed to authenticate local wallet with Benzo API:", e);
   }
 }
 
@@ -64,19 +82,13 @@ export async function createWallet(passphrase: string): Promise<BenzoAccount> {
   const wrappingKey = passphraseWrappingKey(passphrase, salt);
   const masterSeed = crypto.getRandomValues(new Uint8Array(32));
   const account = accountFromSignedMessage(masterSeed);
-
-  const secrets: WalletSecrets = {
-    stellarSecret: account.stellarSecret!,
-    orgSpendId: account.spendSk.toString(),
-    mvkSeedHex: toHex(masterSeed),
-  };
+  const secrets = secretsFromAccount(account, masterSeed);
 
   activeKeychain = await Keychain.create({ kv, wrappingKey, secrets, overwrite: true });
   activeAccount = account;
 
-  // Save auto-lock state
   localStorage.setItem("benzo.wallet.type", "passphrase");
-  await loginDeviceBff();
+  await loginSiweSession();
   return account;
 }
 
@@ -89,18 +101,13 @@ export async function createWalletWithPasskey(userName: string): Promise<BenzoAc
 
   const masterSeed = crypto.getRandomValues(new Uint8Array(32));
   const account = accountFromSignedMessage(masterSeed);
-
-  const secrets: WalletSecrets = {
-    stellarSecret: account.stellarSecret!,
-    orgSpendId: account.spendSk.toString(),
-    mvkSeedHex: toHex(masterSeed),
-  };
+  const secrets = secretsFromAccount(account, masterSeed);
 
   activeKeychain = await Keychain.create({ kv, wrappingKey, secrets, overwrite: true });
   activeAccount = account;
 
   localStorage.setItem("benzo.wallet.type", "passkey");
-  await loginDeviceBff();
+  await loginSiweSession();
   return account;
 }
 
@@ -111,12 +118,11 @@ export async function unlockWallet(passphrase: string): Promise<BenzoAccount> {
 
   const wrappingKey = passphraseWrappingKey(passphrase, salt);
   const kc = await Keychain.unlock({ kv, wrappingKey });
-  const masterSeed = fromHex(kc.secrets.mvkSeedHex);
-  const account = accountFromSignedMessage(masterSeed);
+  const account = accountFromSecrets(kc.secrets);
 
   activeKeychain = kc;
   activeAccount = account;
-  await loginDeviceBff();
+  await loginSiweSession();
   return account;
 }
 
@@ -126,22 +132,19 @@ export async function unlockWalletWithPasskey(): Promise<BenzoAccount> {
   const wrappingKey = prfWrappingKey(prfOutput);
 
   const kc = await Keychain.unlock({ kv, wrappingKey });
-  const masterSeed = fromHex(kc.secrets.mvkSeedHex);
-  const account = accountFromSignedMessage(masterSeed);
+  const account = accountFromSecrets(kc.secrets);
 
   activeKeychain = kc;
   activeAccount = account;
-  await loginDeviceBff();
+  await loginSiweSession();
   return account;
 }
 
 export function lockWallet(): void {
-  if (activeKeychain) {
-    activeKeychain.lock();
-  }
+  activeKeychain?.lock();
   activeKeychain = null;
   activeAccount = null;
-  localStorage.removeItem("benzo.googleCredential");
+  void api.logout().catch(() => {});
 }
 
 export async function exportWallet(): Promise<string> {
@@ -155,20 +158,21 @@ export async function importWallet(importedText: string, passphrase?: string): P
 
   const cleanText = importedText.trim();
   if (cleanText.startsWith("{")) {
-    secrets = JSON.parse(cleanText) as WalletSecrets;
-  } else if (cleanText.startsWith("S") && cleanText.length === 56) {
-    const seedBytes = new Uint8Array(StrKey.decodeEd25519SecretSeed(cleanText));
-    const account = accountFromSignedMessage(seedBytes);
-    secrets = {
-      stellarSecret: account.stellarSecret!,
-      orgSpendId: account.spendSk.toString(),
-      mvkSeedHex: toHex(seedBytes),
-    };
+    const parsed = JSON.parse(cleanText) as Partial<WalletSecrets> & { stellarSecret?: string };
+    if (parsed.stellarSecret) {
+      throw new Error("Stellar backups belong to the retired wallet. Import an Avalanche Benzo backup JSON.");
+    }
+    secrets = parsed as WalletSecrets;
+  } else if (/^0x[0-9a-fA-F]{64}$/.test(cleanText)) {
+    const seed = fromHex(cleanText);
+    const account = createAccount({ evmPrivateKey: cleanText as Hex, seed });
+    secrets = secretsFromAccount(account, seed);
+  } else if (/^S[A-Z2-7]{55}$/.test(cleanText)) {
+    throw new Error("Stellar secret keys are not valid for the Avalanche wallet.");
   } else {
-    throw new Error("Invalid import format. Provide raw secrets JSON or a Stellar secret seed starting with 'S'.");
+    throw new Error("Invalid import format. Provide Avalanche Benzo backup JSON or a 0x EVM private key.");
   }
 
-  // Determine wrapping mechanism
   if (passphrase) {
     const salt = newSalt();
     await kv.set("benzo/keychain/v1/salt", salt);
@@ -176,7 +180,6 @@ export async function importWallet(importedText: string, passphrase?: string): P
     activeKeychain = await Keychain.create({ kv, wrappingKey, secrets, overwrite: true });
     localStorage.setItem("benzo.wallet.type", "passphrase");
   } else {
-    // If no passphrase is provided, we default to using/registering a passkey
     await registerPasskey({ userName: "imported-wallet" });
     const prfOutput = await derivePasskeySecret();
     const wrappingKey = prfWrappingKey(prfOutput);
@@ -184,11 +187,9 @@ export async function importWallet(importedText: string, passphrase?: string): P
     localStorage.setItem("benzo.wallet.type", "passkey");
   }
 
-  const masterSeed = fromHex(secrets.mvkSeedHex);
-  const account = accountFromSignedMessage(masterSeed);
-  activeAccount = account;
-  await loginDeviceBff();
-  return account;
+  activeAccount = accountFromSecrets(secrets);
+  await loginSiweSession();
+  return activeAccount;
 }
 
 export async function deleteWallet(): Promise<void> {
@@ -208,8 +209,13 @@ export async function deleteWallet(): Promise<void> {
 export function getLocalAccountSummary() {
   if (!activeAccount) return null;
   return {
-    address: activeAccount.stellarAddress,
+    address: activeAccount.address,
     spendPub: activeAccount.spendPub.toString(),
     mvkPub: toHex(activeAccount.mvkPub),
   };
+}
+
+export function getLocalDeviceAuthProof() {
+  if (!activeAccount) return null;
+  return createDeviceAuthProof(activeAccount);
 }

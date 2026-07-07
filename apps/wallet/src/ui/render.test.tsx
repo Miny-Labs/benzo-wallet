@@ -10,11 +10,11 @@ import type { ActivityRow } from "../lib/api";
 
 describe("BalanceHero", () => {
   it("renders the formatted balance (accessible label)", () => {
-    render(<BalanceHero stroops="12405000000" hidden={false} />);
+    render(<BalanceHero stroops="1240500000" hidden={false} />);
     expect(screen.getByLabelText("$1,240.50")).toBeInTheDocument();
   });
   it("masks the balance when hidden", () => {
-    render(<BalanceHero stroops="12405000000" hidden />);
+    render(<BalanceHero stroops="1240500000" hidden />);
     expect(screen.getByLabelText("Balance hidden")).toBeInTheDocument();
     expect(screen.queryByLabelText("$1,240.50")).not.toBeInTheDocument();
   });
@@ -53,7 +53,7 @@ describe("Button", () => {
 describe("ActivityItem", () => {
   const base: ActivityRow = {
     id: "a1", type: "receive", name: "Ravi Mehta", note: "Paid you · Design work",
-    amount: "2000000000", direction: "in", status: "settled", timestamp: Math.floor(Date.now() / 1000) - 60,
+    amount: "200000000", direction: "in", status: "settled", timestamp: Math.floor(Date.now() / 1000) - 60,
   };
   it("renders a person row with a positive amount", () => {
     render(<MemoryRouter><ActivityItem row={base} /></MemoryRouter>);
@@ -76,17 +76,17 @@ describe("ActivityItem", () => {
 describe("OnChainDetails", () => {
   const txHash = "928c3535ab8833e4c59514b4628c1d580c59aea0cf7595f347824c249b5db61d";
 
-  it("labels public wallet sends as public Stellar settlement, not ZK proof", () => {
+  it("labels public wallet sends as public Avalanche settlement, not ZK proof", () => {
     render(<OnChainDetails txHash={txHash} onChain kind="public" />);
 
     fireEvent.click(screen.getByTestId("onchain-toggle"));
 
-    expect(screen.getByText("Public Stellar USDC payment")).toBeInTheDocument();
+    expect(screen.getByText("Public Avalanche USDC payment")).toBeInTheDocument();
     expect(screen.getByText("recipient and amount are visible on-chain")).toBeInTheDocument();
-    expect(screen.getByText(/normal Stellar USDC payment/i)).toBeInTheDocument();
+    expect(screen.getByText(/normal public USDC payment/i)).toBeInTheDocument();
     expect(screen.queryByText(/Groth16/i)).not.toBeInTheDocument();
-    expect(screen.queryByText("Pool contract")).not.toBeInTheDocument();
-    expect(screen.queryByText("Groth16 verifier")).not.toBeInTheDocument();
+    expect(screen.queryByText("eERC contract")).not.toBeInTheDocument();
+    expect(screen.queryByText("Registrar")).not.toBeInTheDocument();
     expect(screen.queryByText(/zero-knowledge guarantee/i)).not.toBeInTheDocument();
   });
 
@@ -95,10 +95,10 @@ describe("OnChainDetails", () => {
 
     fireEvent.click(screen.getByTestId("onchain-toggle"));
 
-    expect(screen.getByText("Groth16 / BN254 · SHIELD")).toBeInTheDocument();
-    expect(screen.getByText("Pool contract")).toBeInTheDocument();
-    expect(screen.getByText("Groth16 verifier")).toBeInTheDocument();
-    expect(screen.getByText(/zero-knowledge guarantee/i)).toBeInTheDocument();
+    expect(screen.getByText("Groth16 / BN254 · eERC DEPOSIT")).toBeInTheDocument();
+    expect(screen.getByText("eERC contract")).toBeInTheDocument();
+    expect(screen.getByText("Registrar")).toBeInTheDocument();
+    expect(screen.getByText(/eERC hides amounts/i)).toBeInTheDocument();
     expect(screen.getByText("Local prover · 10.12s")).toBeInTheDocument();
   });
 });

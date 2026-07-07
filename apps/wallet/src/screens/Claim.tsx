@@ -191,6 +191,7 @@ export function Claim() {
 /** Payer side of a money request (C7). Accept / pay-a-different-amount / decline.
  *  Settlement reuses the existing ZK transfer (Send); no new money path. */
 import { listLocalHistory } from "../lib/history";
+import { USDC_BASE_UNITS } from "../lib/format";
 
 function PayRequest({ link }: { link: Extract<BenzoLink, { type: "request" }> }) {
   const nav = useNavigate();
@@ -199,7 +200,7 @@ function PayRequest({ link }: { link: Extract<BenzoLink, { type: "request" }> })
   const [unavailable, setUnavailable] = useState<RequestStatus | "missing" | null>(null);
   const requestId = link.id ?? "";
   const who = link.to || "Someone";
-  const usd = link.amount ? String(Number(link.amount) / 1e7) : "";
+  const usd = link.amount ? String(Number(link.amount) / Number(USDC_BASE_UNITS)) : "";
   const q = (withAmount: boolean) => {
     const p = new URLSearchParams();
     if (link.to) p.set("to", link.to);

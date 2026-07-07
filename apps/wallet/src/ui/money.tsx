@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { fmtUsd, splitAmount } from "../lib/format";
+import { fmtUsd, splitAmount, USDC_BASE_UNITS } from "../lib/format";
 
 /** Smoothly count a number up to its target (skipped under reduced-motion). */
 function useCountUp(target: number, durationMs = 900): number {
@@ -41,10 +41,10 @@ export function BalanceHero({
   loading?: boolean;
 }) {
   // Count up over the integer-dollar value; render the live string from it.
-  const targetDollars = Number(BigInt(stroops || 0) / 10_000_000n);
+  const targetDollars = Number(BigInt(stroops || 0) / USDC_BASE_UNITS);
   const animated = useCountUp(targetDollars);
   const { cents } = splitAmount(stroops);
-  const liveStroops = BigInt(Math.round(animated)) * 10_000_000n;
+  const liveStroops = BigInt(Math.round(animated)) * USDC_BASE_UNITS;
   const { dollars } = splitAmount(liveStroops);
 
   if (loading) {

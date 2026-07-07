@@ -1,27 +1,22 @@
-/**
- * Keychain round-trip — seal → persist → unlock → signer, the on-device custody
- * loop. Exercises seal.ts + wrapping-key.ts + keychain.ts together with no
- * browser and no chain.
- */
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { MemoryKVStore } from "../src/kvstore.js";
 import { Keychain, type WalletSecrets } from "../src/keychain.js";
 import {
-  passphraseWrappingKey,
-  prfWrappingKey,
   newSalt,
   passkeyWrappingKey,
+  passphraseWrappingKey,
+  prfWrappingKey,
 } from "../src/wrapping-key.js";
-import { sealSecret, openSecret } from "../src/seal.js";
+import { openSecret, sealSecret } from "../src/seal.js";
 
-// A fixed, valid testnet keypair (random secret + its derived address).
-const STELLAR_SECRET = "SBGOETTTZEEO4GBHAXOMUTDHTQVBEZ6BM3KCWE73F7OCJTC7ZOLGNUNG";
-const STELLAR_PUBLIC = "GA5CJLSEA6BKCHJ25B7FNXKDAC5YDQUTD3KTPL4OEPRQ6NOJGUT7GSD7";
+const EVM_PRIVATE_KEY = "0x59c6995e998f97a5a004497e5da1f271a7a138c78690d3f4b21f6757a8fb2df8";
+const EVM_ADDRESS = "0x00f6B82Ea91E429FDD6Dfed8f273190092dd14D6";
 
 const secrets: WalletSecrets = {
-  stellarSecret: STELLAR_SECRET,
+  evmPrivateKey: EVM_PRIVATE_KEY,
+  eercDecryptionKey: "ab".repeat(32),
   orgSpendId: "123456789",
-  mvkSeedHex: "ab".repeat(32),
+  mvkSeedHex: "cd".repeat(32),
 };
 
 describe("seal", () => {
@@ -45,9 +40,8 @@ describe("Keychain", () => {
     expect(made.secrets).toEqual(secrets);
     expect(await Keychain.exists(kv)).toBe(true);
 
-    // The persisted blob must be ciphertext, never the plaintext secret.
     const raw = await kv.get("benzo/keychain/v1");
-    expect(new TextDecoder().decode(raw!)).not.toContain(STELLAR_SECRET);
+    expect(new TextDecoder().decode(raw!)).not.toContain(EVM_PRIVATE_KEY);
 
     const opened = await Keychain.unlock({ kv, wrappingKey: passphraseWrappingKey("correct horse", salt) });
     expect(opened.secrets).toEqual(secrets);
@@ -62,7 +56,7 @@ describe("Keychain", () => {
     ).rejects.toThrow(/wrong passkey or passphrase/);
   });
 
-  it("hands out a signer for the stored Stellar key", async () => {
+  it("hands out an EVM signer for the stored private key", async () => {
     const kv = new MemoryKVStore();
     const kc = await Keychain.create({
       kv,
@@ -70,7 +64,8 @@ describe("Keychain", () => {
       secrets,
     });
     const signer = kc.signer();
-    expect(await signer.publicKey()).toBe(STELLAR_PUBLIC);
+    await expect(signer.address()).resolves.toBe(EVM_ADDRESS);
+    await expect(signer.signMessage("benzo")).resolves.toMatch(/^0x[0-9a-f]+$/i);
   });
 
   it("rewrap rotates the key: old fails, new opens", async () => {

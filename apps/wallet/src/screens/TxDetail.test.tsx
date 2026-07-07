@@ -46,7 +46,7 @@ describe("TxDetail", () => {
       type: "cashOut",
       name: "Cash out",
       note: "",
-      amount: "1000000000",
+      amount: "100000000",
       direction: "out",
       status: "arriving",
       timestamp: 1782370212,
@@ -66,13 +66,13 @@ describe("TxDetail", () => {
     expect(screen.queryByText(/bank payout|sent to your bank|arriving in your bank/i)).not.toBeInTheDocument();
   });
 
-  it("labels public Stellar sends as public and does not offer private proof sharing", () => {
+  it("labels public Avalanche sends as public and does not offer private proof sharing", () => {
     state.history = [{
       id: "h_public_send",
       type: "send",
       name: "You sent",
       note: "Public send",
-      amount: "10000000",
+      amount: "1000000",
       direction: "out",
       status: "settled",
       timestamp: 1782370212,
@@ -88,12 +88,12 @@ describe("TxDetail", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Public Stellar payment")).toBeInTheDocument();
+    expect(screen.getByText("Public Avalanche payment")).toBeInTheDocument();
     expect(screen.getByText("Recipient and amount are public on-chain")).toBeInTheDocument();
     expect(screen.getByText("Public")).toBeInTheDocument();
     expect(screen.getByTestId("txdetail-explorer")).toHaveAttribute(
       "href",
-      "https://stellar.expert/explorer/testnet/tx/fd9117d121b3d574b0f0899d25779f0784bb0743815089771e560c93f0736fae",
+      "https://testnet.snowtrace.io/tx/fd9117d121b3d574b0f0899d25779f0784bb0743815089771e560c93f0736fae",
     );
     expect(screen.queryByTestId("txdetail-share")).not.toBeInTheDocument();
     expect(screen.queryByText(/Only you and/i)).not.toBeInTheDocument();
@@ -105,7 +105,7 @@ describe("TxDetail", () => {
       type: "unshield",
       name: "Made public",
       note: "Moved to Public balance",
-      amount: "10000000",
+      amount: "1000000",
       direction: "out",
       status: "settled",
       timestamp: 1782370212,
@@ -134,7 +134,7 @@ describe("TxDetail", () => {
       type: "send",
       name: "You sent",
       note: "Sent privately · Couldn't send right now. Your money is safe. Please try again.",
-      amount: "50000000",
+      amount: "5000000",
       direction: "out",
       status: "failed",
       timestamp: 1782926977,
@@ -166,7 +166,7 @@ describe("TxDetail", () => {
       type: "send",
       name: "You sent",
       note: "Sent privately · Couldn't send right now. Your money is safe. Please try again.",
-      amount: "50000000",
+      amount: "5000000",
       direction: "out",
       status: "proving",
       timestamp: 1782926977,

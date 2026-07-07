@@ -16,7 +16,7 @@ import { ArrowRight, Check, Eye, Globe, Lock, ShieldCheck, Smartphone } from "lu
 import { api, type SettleResult } from "../lib/api";
 import { apiBoundaryProverPlan, apiProverKind, proverPlan } from "../lib/proverPolicy";
 import { useWallet } from "../lib/store";
-import { fmtUsd } from "../lib/format";
+import { fmtUsd, USDC_BASE_UNITS, usdcToStroops } from "../lib/format";
 import { Screen } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
 import { AmountField, Button } from "../ui/primitives";
@@ -26,7 +26,14 @@ import { OnChainDetails } from "../ui/OnChainDetails";
 type Mode = "private" | "public";
 type Phase = "form" | "busy" | "done";
 
-const toS = (a: string): string => BigInt(Math.max(0, Math.round(Number(a) * 1e7) || 0)).toString();
+const toS = (a: string): string => {
+  try {
+    const value = usdcToStroops(a);
+    return value > 0n ? value.toString() : "0";
+  } catch {
+    return "0";
+  }
+};
 const PRESET_AMOUNTS = ["1", "5", "10", "20", "50", "100"];
 
 export function convertQuickAmounts(sourceStroops: string): string[] {
@@ -154,7 +161,7 @@ export function Convert() {
           <button
             type="button"
             disabled={empty}
-            onClick={() => setAmount((Number(source) / 1e7).toString())}
+            onClick={() => setAmount((Number(source) / Number(USDC_BASE_UNITS)).toString())}
             data-testid="convert-max"
             className="rounded-full border border-hair bg-card px-4 py-1.5 text-[13px] font-semibold text-ink transition outline-none disabled:opacity-40 hover:bg-canvas focus-visible:ring-2 focus-visible:ring-accent/40"
           >

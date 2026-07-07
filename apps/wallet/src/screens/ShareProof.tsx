@@ -105,7 +105,7 @@ export function ShareProof() {
           >
             <SuccessCheck />
             <ProvableChip label={onChain ? "Verified on-chain" : "Provable"} />
-            <div className="font-display text-xl" data-testid="proof-success">You can prove you hold at least {fmtUsd(BigInt(Math.round(Number(min) * 1e7)).toString())}</div>
+            <div className="font-display text-xl" data-testid="proof-success">You can prove you hold at least {fmtUsd(usdcToStroops(min).toString())}</div>
             <div className="max-w-[280px] text-sm text-muted">
               {onDevice
                 ? "Your device generated this proof and the network confirmed it - no server ever saw your balance or your notes."
