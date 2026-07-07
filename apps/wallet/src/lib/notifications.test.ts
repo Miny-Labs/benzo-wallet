@@ -14,9 +14,9 @@ import { deriveNotifications, unreadCount, markAllRead, markRead } from "./notif
 import type { ActivityRow } from "./api.js";
 
 const rows: ActivityRow[] = [
-  { id: "r1", type: "receive", name: "Ravi", note: "", amount: "2000000000", direction: "in", status: "settled", timestamp: 100 },
-  { id: "r2", type: "send", name: "Alex", note: "", amount: "500000000", direction: "out", status: "settled", timestamp: 300 },
-  { id: "r3", type: "cashOut", name: "Cash out", note: "", amount: "1000000000", direction: "out", status: "arriving", timestamp: 200 },
+  { id: "r1", type: "receive", name: "Ravi", note: "", amount: "200000000", direction: "in", status: "settled", timestamp: 100 },
+  { id: "r2", type: "send", name: "Alex", note: "", amount: "50000000", direction: "out", status: "settled", timestamp: 300 },
+  { id: "r3", type: "cashOut", name: "Cash out", note: "", amount: "100000000", direction: "out", status: "arriving", timestamp: 200 },
 ];
 
 describe("notifications (C8 - client-side, derived from history)", () => {
@@ -69,7 +69,7 @@ describe("notifications (C8 - client-side, derived from history)", () => {
       type: "send",
       name: "Alex",
       note: "",
-      amount: "500000000",
+      amount: "50000000",
       direction: "out",
       status: "failed",
       timestamp: 400,
