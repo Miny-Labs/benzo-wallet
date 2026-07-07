@@ -1,4 +1,4 @@
-import { EERC } from "@avalabs/eerc-sdk";
+import type { EERC } from "@avalabs/eerc-sdk";
 import {
   createPublicClient,
   createWalletClient,
@@ -53,10 +53,29 @@ export function createViemClients(account: BenzoAccount): {
   };
 }
 
-export function createEerc(account: BenzoAccount): EERC | null {
+// The eERC SDK bundles snarkjs + circuit tooling (multi-MB), and is only needed
+// once the user performs an encrypted op (balance read / transfer). Load it via
+// dynamic import so it stays out of the initial bundle and is fetched on demand.
+let eercCtorPromise: Promise<typeof EERC> | null = null;
+function loadEERC(): Promise<typeof EERC> {
+  if (!eercCtorPromise) {
+    eercCtorPromise = import("@avalabs/eerc-sdk")
+      .then((m) => m.EERC)
+      .catch((err) => {
+        // Never cache a rejected import — clear it so the next encrypted op
+        // retries instead of being stuck on the same failed load all session.
+        eercCtorPromise = null;
+        throw err;
+      });
+  }
+  return eercCtorPromise;
+}
+
+export async function createEerc(account: BenzoAccount): Promise<EERC | null> {
   if (!ENCRYPTED_ERC_ADDRESS || !REGISTRAR_ADDRESS) return null;
+  const EERCClass = await loadEERC();
   const { publicClient, walletClient } = createViemClients(account);
-  return new EERC(
+  return new EERCClass(
     publicClient,
     walletClient,
     ENCRYPTED_ERC_ADDRESS,
@@ -84,7 +103,7 @@ export async function readPublicUsdcBalance(account: BenzoAccount): Promise<stri
 }
 
 export async function readEercPrivateBalance(account: BenzoAccount): Promise<string | null> {
-  const eerc = createEerc(account);
+  const eerc = await createEerc(account);
   if (!eerc || !ENCRYPTED_ERC_ADDRESS || !USDC_TOKEN_ADDRESS) return null;
   const publicKey = await eerc.fetchPublicKey(account.address);
   if (publicKey[0] === 0n && publicKey[1] === 0n) return "0";
@@ -111,7 +130,7 @@ export async function transferPrivateUsdc(
   message?: string,
 ): Promise<{ txHash: Hex }> {
   if (!USDC_TOKEN_ADDRESS) throw new Error("USDC token is not configured.");
-  const eerc = createEerc(account);
+  const eerc = await createEerc(account);
   if (!eerc) throw new Error("eERC contracts are not configured.");
   const balance = await readEercBalanceParts(eerc, account.address, USDC_TOKEN_ADDRESS);
   const auditor = await eercPublicClient(eerc).readContract({

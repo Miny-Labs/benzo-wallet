@@ -11,22 +11,25 @@ import { StageVideo } from "./ui/StageVideo";
 import { LockGate } from "./ui/LockGate";
 import { shouldLockOnOpen } from "./lib/lock";
 import { spring } from "./ui/motion";
-import { useEffect, useState } from "react";
-import { Home } from "./screens/Home";
-import { Send } from "./screens/Send";
-import { Request } from "./screens/Request";
-import { Activity } from "./screens/Activity";
-import { TxDetail } from "./screens/TxDetail";
-import { Cash } from "./screens/Cash";
-import { Convert } from "./screens/Convert";
-import { Deposit } from "./screens/Deposit";
-import { Profile } from "./screens/Profile";
-import { Notifications } from "./screens/Notifications";
-import { Contacts } from "./screens/Contacts";
-import { ShareProof } from "./screens/ShareProof";
-import { InviteExternal } from "./screens/InviteExternal";
-import { Claim } from "./screens/Claim";
-import { Work } from "./screens/Work";
+import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+// Screens are lazy-loaded so each route ships as its own chunk — only the first
+// view's code is parsed on load, the rest arrive on navigation. (Named exports,
+// so each import() is mapped to a `default` for React.lazy.)
+const Home = lazy(() => import("./screens/Home").then((m) => ({ default: m.Home })));
+const Send = lazy(() => import("./screens/Send").then((m) => ({ default: m.Send })));
+const Request = lazy(() => import("./screens/Request").then((m) => ({ default: m.Request })));
+const Activity = lazy(() => import("./screens/Activity").then((m) => ({ default: m.Activity })));
+const TxDetail = lazy(() => import("./screens/TxDetail").then((m) => ({ default: m.TxDetail })));
+const Cash = lazy(() => import("./screens/Cash").then((m) => ({ default: m.Cash })));
+const Convert = lazy(() => import("./screens/Convert").then((m) => ({ default: m.Convert })));
+const Deposit = lazy(() => import("./screens/Deposit").then((m) => ({ default: m.Deposit })));
+const Profile = lazy(() => import("./screens/Profile").then((m) => ({ default: m.Profile })));
+const Notifications = lazy(() => import("./screens/Notifications").then((m) => ({ default: m.Notifications })));
+const Contacts = lazy(() => import("./screens/Contacts").then((m) => ({ default: m.Contacts })));
+const ShareProof = lazy(() => import("./screens/ShareProof").then((m) => ({ default: m.ShareProof })));
+const InviteExternal = lazy(() => import("./screens/InviteExternal").then((m) => ({ default: m.InviteExternal })));
+const Claim = lazy(() => import("./screens/Claim").then((m) => ({ default: m.Claim })));
+const Work = lazy(() => import("./screens/Work").then((m) => ({ default: m.Work })));
 import { Onboarding } from "./screens/Onboarding";
 import { AUTH_REQUIRED_EVENT } from "./lib/api";
 import { walletExists, isWalletUnlocked } from "./lib/localWallet";
@@ -98,6 +101,36 @@ function useIsDesktop() {
   return isDesktop;
 }
 
+/**
+ * `Suspense` handles the *pending* state of a lazy import, but NOT a failed one
+ * (a stale chunk after a redeploy, or a network drop mid-load). Without this, an
+ * import error would blank the whole shell. This boundary shows a reload path
+ * instead so the wallet stays recoverable.
+ */
+class RouteErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+  render() {
+    if (this.state.failed) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+          <p className="text-sm text-muted">Couldn’t load this screen.</p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+          >
+            Reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export function App() {
   const loc = useLocation();
   const isDesktop = useIsDesktop();
@@ -157,6 +190,14 @@ export function App() {
           {showShell ? (
           <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
             <main className="no-scrollbar flex-1 overflow-y-auto">
+              <RouteErrorBoundary>
+              <Suspense
+                fallback={
+                  <div className="flex h-full items-center justify-center">
+                    <div className="h-7 w-7 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+                  </div>
+                }
+              >
               <Routes location={loc} key={loc.pathname}>
                 <Route path="/" element={<Home />} />
                 <Route path="/send" element={<Send />} />
@@ -175,6 +216,8 @@ export function App() {
                 <Route path="/work" element={<Work />} />
                 <Route path="*" element={<Home />} />
               </Routes>
+              </Suspense>
+              </RouteErrorBoundary>
             </main>
             <BottomNav />
           </div>
