@@ -43,10 +43,10 @@ export function Contacts() {
           </Button>
         ) : (
           <Card className="space-y-3 p-4" data-testid="contacts-add-form">
-            <Input label="Address or Receive Code" placeholder="G... or bzr_..." value={address} onChange={(e) => setAddress(e.target.value)} data-testid="contacts-handle" />
+            <Input label="Address or Receive Code" placeholder="0x... or bzr_..." value={address} onChange={(e) => setAddress(e.target.value)} data-testid="contacts-handle" />
             {address && !validAddress ? (
               <div className="-mt-2 text-[12px] font-medium text-danger" data-testid="contacts-handle-error">
-                Please enter a valid Stellar G-address or Benzo receive code.
+                Please enter a valid EVM address or Benzo receive code.
               </div>
             ) : null}
             <Input label="Name (optional)" placeholder="Contact name" value={name} onChange={(e) => setName(e.target.value)} data-testid="contacts-name" />

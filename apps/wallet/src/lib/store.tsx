@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { type ActivityRow, type Balance, type Contact, type Session } from "./api";
-import { readShieldedBalanceClientSide, readPublicBalanceClientSide, getClient } from "./benzoClient";
+import { api, type ActivityRow, type Balance, type Contact, type Session } from "./api";
+import { readShieldedBalanceClientSide, readPublicBalanceClientSide } from "./benzoClient";
 import { getLocalAccount, isWalletUnlocked, getLocalAccountSummary } from "./localWallet";
 import { listLocalHistory } from "./history";
 import { listLocal } from "./contacts";
@@ -74,24 +74,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         setDeviceVerified(true);
       }
       
-      let coreHistory: ActivityRow[] = [];
-      const c = await getClient();
-      if (c) {
-        coreHistory = c.getHistory().map((item) => ({
-          id: item.txHash || Math.random().toString(),
-          type: item.type,
-          name: item.counterparty || "External",
-          note: item.memo || "",
-          amount: item.amount,
-          direction: item.type === "shield" || item.type === "receive" ? "in" : "out",
-          status: item.status as any,
-          timestamp: item.timestamp,
-          txHash: item.txHash,
-        }));
-      }
+      const apiHistory = await api.history().catch(() => []);
       const local = listLocalHistory();
       const merged = [...local];
-      for (const item of coreHistory) {
+      for (const item of apiHistory) {
         if (!merged.some((x) => x.txHash === item.txHash)) {
           merged.push(item);
         }
@@ -120,18 +106,20 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const summary = getLocalAccountSummary();
       if (summary && summary.address) {
         const addr = summary.address;
-        const shortAddr = `${addr.slice(0, 4)}...${addr.slice(-4)}`;
-        setSession({
-          profile: { handle: "", name: shortAddr },
+        const fallbackSession: Session = {
+          profile: { handle: addr, name: `${addr.slice(0, 6)}...${addr.slice(-4)}` },
+          handle: addr,
           live: true,
           mode: "live",
           missing: [],
           prover: { available: ["local"], mode: "local", location: "local" },
           kycTier: 2,
-        });
+        };
+        setSession(await api.session().catch(() => fallbackSession));
       }
       await refreshBalance();
-      setContacts(listLocal());
+      const remoteContacts = await api.contacts().catch(() => []);
+      setContacts([...remoteContacts, ...listLocal()]);
       setLoading(false);
       return true;
     } catch (e) {

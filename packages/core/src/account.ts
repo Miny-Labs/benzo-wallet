@@ -1,33 +1,28 @@
-/**
- * Benzo account — the key bundle a wallet holds. UI-facing: a frontend calls
- * `BenzoClient.createOrLoadAccount()` and never touches these internals.
- *
- * An account separates three authorities (BENZO.md §4.3 / §7):
- *  - spend key (BN254 scalar): authorizes spending notes (nullifier secret)
- *  - master viewing key (X25519): binds notes for selective disclosure (MVK)
- *  - note-discovery key (X25519): scans/decrypts incoming note ciphertexts
- * Optionally a Stellar Ed25519 key for the public on/off-ramp edges
- * (SEP-10 auth, receiving unshielded USDC). Contracts stay auth-agnostic.
- */
-
-import { toHex } from "./crypto/bytes.js";
 import { hkdf } from "@noble/hashes/hkdf";
-import { ed25519 } from "@noble/curves/ed25519";
 import { sha256 } from "@noble/hashes/sha2";
-import { StrKey as StellarStrKey } from "@stellar/stellar-sdk";
-import { FIELD_MODULUS } from "./crypto/poseidon2.js";
-import {
-  deriveKeypair,
-  randomFieldElement,
-} from "./notes.js";
-import {
-  generateViewingKeypair,
-  viewingKeypairFromSecret,
-  viewingPubToScalar,
-} from "./viewkeys.js";
+import { privateKeyToAccount } from "viem/accounts";
+import { getAddress, type Hex, verifyMessage } from "viem";
+import { fromHex, toHex } from "./crypto/bytes.js";
+
+const BN254_FIELD_MODULUS =
+  21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+const SECP256K1_ORDER =
+  115792089237316195423570985008687907852837564279074904382605163141518161494337n;
+
+export interface BenzoRecipient {
+  address?: Hex;
+  spendPub: bigint;
+  viewPub: Uint8Array;
+  mvkScalar?: bigint;
+  label?: string;
+}
 
 export interface BenzoAccount {
   label: string;
+  address: Hex;
+  evmAddress: Hex;
+  evmPrivateKey: Hex;
+  eercDecryptionKey: string;
   spendSk: bigint;
   spendPub: bigint;
   mvkSecret: Uint8Array;
@@ -35,149 +30,124 @@ export interface BenzoAccount {
   mvkScalar: bigint;
   viewSecret: Uint8Array;
   viewPub: Uint8Array;
-  /** optional Stellar Ed25519 identity for public edges */
-  stellarSecret?: string;
-  stellarAddress?: string;
 }
 
-export function createAccount(opts: {
-  label?: string;
-  spendSk?: bigint;
-  mvkSecret?: Uint8Array;
-  viewSecret?: Uint8Array;
-  stellarSecret?: string;
-} = {}): BenzoAccount {
-  const spendSk = opts.spendSk ?? randomFieldElement();
-  const kp = deriveKeypair(spendSk);
-  const mvk = opts.mvkSecret ? viewingKeypairFromSecret(opts.mvkSecret) : generateViewingKeypair();
-  const view = opts.viewSecret ? viewingKeypairFromSecret(opts.viewSecret) : generateViewingKeypair();
-  const stellarSecret = opts.stellarSecret;
-  let stellarAddress: string | undefined;
-  if (stellarSecret) {
-    const seed = new Uint8Array(StellarStrKey.decodeEd25519SecretSeed(stellarSecret));
-    stellarAddress = StellarStrKey.encodeEd25519PublicKey(Buffer.from(ed25519.getPublicKey(seed)));
+export type ClaimAppScope = "consumer" | "business";
+export type SignMessage = (message: string) => Promise<Uint8Array | Hex> | Uint8Array | Hex;
+
+export const NOTE_KEY_MESSAGE = "BENZO-EERC-KEY-v1";
+
+function randomBytes(length: number): Uint8Array {
+  const cryptoApi = globalThis.crypto;
+  if (!cryptoApi?.getRandomValues) {
+    throw new Error("secure random source unavailable");
   }
+  return cryptoApi.getRandomValues(new Uint8Array(length));
+}
+
+function bytes(input: Uint8Array | string): Uint8Array {
+  return typeof input === "string" ? fromHex(input) : input;
+}
+
+function deriveBytes(ikm: Uint8Array, info: string, length = 32): Uint8Array {
+  return new Uint8Array(hkdf(sha256, ikm, undefined, info, length));
+}
+
+function scalarFromBytes(input: Uint8Array, modulus: bigint): bigint {
+  return BigInt(`0x${toHex(input)}`) % modulus;
+}
+
+function privateKeyFromSeed(seed: Uint8Array): Hex {
+  const raw = scalarFromBytes(seed, SECP256K1_ORDER - 1n) + 1n;
+  return `0x${raw.toString(16).padStart(64, "0")}`;
+}
+
+function eercKeyFromSeed(seed: Uint8Array): string {
+  return toHex(seed).slice(0, 64).padStart(64, "0");
+}
+
+function pubBytes(seed: Uint8Array, domain: string): Uint8Array {
+  return deriveBytes(seed, `benzo/eerc/${domain}`, 32);
+}
+
+export function createAccount(
+  opts: {
+    label?: string;
+    seed?: Uint8Array;
+    spendSk?: bigint;
+    mvkSecret?: Uint8Array;
+    viewSecret?: Uint8Array;
+    evmPrivateKey?: Hex;
+    eercDecryptionKey?: string;
+  } = {},
+): BenzoAccount {
+  const seed = opts.seed ?? randomBytes(32);
+  const privateKey = opts.evmPrivateKey ?? privateKeyFromSeed(deriveBytes(seed, "benzo/eerc/evm-private-key"));
+  const account = privateKeyToAccount(privateKey);
+  const spendSk =
+    opts.spendSk ?? scalarFromBytes(deriveBytes(seed, "benzo/eerc/spend-scalar"), BN254_FIELD_MODULUS);
+  const mvkSecret = opts.mvkSecret ?? deriveBytes(seed, "benzo/eerc/mvk-secret");
+  const viewSecret = opts.viewSecret ?? deriveBytes(seed, "benzo/eerc/view-secret");
+  const eercDecryptionKey =
+    opts.eercDecryptionKey ?? eercKeyFromSeed(deriveBytes(seed, "benzo/eerc/decryption-key"));
+  const address = getAddress(account.address) as Hex;
+
   return {
     label: opts.label ?? "benzo-account",
+    address,
+    evmAddress: address,
+    evmPrivateKey: privateKey,
+    eercDecryptionKey,
     spendSk,
-    spendPub: kp.publicKey,
-    mvkSecret: mvk.secret,
-    mvkPub: mvk.publicKey,
-    mvkScalar: viewingPubToScalar(mvk.publicKey),
-    viewSecret: view.secret,
-    viewPub: view.publicKey,
-    stellarSecret,
-    stellarAddress,
+    spendPub: scalarFromBytes(pubBytes(seed, "spend-pub"), BN254_FIELD_MODULUS),
+    mvkSecret,
+    mvkPub: pubBytes(mvkSecret, "mvk-pub"),
+    mvkScalar: scalarFromBytes(mvkSecret, BN254_FIELD_MODULUS),
+    viewSecret,
+    viewPub: pubBytes(viewSecret, "view-pub"),
   };
 }
 
-/** Product scope a claim link belongs to — separates the two apps' key domains. */
-export type ClaimAppScope = "consumer" | "business";
-
-/**
- * Deterministically derive a full Benzo account from a claim secret (the
- * payload of a claim link). Anyone holding the secret reconstructs the exact
- * same spend/MVK/view keys and can therefore discover and spend the note that
- * was sent to this account — the basis of send-to-link.
- *
- * The `app` scope is folded into the HKDF domain separator so a consumer claim
- * secret cannot reconstruct a business account, and vice-versa — the two-app
- * boundary enforced cryptographically, not just in the UI. The "consumer"
- * domain is intentionally the legacy domain (`benzo/claim/...`) so existing
- * consumer claim links keep deriving the exact same account.
- */
 export function accountFromClaimSecret(secret: Uint8Array, app: ClaimAppScope = "consumer"): BenzoAccount {
   const sep = app === "consumer" ? "" : `${app}/`;
-  const spendOkm = hkdf(sha256, secret, undefined, `benzo/claim/${sep}spend`, 32);
-  const spendSk = BigInt("0x" + toHex(spendOkm)) % FIELD_MODULUS;
-  const mvkSecret = new Uint8Array(hkdf(sha256, secret, undefined, `benzo/claim/${sep}mvk`, 32));
-  const viewSecret = new Uint8Array(hkdf(sha256, secret, undefined, `benzo/claim/${sep}view`, 32));
-  return createAccount({ label: app === "consumer" ? "claim" : `claim-${app}`, spendSk, mvkSecret, viewSecret });
+  return createAccount({
+    label: app === "consumer" ? "claim" : `claim-${app}`,
+    seed: deriveBytes(secret, `benzo/claim/${sep}eerc-seed`),
+  });
 }
 
-/** The exact message a wallet signs once to derive Benzo's shielded note keys. */
-export const NOTE_KEY_MESSAGE = "BENZO-NOTE-KEY-v1";
-
-/**
- * Derive a full Benzo account (spend + viewing keys) from a SINGLE wallet
- * signature over NOTE_KEY_MESSAGE — the Railgun pattern. This is the piece no
- * embedded-wallet SDK (Dynamic/Privy/Para) provides: those manage only the
- * ed25519 SIGNING key, while Benzo's note keys are a separate layer. The user
- * signs `NOTE_KEY_MESSAGE` once; the same signature deterministically recovers
- * the same shielded account on any device — no second seed phrase.
- */
-export function accountFromSignedMessage(signature: Uint8Array, label = "wallet"): BenzoAccount {
-  const spendOkm = hkdf(sha256, signature, undefined, "benzo/notekey/spend", 32);
-  const spendSk = BigInt("0x" + toHex(spendOkm)) % FIELD_MODULUS;
-  const mvkSecret = new Uint8Array(hkdf(sha256, signature, undefined, "benzo/notekey/mvk", 32));
-  const viewSecret = new Uint8Array(hkdf(sha256, signature, undefined, "benzo/notekey/view", 32));
-  const stellarSeed = new Uint8Array(hkdf(sha256, signature, undefined, "benzo/notekey/stellar", 32));
-  const stellarSecret = StellarStrKey.encodeEd25519SecretSeed(Buffer.from(stellarSeed));
-  return createAccount({ label, spendSk, mvkSecret, viewSecret, stellarSecret });
+export function accountFromSignedMessage(signature: Uint8Array | Hex, label = "wallet"): BenzoAccount {
+  return createAccount({
+    label,
+    seed: deriveBytes(bytes(signature), "benzo/notekey/eerc-seed"),
+  });
 }
 
-function messageBytes(message: Uint8Array | string): Uint8Array {
-  return typeof message === "string" ? new TextEncoder().encode(message) : message;
+export async function loginWithSigner(signMessage: SignMessage, label = "wallet"): Promise<BenzoAccount> {
+  const sig = await signMessage(NOTE_KEY_MESSAGE);
+  return accountFromSignedMessage(sig, label);
 }
 
-/** Sign a short protocol challenge with the account's Stellar edge key. */
-export function signWithStellarSecret(stellarSecret: string, message: Uint8Array | string): Uint8Array {
-  const seed = new Uint8Array(StellarStrKey.decodeEd25519SecretSeed(stellarSecret));
-  return ed25519.sign(messageBytes(message), seed);
+export async function signWithEvmPrivateKey(privateKey: Hex, message: Uint8Array | string): Promise<Hex> {
+  const account = privateKeyToAccount(privateKey);
+  return account.signMessage({
+    message: typeof message === "string" ? message : { raw: toHex(message) as Hex },
+  });
 }
 
-/** Verify a Stellar edge-key signature without needing Horizon/RPC. */
-export function verifyStellarSignature(stellarAddress: string, message: Uint8Array | string, signature: Uint8Array): boolean {
+export async function verifyEvmSignature(address: string, message: Uint8Array | string, signature: Hex): Promise<boolean> {
   try {
-    const pub = new Uint8Array(StellarStrKey.decodeEd25519PublicKey(stellarAddress));
-    return ed25519.verify(signature, messageBytes(message), pub);
+    return await verifyMessage({
+      address: getAddress(address),
+      message: typeof message === "string" ? message : { raw: toHex(message) as Hex },
+      signature,
+    });
   } catch {
     return false;
   }
 }
 
-/**
- * Deterministic serverless testnet account derivation. Vercel functions cannot
- * rely on a durable `~/.benzo/account.json`; deriving from the env-held testnet
- * wallet keeps note discovery stable across cold starts while preserving app
- * domain separation. This is for managed sandbox/API identities only — real
- * end-user wallets should use `accountFromSignedMessage`/passkeys on-device.
- */
-export function accountFromServerSecret(
-  serverSecret: string | Uint8Array,
-  app: ClaimAppScope,
-  opts: { label?: string; stellarSecret?: string } = {},
-): BenzoAccount {
-  const ikm = typeof serverSecret === "string" ? new TextEncoder().encode(serverSecret) : serverSecret;
-  const spendOkm = hkdf(sha256, ikm, undefined, `benzo/serverless/${app}/spend`, 32);
-  const spendSk = BigInt("0x" + toHex(spendOkm)) % FIELD_MODULUS;
-  const mvkSecret = new Uint8Array(hkdf(sha256, ikm, undefined, `benzo/serverless/${app}/mvk`, 32));
-  const viewSecret = new Uint8Array(hkdf(sha256, ikm, undefined, `benzo/serverless/${app}/view`, 32));
-  return createAccount({
-    label: opts.label ?? `serverless-${app}`,
-    spendSk,
-    mvkSecret,
-    viewSecret,
-    stellarSecret: opts.stellarSecret,
-  });
-}
-
-/** A wallet's message-signing function (Dynamic/Privy/Para/passkey all expose one). */
-export type SignMessage = (message: string) => Promise<Uint8Array> | Uint8Array;
-
-/**
- * The headless login seam: turn ANY wallet's signer into a Benzo shielded
- * account. The user signs NOTE_KEY_MESSAGE once and `accountFromSignedMessage`
- * deterministically derives the spend/MVK/view keys — same account on every
- * device, no second seed phrase.
- *
- * This is the integration point for embedded-wallet logins. Dynamic is the
- * recommended Tier-1 Stellar provider (Privy/Para/passkeys also work): the
- * frontend obtains the wallet, gets its `signMessage`, and calls this. Nothing
- * here is frontend-specific — the signer is injected — so the seam is built and
- * testable now and the UI simply supplies the signer later.
- */
-export async function loginWithSigner(signMessage: SignMessage, label = "wallet"): Promise<BenzoAccount> {
-  const sig = await signMessage(NOTE_KEY_MESSAGE);
-  return accountFromSignedMessage(sig instanceof Uint8Array ? sig : new Uint8Array(sig), label);
+export function shortEvmAddress(address: string, n = 4): string {
+  const t = address.trim();
+  return t.length > n * 2 + 2 ? `${t.slice(0, n + 2)}…${t.slice(-n)}` : t;
 }

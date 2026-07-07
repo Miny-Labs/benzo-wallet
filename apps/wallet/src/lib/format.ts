@@ -1,12 +1,15 @@
 /**
- * Consumer-facing money formatting. The wallet speaks dollars, never stroops or
- * "7-decimal USDC": amounts come off the wire as base units (1 USDC = 1e7) and
- * render as "$1,240.50". Two decimals by default (cents); more only when the
- * trailing precision is real.
+ * Consumer-facing money formatting. The wallet speaks dollars, never token
+ * decimals: amounts come off the wire as configured USDC base units and render
+ * as "$1,240.50". Two decimals by default (cents); more only when the trailing
+ * precision is real.
  */
+import { USDC_DECIMALS } from "./network";
+
+export const USDC_BASE_UNITS = 10n ** BigInt(USDC_DECIMALS);
 
 /** "12405000000" -> "1,240.50" (grouped, ≥2 decimals, trailing zeros trimmed past cents). */
-export function usdFromStroops(minor: string | bigint, decimals = 7): string {
+export function usdFromStroops(minor: string | bigint, decimals = USDC_DECIMALS): string {
   let n: bigint;
   try {
     n = typeof minor === "bigint" ? minor : BigInt(minor || "0");
@@ -34,14 +37,14 @@ export function fmtSigned(minor: string | bigint, direction: "in" | "out"): stri
   return direction === "in" ? `+$${s}` : `−$${s}`;
 }
 
-/** Parse a typed human amount ("25", "25.50") into stroops; throws past 7 dp. */
+/** Parse a typed human amount ("25", "25.50") into USDC base units. */
 export function usdcToStroops(amount: string): bigint {
   const clean = amount.trim().replace(/[$,]/g, "");
   const neg = clean.startsWith("-");
   const [whole, frac = ""] = clean.replace(/^[-+]/, "").split(".");
-  if (frac.length > 7) throw new Error("USDC has at most 7 decimals");
-  const stroops = BigInt(whole || "0") * 10_000_000n + BigInt(frac.padEnd(7, "0") || "0");
-  return neg ? -stroops : stroops;
+  if (frac.length > USDC_DECIMALS) throw new Error(`USDC has at most ${USDC_DECIMALS} decimals`);
+  const baseUnits = BigInt(whole || "0") * USDC_BASE_UNITS + BigInt(frac.padEnd(USDC_DECIMALS, "0") || "0");
+  return neg ? -baseUnits : baseUnits;
 }
 
 /** Split a money string into [bigPart, centsPart] so the hero can size them differently. */

@@ -10,7 +10,7 @@ import { Check, Landmark, Radio, ShieldCheck, Smartphone } from "lucide-react";
 import { api, type SettleResult } from "../lib/api";
 import { apiProverKind, proverPlan } from "../lib/proverPolicy";
 import { useWallet } from "../lib/store";
-import { fmtUsd } from "../lib/format";
+import { fmtUsd, usdcToStroops } from "../lib/format";
 import { Screen } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
 import { AmountField, Button, Segmented } from "../ui/primitives";
@@ -26,7 +26,14 @@ const MIN = 5;
 const MAX_IN = 950;
 const MAX_OUT = 2500;
 
-const toS = (a: string): string => BigInt(Math.max(0, Math.round(Number(a) * 1e7) || 0)).toString();
+const toS = (a: string): string => {
+  try {
+    const value = usdcToStroops(a);
+    return value > 0n ? value.toString() : "0";
+  } catch {
+    return "0";
+  }
+};
 
 export function Cash() {
   const [sp] = useSearchParams();
@@ -184,7 +191,7 @@ function ReserveBadge({ reserve, error, onRetry }: { reserve: string | null; err
       </span>
       <div className="min-w-0 flex-1 leading-tight">
         <div className="tnum truncate text-xs font-semibold text-ink">Testnet on/off-ramp reserve {reserve != null ? `· ${fmtUsd(reserve)}` : ""}</div>
-        <div className="text-[11px] text-muted">Read live from Stellar testnet</div>
+        <div className="text-[11px] text-muted">Read live from Avalanche testnet</div>
       </div>
       <Radio size={15} className="flex-none text-accent" />
     </div>
@@ -232,7 +239,7 @@ function RampDone({ tab, amount, onChain, result, onDone }: { tab: Tab; amount: 
 
       {onChain ? (
         <div className="flex items-center gap-1.5 text-[12px] text-pos" data-testid="cash-proof">
-          <ShieldCheck size={13} /> {tab === "in" ? "Real testnet USDC shielded into Benzo" : "Edge proof settled on Stellar testnet"}
+          <ShieldCheck size={13} /> {tab === "in" ? "Testnet USDC moved into encrypted eERC balance" : "eERC withdraw settles on Avalanche testnet"}
         </div>
       ) : null}
       <div className="w-full max-w-[320px]">

@@ -15,6 +15,13 @@
     "sourceMap": false
   },
   "include": [
-    "src/**/*.ts"
+    "src/index.ts",
+    "src/index.browser.ts",
+    "src/account.ts",
+    "src/browser-prover.ts",
+    "src/prover.ts",
+    "src/crypto/bytes.ts",
+    "src/crypto/groth16.ts",
+    "src/account.test.ts"
   ]
 }

@@ -1,10 +1,11 @@
 import { useCallback, useReducer, useState } from "react";
 import { paymentReducer, initialPaymentState, type PaymentState } from "@benzo/ui/payment-state";
-import { type ProverKind, type SettleResult, type SendPhaseEvent } from "./api";
-import { clientSideReadsAvailable, sendClientSide } from "./benzoClient";
+import { api, type ProverKind, type SettleResult, type SendPhaseEvent } from "./api";
+import { sendClientSide } from "./benzoClient";
 import { usdcToStroops } from "./format";
 import { decodeRecipient } from "./recipient";
 import { saveLocalHistory } from "./history";
+import { isValidEvmAddress, normalizeEvmAddress } from "./strkey";
 
 export function useSendStream() {
   const [state, dispatch] = useReducer(paymentReducer, initialPaymentState);
@@ -31,12 +32,9 @@ export function useSendStream() {
       setReceipt(null);
       dispatch({ type: "START" });
       try {
-        const recipient = decodeRecipient(to);
-        if (!recipient) {
-          throw new Error("Invalid private recipient code.");
-        }
+        const recipient = await resolvePrivateRecipient(to);
         apply({ phase: "proving" });
-        const cs = await sendClientSide(recipient, usdcToStroops(amount).toString());
+        const cs = await sendClientSide(recipient, usdcToStroops(amount).toString(), memo);
         if (cs?.txHash) {
           const r: SettleResult = { status: "settled", txHash: cs.txHash, prover: cs.prover, amount: usdcToStroops(amount).toString(), onChain: true };
           saveLocalHistory({
@@ -69,4 +67,13 @@ export function useSendStream() {
   }, []);
 
   return { state: state as PaymentState, receipt, run, reset };
+}
+
+async function resolvePrivateRecipient(to: string): Promise<`0x${string}`> {
+  const trimmed = to.trim();
+  if (isValidEvmAddress(trimmed)) return normalizeEvmAddress(trimmed) as `0x${string}`;
+  const decoded = decodeRecipient(trimmed);
+  if (decoded?.address) return decoded.address;
+  const resolved = await api.resolveHandle(trimmed);
+  return resolved.address;
 }

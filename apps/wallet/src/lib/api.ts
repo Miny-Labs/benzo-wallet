@@ -1,8 +1,7 @@
-/**
- * Typed client for @benzo/wallet-api. Same-origin "/api" (Vite proxies to :8791).
- * The UI talks ONLY to this - never to the chain directly - so a screen renders
- * dollars + plain-English status and never touches stroops/proofs/tx plumbing.
- */
+import { createSiweMessage } from "viem/siwe";
+import { getAddress, isAddress, type Address, type Hex } from "viem";
+import { CHAIN_ID } from "./network";
+
 export type ProverKind = "local";
 
 export interface Session {
@@ -31,7 +30,6 @@ export interface ActivityRow {
   timestamp: number;
   txHash?: string;
   tone?: "accent" | "amber" | "neutral";
-  /** legacy local row, not a real on-chain settlement - the UI badges it. */
   unverified?: boolean;
 }
 export interface Contact {
@@ -119,65 +117,28 @@ export interface DeviceAuthProof {
   ttlSeconds?: number;
 }
 
-export function apiHref(path: string): string {
-  return `/api/rpc?path=${encodeURIComponent(path)}`;
-}
+type ApiUser = {
+  address: string;
+  id: string;
+  roles: string[];
+};
 
-const GOOGLE_TOKEN_KEY = "benzo.googleCredential";
-const GOOGLE_IDENTITY_KEY = "benzo.identityKey";
+const env = import.meta.env as unknown as Record<string, string | undefined>;
+const API_BASE_URL = (env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 const IDEMPOTENCY_PREFIX = "benzo.idempotency.wallet.v1:";
+const SIWE_ADDRESS_KEY = "benzo.siweAddress";
 const READ_TIMEOUT_MS = 15_000;
+
 export const AUTH_REQUIRED_EVENT = "benzo:auth-required";
 export const AUTH_CHANGED_EVENT = "benzo:auth-changed";
 
-function b64urlJson(seg: string): Record<string, unknown> | null {
-  try {
-    return JSON.parse(atob(seg.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(seg.length / 4) * 4, "="))) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-function identityKeyFromCredential(credential: string): string {
-  const parts = credential.split(".");
-  const payload = parts.length === 3 ? b64urlJson(parts[1]) : null;
-  const iss = typeof payload?.iss === "string" ? payload.iss : "unknown";
-  const aud = typeof payload?.aud === "string" ? payload.aud : "unknown";
-  const sub = typeof payload?.sub === "string" ? payload.sub : "unknown";
-  let h = 0x811c9dc5;
-  for (const ch of `wallet|${iss}|${aud}|${sub}`) {
-    h ^= ch.charCodeAt(0);
-    h = Math.imul(h, 0x01000193);
-  }
-  return `g${(h >>> 0).toString(16).padStart(8, "0")}`;
-}
-
-export function storeGoogleCredential(credential: string): void {
-  const nextIdentity = identityKeyFromCredential(credential);
-  const prevIdentity = localStorage.getItem(GOOGLE_IDENTITY_KEY);
-  if (prevIdentity && prevIdentity !== nextIdentity) {
-    for (const key of [
-      "benzo.onboarded",
-      "benzo.contacts.local.v1",
-      "benzo.requests.v1",
-      "benzo.notif.read.v1",
-      "benzo.hidden",
-    ]) localStorage.removeItem(key);
-  }
-  localStorage.setItem(GOOGLE_IDENTITY_KEY, nextIdentity);
-  localStorage.setItem(GOOGLE_TOKEN_KEY, credential);
-  window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
-}
-
-export function clearGoogleCredential(): void {
-  localStorage.removeItem(GOOGLE_TOKEN_KEY);
-  localStorage.removeItem(GOOGLE_IDENTITY_KEY);
-  window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+export function apiHref(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE_URL}${normalized}`;
 }
 
 export function clearHostedAuthState(): void {
-  localStorage.removeItem(GOOGLE_TOKEN_KEY);
-  localStorage.removeItem(GOOGLE_IDENTITY_KEY);
+  localStorage.removeItem(SIWE_ADDRESS_KEY);
   localStorage.removeItem("benzo.onboarded");
   window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
 }
@@ -188,25 +149,27 @@ export function notifyAuthRequired(): void {
 }
 
 export function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem(GOOGLE_TOKEN_KEY);
-  return token ? { authorization: `Bearer ${token}` } : {};
+  return {};
 }
 
 export function currentGoogleCredential(): string | null {
-  return localStorage.getItem(GOOGLE_TOKEN_KEY);
+  return localStorage.getItem(SIWE_ADDRESS_KEY);
+}
+
+export function storeGoogleCredential(address: string): void {
+  if (isAddress(address, { strict: false })) {
+    localStorage.setItem(SIWE_ADDRESS_KEY, getAddress(address).toLowerCase());
+    window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+  }
+}
+
+export function clearGoogleCredential(): void {
+  localStorage.removeItem(SIWE_ADDRESS_KEY);
+  window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
 }
 
 export function credentialLooksWellFormed(credential = currentGoogleCredential()): boolean {
-  if (!credential) return false;
-  const parts = credential.split(".");
-  if (parts.length !== 3) return false;
-  const payload = b64urlJson(parts[1]);
-  if (!payload) return false;
-  if (typeof payload.sub !== "string" || !payload.sub) return false;
-  if (typeof payload.exp === "number" && payload.exp * 1000 <= Date.now()) return false;
-  if (parts[0] === "benzo-test" || parts[0] === "benzo-test-v1") return payload.iss === "benzo:test";
-  if (parts[0] === "benzo-device-v1") return payload.iss === "benzo:device" && payload.aud === "benzo:wallet";
-  return typeof payload.iss === "string" && typeof payload.aud === "string";
+  return !!credential && isAddress(credential, { strict: false });
 }
 
 function shortHash(input: string): string {
@@ -239,18 +202,21 @@ function idempotencyKey(path: string, init?: RequestInit): { key: string; clear:
   return { key, clear: () => localStorage.removeItem(storageKey) };
 }
 
-export function prepareApiRequest(path: string, init?: RequestInit): { url: string; init: RequestInit; clearIdempotency?: () => void; authToken: string | null } {
+export function prepareApiRequest(path: string, init?: RequestInit): {
+  url: string;
+  init: RequestInit;
+  clearIdempotency?: () => void;
+  authToken: string | null;
+} {
   const headers = new Headers(init?.headers);
-  headers.set("content-type", headers.get("content-type") ?? "application/json");
-  const authToken = currentGoogleCredential();
-  if (authToken) headers.set("authorization", `Bearer ${authToken}`);
+  if (init?.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   const idem = idempotencyKey(path, init);
   if (idem) headers.set("Idempotency-Key", idem.key);
   return {
     url: apiHref(path),
-    init: { ...init, headers },
+    init: { ...init, credentials: "include", headers },
     clearIdempotency: idem?.clear,
-    authToken,
+    authToken: currentGoogleCredential(),
   };
 }
 
@@ -264,9 +230,7 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     : prepared.init;
   let res: Response | undefined;
   try {
-    if (timeoutController) {
-      timeout = setTimeout(() => timeoutController.abort(), READ_TIMEOUT_MS);
-    }
+    if (timeoutController) timeout = setTimeout(() => timeoutController.abort(), READ_TIMEOUT_MS);
     res = await fetch(prepared.url, requestInit);
     if (!res.ok) {
       let detail = `HTTP ${res.status}`;
@@ -276,14 +240,10 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
       } catch {
         /* ignore */
       }
-      if (res.status === 401 && path !== "/auth/google") {
-        const currentToken = currentGoogleCredential();
-        const sameStaleToken = !!prepared.authToken && currentToken === prepared.authToken;
-        const stillUnauthenticated = !prepared.authToken && !currentToken;
-        if (sameStaleToken || stillUnauthenticated) notifyAuthRequired();
-      }
+      if (res.status === 401) notifyAuthRequired();
       throw new Error(detail);
     }
+    if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
   } catch (e) {
     if ((e as Error)?.name === "AbortError") {
@@ -296,139 +256,209 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
+function sessionFromUser(user: ApiUser): Session {
+  const handle = user.address;
+  return {
+    profile: { handle, name: `${user.address.slice(0, 6)}…${user.address.slice(-4)}` },
+    handle,
+    live: true,
+    mode: "live",
+    missing: [],
+    prover: { available: ["local"], mode: "local", location: "local" },
+  };
+}
+
+function normalizeHandle(handle: string): string {
+  return handle.trim().replace(/^@/, "").toLowerCase();
+}
+
+function unsupportedWorkflow(_amount = "0"): SettleResult {
+  throw new Error("This workflow is waiting for the Avalanche/eERC flow issue.");
+}
+
+function tokenClaimLink(token: string): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return `${origin}/claim?token=${encodeURIComponent(token)}`;
+}
+
+function mapActivity(row: Record<string, unknown>): ActivityRow {
+  const txHash = typeof row.txHash === "string" ? row.txHash : undefined;
+  const from = typeof row.fromAddr === "string" ? row.fromAddr : "";
+  const to = typeof row.toAddr === "string" ? row.toAddr : "";
+  const eventName = typeof row.eventName === "string" ? row.eventName : "eERC event";
+  const blockTime = typeof row.blockTime === "string" ? Date.parse(row.blockTime) : Date.now();
+  return {
+    id: txHash ?? `${eventName}-${blockTime}`,
+    type: eventName,
+    name: to || from || "Encrypted eERC event",
+    note: "Encrypted eERC activity. Amount decrypts on your device.",
+    amount: "0",
+    direction: to ? "in" : "out",
+    status: "settled",
+    timestamp: Math.floor(blockTime / 1000),
+    txHash,
+  };
+}
+
 export const api = {
-  authConfig: () => http<{ googleClientId: string | null; google: boolean }>("/auth/config"),
-  localVerificationAuth: (subject?: string) =>
-    http<{ token: string; tokenType: string; expiresIn: number }>("/auth/local", {
+  signInWithSiwe: async (
+    address: Address,
+    signMessage: (message: string) => Promise<Hex>,
+  ): Promise<{ user: ApiUser }> => {
+    const normalized = getAddress(address);
+    const nonce = await http<{ expiresAt: string; nonce: string }>(`/auth/nonce?address=${encodeURIComponent(normalized)}`);
+    const apiUrl = API_BASE_URL
+      ? new URL(API_BASE_URL, typeof window !== "undefined" ? window.location.origin : "http://localhost")
+      : new URL(typeof window !== "undefined" ? window.location.origin : "http://localhost");
+    const message = createSiweMessage({
+      address: normalized,
+      chainId: CHAIN_ID,
+      domain: apiUrl.host,
+      nonce: nonce.nonce,
+      statement: "Sign in to Benzo Wallet.",
+      uri: typeof window !== "undefined" ? window.location.origin : apiUrl.origin,
+      version: "1",
+    });
+    const signature = await signMessage(message);
+    const result = await http<{ user: ApiUser }>("/auth/verify", {
       method: "POST",
-      body: JSON.stringify({
-        subject,
-        name: "Local Verification Wallet",
-        ttlSeconds: 3600,
-      }),
-    }),
-  deviceAuth: (proof: DeviceAuthProof) =>
-    http<{ token: string; tokenType: string; expiresIn: number }>("/auth/device", {
-      method: "POST",
-      body: JSON.stringify(proof),
-    }),
-  googleVerify: (credential: string, nonce?: string) =>
-    http<{ verified: boolean; sub?: string; email?: string; name?: string; error?: string; configured?: boolean }>(
-      "/auth/google",
-      { method: "POST", body: JSON.stringify({ credential, nonce }) },
-    ),
-  session: () => http<Session>("/session"),
-  recoveryStatus: () => http<RecoveryStatus>("/recovery/status"),
-  deleteAccount: () => http<DeleteAccountResult>("/account", { method: "DELETE", body: "{}" }),
-  balance: () => http<Balance>("/balance"),
-  rampReserve: () => http<{ reserve: string | null; live: boolean }>("/ramp/reserve"),
-  depositInfo: () => http<{ address: string | null; liquid: string; asset: string; issuer: string; live: boolean }>("/deposit-address"),
-  importDeposit: (amount?: string, prover: ProverKind = "local") =>
-    http<SettleResult>("/import", { method: "POST", body: JSON.stringify({ amount, prover }) }),
-  /** The "Public" balance: plain liquid USDC on the account (send to/receive from any wallet). */
-  publicBalance: () =>
-    http<{ stroops: string; address: string; asset: string; issuer: string; live: boolean }>("/public-balance"),
-  /** "Make public": unshield from the private pool back to your own public balance. */
-  makePublic: (amount: string, prover: ProverKind = "local") =>
-    http<SettleResult>("/make-public", { method: "POST", body: JSON.stringify({ amount, prover }) }),
-  /** "Send to a wallet": pay any external Stellar G-address from the Public balance. */
-  sendPublic: (to: string, amount: string) =>
-    http<{ txHash?: string; onChain: boolean }>("/send-public", { method: "POST", body: JSON.stringify({ to, amount }) }),
-  history: () => http<ActivityRow[]>("/history"),
-  proofReceipts: () => http<ProofReceipt[]>("/proof-receipts"),
-  contacts: () => http<Contact[]>("/contacts"),
-  send: (to: string, amount: string, memo?: string, prover: ProverKind = "local", requestId?: string) =>
-    http<SettleResult>("/send", { method: "POST", body: JSON.stringify({ to, amount, memo, prover, requestId }) }),
-  /** Streaming send: drives the 3-phase ceremony via SSE-over-fetch (POST). */
+      body: JSON.stringify({ message, signature }),
+    });
+    storeGoogleCredential(normalized);
+    return result;
+  },
+  logout: async () => {
+    const result = await http<{ ok: boolean }>("/auth/logout", { method: "POST", body: "{}" });
+    clearGoogleCredential();
+    return result;
+  },
+  authConfig: async () => ({ googleClientId: null, google: false }),
+  localVerificationAuth: async (_subject?: string) => {
+    throw new Error("Local token auth was replaced by SIWE.");
+  },
+  deviceAuth: async (_proof: DeviceAuthProof) => {
+    throw new Error("Device token auth was replaced by SIWE.");
+  },
+  googleVerify: async (_credential: string, _nonce?: string) => ({
+    verified: false,
+    configured: false,
+    error: "Google auth was replaced by SIWE.",
+  }),
+  session: async () => {
+    const { user } = await http<{ user: ApiUser }>("/auth/me");
+    return sessionFromUser(user);
+  },
+  recoveryStatus: async (): Promise<RecoveryStatus> => ({
+    status: "ok",
+    recovery: {
+      bound: false,
+      status: "unbound",
+      custody: "non-custodial",
+      nextSteps: ["Your wallet is secured by this device backup."],
+    },
+  }),
+  deleteAccount: async (): Promise<DeleteAccountResult> => {
+    await api.logout();
+    return { deleted: true };
+  },
+  balance: async () => ({ stroops: "0", live: false, source: "chain" as const }),
+  rampReserve: async () => ({ reserve: null, live: false }),
+  depositInfo: async () => ({ address: null, liquid: "0", asset: "USDC", issuer: "", live: false }),
+  importDeposit: async (amount = "0", _prover: ProverKind = "local") => unsupportedWorkflow(amount),
+  publicBalance: async () => ({ stroops: "0", address: "", asset: "USDC", issuer: "", live: false }),
+  makePublic: async (amount: string, _prover: ProverKind = "local") => unsupportedWorkflow(amount),
+  sendPublic: async (_to: string, amount: string) => ({
+    txHash: undefined,
+    onChain: false,
+    amount,
+    status: "failed" as const,
+    prover: "local" as const,
+  }),
+  history: async () => {
+    const result = await http<{ activity: Array<Record<string, unknown>>; nextCursor: string | null }>("/activity");
+    return result.activity.map(mapActivity);
+  },
+  proofReceipts: async () => [] as ProofReceipt[],
+  contacts: async () => {
+    const result = await http<{
+      contacts: Array<{ address: string; alias: string | null; favorite: boolean; handle: string | null }>;
+    }>("/contacts");
+    return result.contacts.map((row) => ({
+      handle: row.handle ? `@${row.handle}` : row.address,
+      name: row.alias ?? row.handle ?? `${row.address.slice(0, 6)}…${row.address.slice(-4)}`,
+    }));
+  },
+  send: async (_to: string, amount: string, _memo?: string, _prover: ProverKind = "local", _requestId?: string) =>
+    unsupportedWorkflow(amount),
   sendStream: async (
     args: { to: string; amount: string; memo?: string; prover?: ProverKind; requestId?: string },
     onPhase: (e: SendPhaseEvent) => void,
   ): Promise<SettleResult> => {
-    const prepared = prepareApiRequest("/send", {
+    onPhase({ phase: "failed", error: "Private sends are handled by the local eERC client." });
+    return unsupportedWorkflow(args.amount);
+  },
+  resolveHandle: async (handle: string) => {
+    const normalized = normalizeHandle(handle);
+    return http<{ address: Address; registeredOnEerc: boolean; source: string }>(`/resolve/${encodeURIComponent(normalized)}`);
+  },
+  handleAvailable: async (h: string) => {
+    try {
+      await api.resolveHandle(h);
+      return { available: false };
+    } catch (e) {
+      if ((e as Error).message === "handle_not_found") return { available: true };
+      throw e;
+    }
+  },
+  claimHandle: async (handle: string) =>
+    http<{ handle: string; address: Address; registeredOnEerc: boolean; source: string }>("/handles", {
       method: "POST",
-      headers: { accept: "text/event-stream" },
-      body: JSON.stringify(args),
+      body: JSON.stringify({ handle: normalizeHandle(handle) }),
+    }).then((result) => ({ handle: `@${result.handle}`, txHash: undefined, onChain: result.registeredOnEerc })),
+  request: async (_amount?: string, _memo?: string) => ({ link: "", id: "" }),
+  requestStatus: async (id: string) => ({ id, status: "missing" as const, onChain: false }),
+  reconcileRequest: async (id: string) => ({ id, status: "missing" as const, onChain: false, reconciled: false }),
+  cancelRequest: async (id: string) => ({ id, status: "cancelled" as const, onChain: false }),
+  invite: async (amount: string, note?: string): Promise<InviteResult> => {
+    const result = await http<{
+      invite: { expiresAt: string; id: string; kind: "invite" | "gift"; note: string | null; status: string };
+      token: string;
+    }>("/invites", {
+      method: "POST",
+      body: JSON.stringify({ giftAmount: amount, kind: "gift", note: note ?? null }),
     });
-    const res = await fetch(prepared.url, prepared.init);
-    const ctype = res.headers.get("content-type") ?? "";
-    if (!ctype.includes("text/event-stream")) {
-      // BFF declined to stream (or errored) → treat as a single JSON reply.
-      const body = (await res.json()) as SettleResult & { error?: string };
-      if (res.status < 500) prepared.clearIdempotency?.();
-      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
-      return body;
-    }
-    const reader = res.body!.getReader();
-    const dec = new TextDecoder();
-    let buf = "";
-    let final: SettleResult | null = null;
-    const processFrames = (flush = false) => {
-      const frames = buf.split("\n\n");
-      buf = flush ? "" : frames.pop() ?? "";
-      for (const frame of frames) {
-        let ev = "message";
-        let data = "";
-        for (const line of frame.split("\n")) {
-          if (line.startsWith("event:")) ev = line.slice(6).trim();
-          else if (line.startsWith("data:")) data += line.slice(5).trim();
-        }
-        if (!data) continue;
-        if (ev === "phase") onPhase(JSON.parse(data) as SendPhaseEvent);
-        else if (ev === "done") final = JSON.parse(data) as SettleResult;
-      }
+    const expiresAt = Date.parse(result.invite.expiresAt);
+    return {
+      amount,
+      claimAccountPub: "",
+      expiresAt,
+      link: tokenClaimLink(result.token),
+      localId: result.invite.id,
+      onChain: false,
     };
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      processFrames();
-    }
-    buf += dec.decode();
-    processFrames(true);
-    if (!final) throw new Error("send did not complete");
-    prepared.clearIdempotency?.();
-    return final;
   },
-  handleAvailable: (h: string) =>
-    http<{ available: boolean }>(`/handle/available?h=${encodeURIComponent(h)}`),
-  claimHandle: (handle: string) =>
-    http<{ handle: string; txHash?: string; onChain: boolean }>("/handle/claim", {
-      method: "POST",
-      body: JSON.stringify({ handle }),
-    }),
-  request: (amount?: string, memo?: string) =>
-    http<{ link: string; id: string }>("/request", { method: "POST", body: JSON.stringify({ amount, memo }) }),
-  requestStatus: (id: string) =>
-    http<{ id: string; status: "open" | "partially_paid" | "paid" | "expired" | "cancelled" | "missing"; onChain: boolean; amount?: string; minAmount?: string; paidTotal?: string; expiry?: number }>(
-      `/request/status?id=${encodeURIComponent(id)}`,
-    ),
-  reconcileRequest: (id: string) =>
-    http<{ id: string; status: "open" | "partially_paid" | "paid" | "expired" | "cancelled" | "missing"; onChain: boolean; amount?: string; minAmount?: string; paidTotal?: string; expiry?: number; reconciled: boolean; txHash?: string }>(
-      "/request/reconcile",
-      { method: "POST", body: JSON.stringify({ id }) },
-    ),
-  cancelRequest: (id: string) =>
-    http<{ id: string; status: "cancelled"; onChain: boolean }>("/request/cancel", { method: "POST", body: JSON.stringify({ id }) }),
-  invite: (amount: string, note?: string) =>
-    http<InviteResult>("/invite", { method: "POST", body: JSON.stringify({ amount, note }) }),
-  invites: () => http<InviteSummary[]>("/invites"),
-  refundInvite: (localId: string) =>
-    http<{ amount: string; txHash?: string; onChain: boolean }>("/invite/refund", { method: "POST", body: JSON.stringify({ localId }) }),
-  claimStatus: (secret: string, amount?: string, expiresAt?: string) => {
-    const qs = new URLSearchParams({ secret });
-    if (amount) qs.set("amount", amount);
-    if (expiresAt) qs.set("expiresAt", expiresAt);
-    return http<ClaimStatus>(`/claim/status?${qs.toString()}`);
+  invites: async () => [] as InviteSummary[],
+  refundInvite: async (localId: string) => ({ amount: "0", onChain: false, txHash: localId }),
+  claimStatus: async (secret: string, _amount?: string, _expiresAt?: string) => {
+    const result = await http<{ invite: { expiresAt: string; status: string } }>(`/invites/${encodeURIComponent(secret)}`);
+    const status = result.invite.status === "created" ? "open" : result.invite.status;
+    return {
+      status: status as ClaimStatus["status"],
+      expiresAt: Date.parse(result.invite.expiresAt),
+      onChain: false,
+    };
   },
-  claim: (secret: string, localId?: string, amount?: string) =>
-    http<{ amount: string; txHash?: string; onChain: boolean }>("/claim", { method: "POST", body: JSON.stringify({ secret, localId, amount }) }),
-  cashOut: (amount: string, prover: ProverKind = "local") =>
-    http<SettleResult>("/cash-out", { method: "POST", body: JSON.stringify({ amount, prover }) }),
-  addMoney: (amount: string, prover: ProverKind = "local") =>
-    http<SettleResult>("/add-money", { method: "POST", body: JSON.stringify({ amount, prover }) }),
-  shareProof: (min: string, prover: ProverKind = "local") =>
-    http<{ holds: boolean; proof: string; publics: string[]; onChain: boolean; prover: ProverKind }>("/share-proof", {
-      method: "POST",
-      body: JSON.stringify({ min, prover }),
-    }),
+  claim: async (secret: string, _localId?: string, amount = "0") => {
+    await http(`/invites/${encodeURIComponent(secret)}/claim`, { method: "POST", body: "{}" });
+    return { amount, onChain: false };
+  },
+  cashOut: async (amount: string, _prover: ProverKind = "local") => unsupportedWorkflow(amount),
+  addMoney: async (amount: string, _prover: ProverKind = "local") => unsupportedWorkflow(amount),
+  shareProof: async (_min: string, _prover: ProverKind = "local") => ({
+    holds: false,
+    proof: "",
+    publics: [],
+    onChain: false,
+    prover: "local" as const,
+  }),
 };

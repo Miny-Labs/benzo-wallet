@@ -7,18 +7,13 @@ import {
   createDeviceAuthProof,
   isWebAuthnAvailable,
 } from "./passkey.js";
-import { verifyStellarSignature } from "@benzo/core";
+import { verifyEvmSignature } from "@benzo/core";
 
 // ---- a deterministic, PRF-capable mock authenticator ----------------------
 function b64url(b: Uint8Array): string {
   let s = "";
   for (const x of b) s += String.fromCharCode(x);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-function fromB64url(s: string): Uint8Array {
-  const pad = s.length % 4 ? "=".repeat(4 - (s.length % 4)) : "";
-  const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/") + pad);
-  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
 }
 async function sha256(b: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest("SHA-256", b as BufferSource));
@@ -133,12 +128,12 @@ describe("passkey on-device signing (PRF)", () => {
     await registerPasskey({ userName: "alex" });
     const account = await loginWithPasskey();
 
-    const proof = createDeviceAuthProof(account, { origin: "http://localhost:5175", ttlSeconds: 3600 });
+    const proof = await createDeviceAuthProof(account, { origin: "http://localhost:5175", ttlSeconds: 3600 });
 
-    expect(proof.address).toBe(account.stellarAddress);
-    expect(proof.message).toContain(`address=${account.stellarAddress}`);
-    expect(proof.signature).toMatch(/^[A-Za-z0-9_-]+$/);
-    expect(verifyStellarSignature(proof.address, proof.message, fromB64url(proof.signature))).toBe(true);
+    expect(proof.address).toBe(account.address);
+    expect(proof.message).toContain(`address=${account.address}`);
+    expect(proof.signature).toMatch(/^0x[0-9a-f]+$/i);
+    await expect(verifyEvmSignature(proof.address, proof.message, proof.signature as `0x${string}`)).resolves.toBe(true);
   });
 });
 

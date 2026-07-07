@@ -8,8 +8,8 @@ import { shouldLockOnSend, requireUnlock } from "../lib/lock";
 import { mergeContacts } from "../lib/contacts";
 import { needsStepUp, stepUpMessage, sendCapUsd } from "../lib/tiers";
 import { useWallet } from "../lib/store";
-import { fmtUsd } from "../lib/format";
-import { isValidStellarAddress, shortAddress } from "../lib/strkey";
+import { fmtUsd, usdcToStroops } from "../lib/format";
+import { isValidEvmAddress, shortAddress } from "../lib/strkey";
 import { classifyRecipientInput, looksLikeStellarAddressInput, type RecipientKind } from "../lib/recipient";
 import { Screen, motion } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
@@ -23,9 +23,12 @@ type Step = "form" | "confirm";
 type Kind = RecipientKind;
 
 function toStroopsSafe(amount: string): string {
-  const n = Number(amount);
-  if (!Number.isFinite(n) || n <= 0) return "0";
-  return BigInt(Math.round(n * 1e7)).toString();
+  try {
+    const value = usdcToStroops(amount);
+    return value > 0n ? value.toString() : "0";
+  } catch {
+    return "0";
+  }
 }
 
 export function Send() {
@@ -50,7 +53,7 @@ export function Send() {
   const recipient = to.trim();
   const kind = useMemo(() => (recipient ? classifyRecipientInput(recipient) : null), [recipient]);
 
-  const badAddress = useMemo(() => looksLikeStellarAddressInput(recipient) && !isValidStellarAddress(recipient), [recipient]);
+  const badAddress = useMemo(() => looksLikeStellarAddressInput(recipient) && !isValidEvmAddress(recipient), [recipient]);
   useEffect(() => {
     void refreshBalance();
   }, [refreshBalance]);

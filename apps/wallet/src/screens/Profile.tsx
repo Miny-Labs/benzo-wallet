@@ -242,7 +242,7 @@ export function Profile() {
               <div className="min-w-0 flex-1">
                 <div className="text-[15px] font-semibold">Your account stays yours</div>
                 <div className="mt-1 text-[12.5px] leading-relaxed text-muted">
-                  Move money to any Stellar wallet before leaving. Private funds must be made public or cashed out first. Deleting creates a fresh Benzo wallet next time you sign in.
+                  Move money to any Avalanche wallet before leaving. Private funds must be made public or cashed out first. Deleting creates a fresh Benzo wallet next time you sign in.
                 </div>
               </div>
             </div>

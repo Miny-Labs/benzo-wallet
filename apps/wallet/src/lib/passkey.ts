@@ -18,7 +18,7 @@
 import {
   loginWithSigner,
   NOTE_KEY_MESSAGE,
-  signWithStellarSecret,
+  signWithEvmPrivateKey,
   type BenzoAccount,
   type SignMessage,
 } from "@benzo/core";
@@ -244,13 +244,13 @@ export function deviceAuthMessage(address: string, origin = window.location.orig
   ].join("\n");
 }
 
-export function createDeviceAuthProof(account: BenzoAccount, opts: { ttlSeconds?: number; origin?: string } = {}): DeviceAuthProof {
-  if (!account.stellarAddress || !account.stellarSecret) throw new Error("Device account has no Stellar signer.");
-  const message = deviceAuthMessage(account.stellarAddress, opts.origin);
+export async function createDeviceAuthProof(account: BenzoAccount, opts: { ttlSeconds?: number; origin?: string } = {}): Promise<DeviceAuthProof> {
+  if (!account.address || !account.evmPrivateKey) throw new Error("Device account has no EVM signer.");
+  const message = deviceAuthMessage(account.address, opts.origin);
   return {
-    address: account.stellarAddress,
+    address: account.address,
     message,
-    signature: toB64url(signWithStellarSecret(account.stellarSecret, message)),
+    signature: await signWithEvmPrivateKey(account.evmPrivateKey, message),
     ttlSeconds: opts.ttlSeconds,
   };
 }

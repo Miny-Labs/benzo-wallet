@@ -78,7 +78,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
 
   async function handleImport() {
     if (!importedText.trim()) {
-      setErr("Please paste your backup JSON or Stellar secret key.");
+      setErr("Please paste your Avalanche Benzo backup JSON or EVM private key.");
       return;
     }
     if (lockMethod === "passphrase" && passphrase.length < 4) {
@@ -224,13 +224,13 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           <Pane key="import" onBack={() => { setStep("welcome"); setErr(null); }}>
             <div className="my-auto flex flex-col w-full pb-6">
               <h1 className="font-display text-[26px] leading-tight">Import wallet</h1>
-              <p className="mt-2 text-[14px] text-muted">Paste your Backup JSON or Stellar private key.</p>
+              <p className="mt-2 text-[14px] text-muted">Paste your backup JSON or EVM private key.</p>
 
               <div className="mt-4">
                 <textarea
                   value={importedText}
                   onChange={(e) => setImportedText(e.target.value)}
-                  placeholder='Paste {"stellarSecret": "...", "orgSpendId": "...", "mvkSeedHex": "..."} or a secret key starting with "S"'
+                  placeholder='Paste {"evmPrivateKey": "0x...", "eercDecryptionKey": "...", "orgSpendId": "...", "mvkSeedHex": "..."} or a 0x private key'
                   rows={4}
                   data-testid="import-textarea"
                   className="w-full rounded-2xl border border-hair bg-canvas/60 px-4 py-3 text-[14px] text-ink placeholder:text-muted outline-none transition focus:border-accent focus:bg-card focus:ring-4 focus:ring-accent/15"

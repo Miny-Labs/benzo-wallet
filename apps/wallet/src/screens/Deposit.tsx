@@ -57,12 +57,7 @@ export function Deposit() {
   const assetCode = info?.asset || fallbackAssetCode || "USDC";
   const assetIssuer = info?.issuer || fallbackAssetIssuer || "";
 
-  // SEP-0007 payment URI so external wallets prefill the USDC asset (avoids users
-  // sending XLM or the wrong asset). Falls back to the bare address if no issuer.
-  const qrValue =
-    displayAddress && assetIssuer
-      ? `web+stellar:pay?destination=${displayAddress}&asset_code=${encodeURIComponent(assetCode)}&asset_issuer=${assetIssuer}`
-      : (displayAddress ?? "");
+  const qrValue = displayAddress ?? "";
 
   async function copy() {
     if (!displayAddress) return;
@@ -109,7 +104,7 @@ export function Deposit() {
             <div className="h-[192px] w-[192px] animate-pulse rounded-xl bg-canvas" />
           )}
           <div className="w-full">
-            <div className="text-center text-[11px] font-semibold uppercase tracking-wide text-muted">Your USDC address (Stellar)</div>
+            <div className="text-center text-[11px] font-semibold uppercase tracking-wide text-muted">Your USDC address (Avalanche)</div>
             <button onClick={copy} aria-label={displayAddress ? `Copy receive address ${displayAddress}` : "Receive address loading"} className="mt-1.5 flex w-full items-center justify-center gap-2 rounded-xl bg-canvas px-3 py-2.5 font-mono text-[12px] leading-tight text-ink transition outline-none hover:bg-canvas/70 focus-visible:ring-2 focus-visible:ring-accent/40" data-testid="deposit-address">
               <span className="break-all text-left">{displayAddress ?? "…"}</span>
               {copyState === "copied" ? <Check size={14} className="flex-none text-pos" /> : <Copy size={14} className="flex-none text-muted" />}
