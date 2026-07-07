@@ -14,7 +14,13 @@ const walletState = vi.hoisted(() => ({
     prover: { available: ["local"], mode: "local", location: "local" },
   },
   balance: { stroops: "0", live: true },
-  publicBalance: { stroops: "0", address: "G".padEnd(56, "A"), asset: "USDC", issuer: "I".padEnd(56, "A"), live: true },
+  publicBalance: {
+    stroops: "1001000000",
+    address: "0x2222222222222222222222222222222222222222",
+    asset: "USDC",
+    issuer: "",
+    live: true,
+  },
   history: [],
   contacts: [],
   loading: false,
@@ -58,7 +64,7 @@ describe("Send", () => {
       </MemoryRouter>,
     );
 
-    fireEvent.change(screen.getByTestId("send-handle"), { target: { value: "GBRMUZELYDNXSBYF5KOLLSV4XLQYNZJQNLXQ3HTFCWNRIBS3I6EUBCMP" } });
+    fireEvent.change(screen.getByTestId("send-handle"), { target: { value: "0x1111111111111111111111111111111111111111" } });
     fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "1001" } });
 
     expect(screen.getByTestId("send-overcap-hint")).toHaveTextContent("Sends over $1,000");
