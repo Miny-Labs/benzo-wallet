@@ -5,7 +5,7 @@ import { getLocalAccount } from "./localWallet";
 
 export async function getClient() {
   const account = getLocalAccount();
-  return account ? createEerc(account) : null;
+  return account ? await createEerc(account) : null;
 }
 
 export async function sendClientSide(

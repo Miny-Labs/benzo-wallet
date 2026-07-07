@@ -6,11 +6,28 @@
  * and the Soroban-encoded forms.
  */
 
-// snarkjs has no bundled types; the surface we use is tiny.
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-expect-error
-import * as snarkjs from "snarkjs";
 import { proofToSoroban, publicsToSoroban, type SnarkjsProof } from "./crypto/groth16.js";
+
+// snarkjs has no bundled types and pulls in a multi-MB WASM runtime, so it is
+// lazy-loaded via dynamic import — kept out of the initial JS bundle and only
+// fetched the first time a proof is actually generated or verified.
+interface Groth16 {
+  fullProve(
+    input: WitnessInput,
+    wasm: string | Uint8Array,
+    zkey: string | Uint8Array,
+    logger?: unknown,
+  ): Promise<{ proof: SnarkjsProof; publicSignals: string[] }>;
+  verify(vk: unknown, publicSignals: string[], proof: SnarkjsProof): Promise<boolean>;
+}
+let groth16Promise: Promise<Groth16> | null = null;
+function loadGroth16(): Promise<Groth16> {
+  if (!groth16Promise) {
+    // @ts-expect-error snarkjs ships no type declarations
+    groth16Promise = import("snarkjs").then((m) => m.groth16 as Groth16);
+  }
+  return groth16Promise;
+}
 
 export type CircuitName = "shield" | "joinsplit" | "unshield";
 
@@ -53,7 +70,8 @@ export async function prove(
   artifacts: CircuitArtifacts,
   input: WitnessInput,
 ): Promise<ProveResult> {
-  const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+  const groth16 = await loadGroth16();
+  const { proof, publicSignals } = await groth16.fullProve(
     input,
     artifacts.wasmPath,
     artifacts.zkeyPath,
@@ -72,7 +90,8 @@ export async function verifyLocal(
   publicSignals: string[],
   proof: SnarkjsProof,
 ): Promise<boolean> {
-  return snarkjs.groth16.verify(vk, publicSignals, proof);
+  const groth16 = await loadGroth16();
+  return groth16.verify(vk, publicSignals, proof);
 }
 
 /**
@@ -114,7 +133,8 @@ export class WasmProver implements ProverPort {
     const logger = this.onProgress
       ? { debug: () => {}, info: (m: string) => this.onProgress?.(m), error: () => {} }
       : undefined;
-    const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, wasm, zkey, logger);
+    const groth16 = await loadGroth16();
+    const { proof, publicSignals } = await groth16.fullProve(input, wasm, zkey, logger);
     this.onProgress?.("done");
     return {
       proof,
