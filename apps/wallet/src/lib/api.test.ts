@@ -278,6 +278,24 @@ describe("wallet API on Avalanche services/api", () => {
     );
   });
 
+  it("rejects a negative shield amount instead of shielding the full public balance", async () => {
+    clientMocks.readPublicBalanceClientSide.mockResolvedValue("2500000");
+
+    await expect(api.importDeposit("-1", "local")).rejects.toThrow("Enter a valid USDC amount.");
+
+    expect(clientMocks.readPublicBalanceClientSide).not.toHaveBeenCalled();
+    expect(clientMocks.shieldPublicUsdcClientSide).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-numeric shield amount with the invalid amount error", async () => {
+    clientMocks.readPublicBalanceClientSide.mockResolvedValue("2500000");
+
+    await expect(api.importDeposit("NaN", "local")).rejects.toThrow("Enter a valid USDC amount.");
+
+    expect(clientMocks.readPublicBalanceClientSide).not.toHaveBeenCalled();
+    expect(clientMocks.shieldPublicUsdcClientSide).not.toHaveBeenCalled();
+  });
+
   it("unshields private USDC through the local eERC client with the backend unplugged", async () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error("backend unplugged"));
     vi.stubGlobal("fetch", fetchMock);

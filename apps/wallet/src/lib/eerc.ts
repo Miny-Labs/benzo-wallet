@@ -19,6 +19,7 @@ import {
   USDC_TOKEN_ADDRESS,
 } from "./network";
 import type { BenzoAccount } from "@benzo/core";
+import { INSUFFICIENT_PRIVATE_USDC_ERROR } from "./errors";
 
 type CircuitURLs = ConstructorParameters<typeof EERC>[5];
 
@@ -204,8 +205,7 @@ export async function shieldPublicUsdc(
 
   const registrationTxHash = await ensureEercRegistered(eerc, account.address);
   const approvalTxHash = await ensureUsdcAllowance(account, amount);
-  const eercDecimals = await readEercDecimals(eerc);
-  const result = await eerc.deposit(amount, USDC_TOKEN_ADDRESS, eercDecimals, message);
+  const result = await eerc.deposit(amount, USDC_TOKEN_ADDRESS, BigInt(USDC_DECIMALS), message);
   return { approvalTxHash, registrationTxHash, txHash: result.transactionHash };
 }
 
@@ -220,6 +220,7 @@ export async function unshieldPrivateUsdc(
   if (!eerc) throw new Error("eERC contracts are not configured.");
   const registrationTxHash = await ensureEercRegistered(eerc, account.address);
   const balance = await readEercBalanceParts(eerc, account.address, USDC_TOKEN_ADDRESS);
+  if (amount > balance.decryptedBalance) throw new Error(INSUFFICIENT_PRIVATE_USDC_ERROR);
   const auditor = await readAuditorPublicKey(eerc);
   const result = await eerc.withdraw(
     amount,
@@ -270,16 +271,6 @@ async function readAuditorPublicKey(eerc: EERC): Promise<bigint[]> {
     functionName: "auditorPublicKey",
     args: [],
   } as never) as Promise<bigint[]>;
-}
-
-async function readEercDecimals(eerc: EERC): Promise<bigint> {
-  const value = await eercPublicClient(eerc).readContract({
-    address: ENCRYPTED_ERC_ADDRESS!,
-    abi: eerc.encryptedErcAbi,
-    functionName: "decimals",
-    args: [],
-  } as never);
-  return BigInt(value as bigint | number | string);
 }
 
 async function readEercBalanceParts(eerc: EERC, address: Address, token: Address): Promise<{

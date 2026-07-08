@@ -4,6 +4,7 @@ import { CHAIN_ID } from "./network";
 import { handleAvailableOnChain, normalizeHandle } from "./handleRegistry";
 import { usdcToStroops } from "./format";
 import { saveLocalHistory } from "./history";
+import { INVALID_USDC_AMOUNT_ERROR } from "./errors";
 
 export type ProverKind = "local";
 
@@ -290,7 +291,8 @@ function parseDisplayAmount(amount: string): bigint {
   try {
     return usdcToStroops(amount);
   } catch (e) {
-    throw new Error((e as Error).message || "Enter a valid USDC amount.");
+    const message = (e as Error).message;
+    throw new Error(message.startsWith("USDC has at most") ? message : INVALID_USDC_AMOUNT_ERROR);
   }
 }
 
@@ -324,6 +326,7 @@ async function localWalletAddress(): Promise<Address | null> {
 
 async function shieldAmountFromInput(amount: string): Promise<bigint> {
   const requested = parseDisplayAmount(amount);
+  if (requested < 0n) throw new Error(INVALID_USDC_AMOUNT_ERROR);
   if (requested > 0n) return requested;
   const available = BigInt(await localPublicBalance());
   if (available > 0n) return available;

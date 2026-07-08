@@ -19,6 +19,7 @@ import { PrivateChip } from "../ui/privacy";
 import { OnChainDetails } from "../ui/OnChainDetails";
 import { SendCeremony, type SendReceipt } from "../ui/send/SendCeremony";
 import { saveLocalHistory } from "../lib/history";
+import { INSUFFICIENT_PRIVATE_USDC_ERROR } from "../lib/errors";
 
 type Step = "form" | "confirm";
 type Kind = RecipientKind;
@@ -229,7 +230,7 @@ export function Send() {
               ) : null}
               {lowPrivate && !canOpenStepUp ? (
                 <div className="mx-auto mt-2 max-w-[300px] text-center text-[12px] text-[#9a6b12]" data-testid="send-low-private">
-                  Not enough private USDC. Add money or use a smaller amount.
+                  {INSUFFICIENT_PRIVATE_USDC_ERROR}
                 </div>
               ) : null}
               {checkingPrivateBalance ? (
