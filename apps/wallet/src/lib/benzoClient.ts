@@ -1,6 +1,7 @@
-import type { Address } from "viem";
+import type { Address, Hex } from "viem";
 import type { BenzoRecipient } from "@benzo/core";
 import { createEerc, readEercPrivateBalance, readPublicUsdcBalance, transferPrivateUsdc } from "./eerc";
+import { claimHandleOnChain } from "./handleRegistry";
 import { getLocalAccount } from "./localWallet";
 
 export async function getClient() {
@@ -19,6 +20,20 @@ export async function sendClientSide(
   if (!address) return null;
   const result = await transferPrivateUsdc(account, address, BigInt(amountBaseUnits), memo);
   return { txHash: result.txHash, prover: "local" };
+}
+
+/**
+ * Claim a @handle on-chain with the device wallet, so HandleRegistry.ownerOf
+ * resolves to the user's own address. Returns null when the wallet is locked.
+ * No registration UI surfaces this yet; it is the client-side registration
+ * primitive a future "claim your @handle" screen should call.
+ */
+export async function claimHandleClientSide(
+  handle: string,
+): Promise<{ handle: string; txHash: Hex; address: Address } | null> {
+  const account = getLocalAccount();
+  if (!account) return null;
+  return claimHandleOnChain(account, handle);
 }
 
 export async function clientSideReadsAvailable(): Promise<boolean> {

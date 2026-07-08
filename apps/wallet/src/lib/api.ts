@@ -1,6 +1,7 @@
 import { createSiweMessage } from "viem/siwe";
 import { getAddress, isAddress, type Address, type Hex } from "viem";
 import { CHAIN_ID } from "./network";
+import { handleAvailableOnChain, normalizeHandle } from "./handleRegistry";
 
 export type ProverKind = "local";
 
@@ -273,10 +274,6 @@ function sessionFromUser(user: ApiUser): Session {
   };
 }
 
-function normalizeHandle(handle: string): string {
-  return handle.trim().replace(/^@/, "").toLowerCase();
-}
-
 function unsupportedWorkflow(_amount = "0"): SettleResult {
   throw new Error("This workflow is waiting for the Avalanche/eERC flow issue.");
 }
@@ -402,19 +399,18 @@ export const api = {
     onPhase({ phase: "failed", error: "Private sends are handled by the local eERC client." });
     return unsupportedWorkflow(args.amount);
   },
+  // OPTIONAL fast-path / display-metadata cache only. HandleRegistry on Fuji is
+  // the source of truth (see lib/handleRegistry.ts); never gate a send on this.
   resolveHandle: async (handle: string) => {
     const normalized = normalizeHandle(handle);
     return http<{ address: Address; registeredOnEerc: boolean; source: string }>(`/resolve/${encodeURIComponent(normalized)}`);
   },
-  handleAvailable: async (h: string) => {
-    try {
-      await api.resolveHandle(h);
-      return { available: false };
-    } catch (e) {
-      if ((e as Error).message === "handle_not_found") return { available: true };
-      throw e;
-    }
-  },
+  // Availability reads the on-chain registry, not the BFF.
+  handleAvailable: (h: string) => handleAvailableOnChain(h),
+  // OPTIONAL backend augment (indexing / off-chain metadata). The authoritative
+  // registration is the client-side on-chain claim in lib/handleRegistry.ts
+  // (claimHandleOnChain), exposed via benzoClient.claimHandleClientSide, so
+  // ownerOf(handle) == the user's own address rather than the ops key.
   claimHandle: async (handle: string) =>
     http<{ handle: string; address: Address; registeredOnEerc: boolean; source: string }>("/handles", {
       method: "POST",
