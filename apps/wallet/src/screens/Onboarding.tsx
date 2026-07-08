@@ -6,7 +6,7 @@ import { Button, Input, useToast } from "../ui/primitives";
 import { fadeUp, stagger, EASE } from "../ui/motion";
 import { useWallet } from "../lib/store";
 import { isWebAuthnAvailable } from "../lib/passkey";
-import { createWallet, createWalletWithPasskey, importWallet, exportWallet } from "../lib/localWallet";
+import { createWallet, createWalletWithPasskey, importWallet, exportWallet, markWalletBackupConfirmed } from "../lib/localWallet";
 
 type Step = "welcome" | "create_lock" | "import" | "backup";
 
@@ -112,6 +112,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   async function handleFinish() {
     setBusy(true);
     try {
+      markWalletBackupConfirmed();
       await refresh();
       onDone();
     } catch (e) {

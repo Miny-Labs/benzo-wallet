@@ -4,21 +4,22 @@
  * settings dump.
  */
 import { useEffect, useState } from "react";
-import { Activity, BadgeCheck, ChevronRight, Eye, EyeOff, KeyRound, Lock, ShieldCheck, Sparkles, Trash2, Users } from "lucide-react";
+import { Activity, BadgeCheck, Check, ChevronRight, Copy, Eye, EyeOff, KeyRound, Lock, ShieldCheck, Sparkles, Trash2, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "../lib/store";
-import { api, notifyAuthRequired, type RecoveryStatus } from "../lib/api";
+import { api, notifyAuthRequired } from "../lib/api";
 import { getChainStatus } from "../lib/chain";
 import { NETWORK_LABEL } from "../lib/network";
 import { getLockSettings, setLockSettings, lockCapable, requireUnlock } from "../lib/lock";
 import { tierInfo, sendCapUsd } from "../lib/tiers";
 import { Screen, Stagger } from "../ui/motion";
-import { Avatar, Button, Card } from "../ui/primitives";
-import { getLocalAccountSummary } from "../lib/localWallet";
+import { Avatar, Button, Card, useToast } from "../ui/primitives";
+import { exportWallet, getLocalAccountSummary, getLocalRecoveryStatus, markWalletBackupConfirmed } from "../lib/localWallet";
 
 export function Profile() {
   const nav = useNavigate();
   const { session, balance, publicBalance, hidden, toggleHidden } = useWallet();
+  const toast = useToast();
   const live = session?.live;
   const summary = getLocalAccountSummary();
   const displayHandle = summary?.address ? `${summary.address.slice(0, 8)}…${summary.address.slice(-8)}` : "Local Wallet";
@@ -26,7 +27,11 @@ export function Profile() {
   // Read the chain's latest ledger DIRECTLY from the browser (no BFF) - the
   // first real "blockchain is the backend" data path. Degrades silently.
   const [ledger, setLedger] = useState<number | null>(null);
-  const [recovery, setRecovery] = useState<RecoveryStatus["recovery"] | null>(null);
+  const [recovery, setRecovery] = useState(() => getLocalRecoveryStatus());
+  const [backupText, setBackupText] = useState("");
+  const [backupOpen, setBackupOpen] = useState(false);
+  const [exportingBackup, setExportingBackup] = useState(false);
+  const [backupErr, setBackupErr] = useState<string | null>(null);
   // App lock (C4 - Cash App Security Lock parity): two device-local toggles,
   // gated by the on-device passkey. Disabled when no authenticator exists.
   const lockable = lockCapable();
@@ -71,19 +76,39 @@ export function Profile() {
     }
   }
 
-  useEffect(() => {
-    let cancelled = false;
-    api.recoveryStatus()
-      .then((r) => {
-        if (!cancelled) setRecovery(r.recovery);
-      })
-      .catch(() => {
-        if (!cancelled) setRecovery(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  async function revealRecoveryBackup() {
+    setExportingBackup(true);
+    setBackupErr(null);
+    try {
+      if (!(await requireUnlock())) {
+        setBackupErr("Unlock cancelled.");
+        return;
+      }
+      const backup = await exportWallet();
+      setBackupText(backup);
+      setBackupOpen(true);
+      setRecovery(getLocalRecoveryStatus());
+    } catch (e) {
+      setBackupErr((e as Error).message || "Recovery backup could not be revealed.");
+    } finally {
+      setExportingBackup(false);
+    }
+  }
+
+  async function copyRecoveryBackup() {
+    try {
+      await navigator.clipboard.writeText(backupText);
+      toast({ title: "Recovery backup copied.", tone: "success" });
+    } catch {
+      setBackupErr("Could not copy backup data.");
+    }
+  }
+
+  function confirmRecoveryBackupSaved() {
+    markWalletBackupConfirmed();
+    setRecovery(getLocalRecoveryStatus());
+    toast({ title: "Recovery backup marked saved.", tone: "success" });
+  }
 
   return (
     <Screen>
@@ -184,7 +209,7 @@ export function Profile() {
               label="Account recovery"
               right={
                 <span className="text-right text-[13px] text-muted" data-testid="profile-recovery-status">
-                  {recovery?.bound ? "Bound to this sign-in" : "Not bound yet"}
+                  {recovery.label}
                 </span>
               }
             />
@@ -193,10 +218,50 @@ export function Profile() {
               label="Recovery path"
               right={
                 <span className="max-w-[180px] text-right text-[12.5px] leading-tight text-muted" data-testid="profile-recovery-plan">
-                  {recovery?.nextSteps?.[0] ?? "Sign in to bind this wallet."}
+                  {recovery.nextSteps[0]}
                 </span>
               }
             />
+            <div className="py-3.5" data-testid="profile-recovery-export">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas text-ink"><KeyRound size={18} /></div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[15px] font-medium">Reveal recovery key</div>
+                  <div className="text-[12.5px] leading-tight text-muted">Export evmPrivateKey, eercDecryptionKey, orgSpendId, and mvkSeedHex.</div>
+                </div>
+                <Button variant="secondary" size="sm" loading={exportingBackup} onClick={revealRecoveryBackup} data-testid="recovery-reveal">
+                  Reveal
+                </Button>
+              </div>
+              {backupErr ? <div className="mt-2 text-[12px] font-medium text-danger" data-testid="recovery-error">{backupErr}</div> : null}
+              {backupOpen ? (
+                <div className="mt-3 rounded-xl border border-hair bg-canvas/70 p-3" data-testid="recovery-backup-panel">
+                  <div className="text-[12.5px] leading-relaxed text-muted">
+                    Anyone with this backup controls the wallet. Store it privately; Benzo cannot recover it for you.
+                  </div>
+                  <pre className="mt-3 max-h-[170px] overflow-x-auto rounded-lg bg-card p-3 text-[11px] leading-relaxed text-muted select-all" data-testid="recovery-backup-json">
+                    {backupText}
+                  </pre>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button variant="secondary" size="sm" onClick={copyRecoveryBackup} data-testid="recovery-copy">
+                      <Copy size={14} /> Copy
+                    </Button>
+                    {recovery.backupConfirmedAt ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-pos/12 px-3.5 py-2 text-sm font-semibold text-pos" data-testid="recovery-saved">
+                        <Check size={14} /> Backup saved
+                      </span>
+                    ) : (
+                      <Button variant="secondary" size="sm" onClick={confirmRecoveryBackupSaved} data-testid="recovery-confirm-saved">
+                        <Check size={14} /> I've saved it
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => { setBackupOpen(false); setBackupText(""); }} data-testid="recovery-hide">
+                      Hide
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
             <Row
               icon={<Activity size={18} />}
               label="Network"
