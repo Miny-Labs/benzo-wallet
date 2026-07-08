@@ -36,6 +36,7 @@ vi.mock("./passkey", () => ({
 }));
 
 import {
+  createWallet,
   createWalletWithPasskey,
   exportWallet,
   getLocalRecoveryStatus,
@@ -108,6 +109,56 @@ describe("local wallet recovery", () => {
       backupConfirmedAt: expect.any(Number),
       label: "Synced passkey",
       recoverable: true,
+    });
+  });
+
+  it("starts a new passphrase wallet with no prior backup metadata", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new Error("backend unplugged");
+    }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await createWalletWithPasskey("alex");
+    await exportWallet();
+    markWalletBackupConfirmed();
+
+    expect(getLocalRecoveryStatus().backupConfirmedAt).toEqual(expect.any(Number));
+
+    await createWallet("new passphrase");
+
+    const status = getLocalRecoveryStatus();
+    expect(status.lastExportedAt).toBeUndefined();
+    expect(status.backupConfirmedAt).toBeUndefined();
+    expect(status).toMatchObject({
+      bound: false,
+      label: "Device only",
+      recoverable: false,
+      status: "action-needed",
+    });
+  });
+
+  it("starts a new passkey wallet with no prior backup metadata", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new Error("backend unplugged");
+    }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await createWalletWithPasskey("alex");
+    await exportWallet();
+    markWalletBackupConfirmed();
+
+    expect(getLocalRecoveryStatus().backupConfirmedAt).toEqual(expect.any(Number));
+
+    await createWalletWithPasskey("new-alex");
+
+    const status = getLocalRecoveryStatus();
+    expect(status.lastExportedAt).toBeUndefined();
+    expect(status.backupConfirmedAt).toBeUndefined();
+    expect(status).toMatchObject({
+      bound: true,
+      label: "Synced passkey",
+      recoverable: true,
+      status: "healthy",
     });
   });
 

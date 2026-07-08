@@ -49,10 +49,16 @@ const localMocks = vi.hoisted(() => {
     nextSteps: ["Restore on another device with your backup JSON. Benzo cannot recover it for you."],
     lastExportedAt: 1_725_000_000_000,
   };
+  const backupSaved = {
+    ...backupRevealed,
+    label: "Backup saved",
+    backupConfirmedAt: 1_725_000_100_000,
+  };
   return {
     currentRecovery: deviceOnly,
     deviceOnly,
     backupRevealed,
+    backupSaved,
     exportWallet: vi.fn(),
     getLocalAccountSummary: vi.fn(() => ({
       address: "0x2222222222222222222222222222222222222222",
@@ -60,6 +66,7 @@ const localMocks = vi.hoisted(() => {
       mvkPub: "aa",
     })),
     getLocalRecoveryStatus: vi.fn(() => deviceOnly),
+    markWalletBackupConfirmed: vi.fn(),
   };
 });
 
@@ -91,6 +98,7 @@ vi.mock("../lib/localWallet", () => ({
   exportWallet: localMocks.exportWallet,
   getLocalAccountSummary: localMocks.getLocalAccountSummary,
   getLocalRecoveryStatus: localMocks.getLocalRecoveryStatus,
+  markWalletBackupConfirmed: localMocks.markWalletBackupConfirmed,
 }));
 
 describe("Profile recovery export", () => {
@@ -106,6 +114,9 @@ describe("Profile recovery export", () => {
         orgSpendId: "3",
         mvkSeedHex: "4".repeat(64),
       }, null, 2);
+    });
+    localMocks.markWalletBackupConfirmed.mockImplementation(() => {
+      localMocks.currentRecovery = localMocks.backupSaved;
     });
   });
 
@@ -137,6 +148,25 @@ describe("Profile recovery export", () => {
     expect(screen.getByTestId("recovery-backup-json")).toHaveTextContent("orgSpendId");
     expect(screen.getByTestId("recovery-backup-json")).toHaveTextContent("mvkSeedHex");
     expect(screen.getByTestId("profile-recovery-status")).toHaveTextContent("Backup revealed");
+  });
+
+  it("confirms a revealed settings backup as saved", async () => {
+    render(
+      <MemoryRouter>
+        <Profile />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByTestId("recovery-reveal"));
+
+    expect(await screen.findByTestId("recovery-backup-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("profile-recovery-status")).toHaveTextContent("Backup revealed");
+
+    fireEvent.click(screen.getByTestId("recovery-confirm-saved"));
+
+    expect(localMocks.markWalletBackupConfirmed).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("profile-recovery-status")).toHaveTextContent("Backup saved");
+    expect(screen.getByTestId("recovery-saved")).toHaveTextContent("Backup saved");
   });
 
   it("does not export recovery material when unlock is cancelled", async () => {

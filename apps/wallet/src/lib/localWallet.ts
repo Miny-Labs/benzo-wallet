@@ -261,7 +261,12 @@ export async function createWallet(passphrase: string): Promise<BenzoAccount> {
   activeAccount = account;
 
   localStorage.setItem(WALLET_TYPE_KEY, "passphrase");
-  updateRecoveryState({ walletType: "passphrase", binding: "manual-backup" });
+  writeRecoveryState({
+    version: 1,
+    walletType: "passphrase",
+    binding: "manual-backup",
+    createdAt: Date.now(),
+  });
   await loginSiweSession();
   return account;
 }
@@ -279,7 +284,12 @@ export async function createWalletWithPasskey(userName: string): Promise<BenzoAc
   activeAccount = account;
 
   localStorage.setItem(WALLET_TYPE_KEY, "passkey");
-  updateRecoveryState({ walletType: "passkey", binding: "passkey-prf" });
+  writeRecoveryState({
+    version: 1,
+    walletType: "passkey",
+    binding: "passkey-prf",
+    createdAt: Date.now(),
+  });
   await loginSiweSession();
   return account;
 }
