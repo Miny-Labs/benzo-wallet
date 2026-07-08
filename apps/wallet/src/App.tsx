@@ -155,7 +155,19 @@ export function App() {
     // device; otherwise keep the user in and re-auth the backend in the
     // background, surfacing only a subtle offline indicator.
     const onAuthRequired = async () => {
-      if (backendAuthLossEjectsWallet(await walletExists())) {
+      // If the local keychain check itself fails, fail safe toward KEEPING the
+      // wallet available rather than ejecting — a backend 401 must never be able
+      // to tear down a self-custodial wallet, even on a transient IndexedDB error.
+      let hasLocalWallet = true;
+      try {
+        hasLocalWallet = await walletExists();
+      } catch (error) {
+        console.warn(
+          "Could not verify the local wallet during a backend auth loss; keeping the wallet available.",
+          error,
+        );
+      }
+      if (backendAuthLossEjectsWallet(hasLocalWallet)) {
         setLocked(true);
         setOnboarded(false);
         return;
