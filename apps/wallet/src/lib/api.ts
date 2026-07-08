@@ -240,7 +240,12 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
       } catch {
         /* ignore */
       }
-      if (res.status === 401) notifyAuthRequired();
+      if (res.status === 401) {
+        console.warn(
+          `Benzo API session expired on ${method} ${path}; the device wallet stays usable offline.`,
+        );
+        notifyAuthRequired();
+      }
       throw new Error(detail);
     }
     if (res.status === 204) return undefined as T;

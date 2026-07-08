@@ -74,6 +74,15 @@ async function loginSiweSession(): Promise<void> {
   }
 }
 
+/**
+ * Best-effort background SIWE re-auth. No-ops when the wallet is locked, and
+ * swallows/logs errors, so a 401 can silently refresh the backend session
+ * without ever tearing down the device-local wallet.
+ */
+export async function reauthenticateSession(): Promise<void> {
+  await loginSiweSession();
+}
+
 export async function createWallet(passphrase: string): Promise<BenzoAccount> {
   const kv = await getStore();
   const salt = newSalt();
