@@ -109,6 +109,39 @@ describe("WalletProvider activity refresh", () => {
     expect(mocks.readEercActivityClientSide).toHaveBeenCalledWith({ address: ADDRESS }, { hints: [] });
   });
 
+  it("drops a stale activity refresh when the wallet locks while the scan is in flight", async () => {
+    mocks.activityHints.mockResolvedValue([]);
+    // Simulate a logout landing mid-refresh: the wallet is already locked by the
+    // time the RPC scan resolves, so its rows must be discarded rather than
+    // repainting the previous account's activity.
+    mocks.readEercActivityClientSide.mockImplementation(async () => {
+      mocks.isWalletUnlocked.mockReturnValue(false);
+      return [{
+        id: TX,
+        type: "receive",
+        name: "0x1111...1111",
+        note: "Private eERC transfer decrypted on this device.",
+        amount: "4200000",
+        direction: "in",
+        status: "settled",
+        timestamp: 1_800_000_000,
+        txHash: TX,
+      }];
+    });
+
+    render(
+      <WalletProvider>
+        <Probe />
+      </WalletProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
+
+    expect(mocks.readEercActivityClientSide).toHaveBeenCalled();
+    expect(screen.getByTestId("history").textContent).toBe("");
+    expect(screen.getByTestId("history")).not.toHaveTextContent("receive:4200000:in");
+  });
+
   it("passes fetched activity hints into the RPC scan", async () => {
     const hints = [{
       blockNumber: 56879309n,

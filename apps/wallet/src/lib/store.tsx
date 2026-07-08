@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, type ActivityRow, type Balance, type Contact, type Session } from "./api";
+import { api, type ActivityHint, type ActivityRow, type Balance, type Contact, type Session } from "./api";
 import { readShieldedBalanceClientSide, readPublicBalanceClientSide } from "./benzoClient";
 import { getLocalAccount, isWalletUnlocked, getLocalAccountSummary } from "./localWallet";
 import { listLocalHistory } from "./history";
@@ -30,6 +30,21 @@ interface WalletState {
 }
 
 const Ctx = createContext<WalletState | null>(null);
+
+// The direct-RPC activity scan must stay usable when the BFF is slow or down, so
+// the /activity hints call is only ever allowed to hold up the local scan by a
+// short, bounded amount before we fall back to no hints.
+const ACTIVITY_HINTS_TIMEOUT_MS = 4_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((resolve) => {
+    timer = setTimeout(() => resolve(fallback), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -77,7 +92,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       
       const local = listLocalHistory();
       const account = getLocalAccount();
-      const hints = await api.activityHints().catch(() => []);
+      // Bound the BFF hints call so a slow/hanging indexer cannot delay the
+      // offline-capable RPC scan; on timeout we just scan without hints.
+      const hints = await withTimeout(
+        api.activityHints(),
+        ACTIVITY_HINTS_TIMEOUT_MS,
+        [] as ActivityHint[],
+      ).catch(() => [] as ActivityHint[]);
       let chainHistory: ActivityRow[] = [];
       if (account) {
         chainHistory = await readEercActivityClientSide(account, { hints }).catch((err) => {
@@ -85,6 +106,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           return [] as ActivityRow[];
         });
       }
+      // A logout can land while the hints/RPC scan are in flight. Writing the
+      // resolved result now would repaint the previous account's activity after
+      // it was cleared, so drop the stale result once the wallet is locked.
+      if (!isWalletUnlocked()) return;
       setHistory(mergeActivityRows(applyActivityHints(local, hints), chainHistory));
 
       setError(null);

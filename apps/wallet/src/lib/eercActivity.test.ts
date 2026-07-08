@@ -39,6 +39,27 @@ function transferInput(amount: bigint) {
   });
 }
 
+// Outgoing transfer: the sender's post-transfer balance is carried in balancePCT[0].
+function transferOutInput(remaining: bigint) {
+  const signals = Array.from({ length: 32 }, () => 0n);
+  return encodeFunctionData({
+    abi: encryptedErcActivityAbi,
+    functionName: "transfer",
+    args: [SENDER, 1n, proof(signals), [remaining, 0n, 0n, 0n, 0n, 0n, 0n]],
+  });
+}
+
+// MintProof.publicSignals is uint256[24]; the amount PCT lives at indices 8..14.
+function mintInput(amount: bigint) {
+  const signals = Array.from({ length: 24 }, () => 0n);
+  signals[8] = amount;
+  return encodeFunctionData({
+    abi: encryptedErcActivityAbi,
+    functionName: "privateMint",
+    args: [RECIPIENT, proof(signals)],
+  });
+}
+
 describe("eERC RPC activity", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -89,6 +110,96 @@ describe("eERC RPC activity", () => {
       fromBlock: 56879304n,
       toBlock: 56879310n,
     }));
+  });
+
+  it("decrypts an incoming PrivateMint from its 24-signal proof so the mint row is visible", async () => {
+    const client = {
+      getBlockNumber: vi.fn().mockResolvedValue(56879310n),
+      readContract: vi.fn().mockResolvedValue(1n),
+      getLogs: vi.fn(async (params: { event: { name: string }; args: Record<string, string> }) => {
+        if (params.event.name === "PrivateMint" && params.args.user === ACCOUNT) {
+          return [{
+            args: { user: ACCOUNT },
+            blockNumber: 56879309n,
+            eventName: "PrivateMint",
+            logIndex: 3,
+            transactionHash: TX,
+          }];
+        }
+        return [];
+      }),
+      getTransaction: vi.fn().mockResolvedValue({ input: mintInput(7_500_000n) }),
+      getBlock: vi.fn().mockResolvedValue({ timestamp: 1_800_000_000n }),
+    } as unknown as PublicClient;
+    const eerc = {
+      decryptPCT: vi.fn((pct: bigint[]) => pct[0]),
+      getHistoricalBalance: vi.fn(),
+    };
+
+    const rows = await readEercActivityClientSide(
+      { address: ACCOUNT } as BenzoAccount,
+      { client, eerc },
+    );
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        amount: "7500000",
+        direction: "in",
+        name: "Private mint",
+        status: "settled",
+        txHash: TX,
+        type: "receive",
+      }),
+    ]);
+    expect(eerc.decryptPCT).toHaveBeenCalledWith(expect.arrayContaining([7_500_000n]));
+  });
+
+  it("carries the sender balance across two outflows in one block instead of overstating the second", async () => {
+    const client = {
+      getBlockNumber: vi.fn().mockResolvedValue(56879310n),
+      readContract: vi.fn().mockResolvedValue(1n),
+      getLogs: vi.fn(async (params: { event: { name: string }; args: Record<string, string> }) => {
+        if (params.event.name === "PrivateTransfer" && params.args.from === ACCOUNT) {
+          return [
+            {
+              args: { from: ACCOUNT, to: SENDER },
+              blockNumber: 56879309n,
+              eventName: "PrivateTransfer",
+              logIndex: 1,
+              transactionHash: TX,
+            },
+            {
+              args: { from: ACCOUNT, to: SENDER },
+              blockNumber: 56879309n,
+              eventName: "PrivateTransfer",
+              logIndex: 2,
+              transactionHash: TX2,
+            },
+          ];
+        }
+        return [];
+      }),
+      getTransaction: vi.fn(async ({ hash }: { hash: string }) => ({
+        input: transferOutInput(hash === TX ? 60n : 25n),
+      })),
+      getBlock: vi.fn().mockResolvedValue({ timestamp: 1_800_000_000n }),
+    } as unknown as PublicClient;
+    const eerc = {
+      decryptPCT: vi.fn((pct: bigint[]) => pct[0]),
+      getHistoricalBalance: vi.fn().mockResolvedValue(100n),
+    };
+
+    const rows = await readEercActivityClientSide(
+      { address: ACCOUNT } as BenzoAccount,
+      { client, eerc },
+    );
+
+    const byTx = Object.fromEntries(rows.map((row) => [row.txHash, row.amount]));
+    // First outflow: 100 - 60 = 40. Second carries forward from 60 (not another
+    // read of block-1's 100), so 60 - 25 = 35 rather than the overstated 75.
+    expect(byTx[TX]).toBe("40");
+    expect(byTx[TX2]).toBe("35");
+    expect(eerc.getHistoricalBalance).toHaveBeenCalledTimes(1);
   });
 
   it("lets chain rows replace same-tx local rows so amounts are not stale", () => {

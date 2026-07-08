@@ -36,6 +36,15 @@ type HintLookup = {
   byTx: Map<string, ActivityHint>;
 };
 
+// Running state for outgoing (send/burn) amount derivation. Each outflow's
+// balancePCT decrypts to the balance *after* that event, so two outflows in the
+// same block must chain: the second's starting balance is the first's remaining,
+// not a re-read of `getHistoricalBalance(block - 1)` (which would ignore the
+// first outflow and overstate the second). Adjacency is enforced by `ordinal`
+// so any intervening event (an incoming transfer, mint, deposit, …) breaks the
+// chain and falls back to the historical read.
+type OutflowCarry = { current: { block: bigint; ordinal: number; remaining: bigint } | null };
+
 const CACHE_PREFIX = "benzo.eercActivity.v1";
 const RESCAN_OVERLAP_BLOCKS = 20n;
 const MAX_CACHED_ROWS = 200;
@@ -223,8 +232,9 @@ export async function readEercActivityClientSide(
   const blockTimes = new Map<bigint, number>();
   const unresolvedBlockTimestamps = new Set<bigint>();
   const rows: ActivityRow[] = [];
+  const outflowCarry: OutflowCarry = { current: null };
 
-  for (const [logOrdinal, log] of uniqueLogs(logs).entries()) {
+  for (const [logOrdinal, log] of sortLogsChronologically(uniqueLogs(logs)).entries()) {
     try {
       const row = await rowFromLog({
         account: account.address,
@@ -234,6 +244,7 @@ export async function readEercActivityClientSide(
         hint: hintForLog(log, hintLookup),
         log,
         logOrdinal,
+        outflowCarry,
         unresolvedBlockTimestamps,
         usdcTokenId,
       });
@@ -345,6 +356,7 @@ async function rowFromLog(input: {
   hint?: ActivityHint;
   log: EercLog;
   logOrdinal: number;
+  outflowCarry: OutflowCarry;
   unresolvedBlockTimestamps: Set<bigint>;
   usdcTokenId: bigint;
 }): Promise<ActivityRow | null> {
@@ -374,6 +386,8 @@ async function rowFromLog(input: {
         id: rowId,
         log: input.log,
         logIndex: rowLogIndex,
+        logOrdinal: input.logOrdinal,
+        outflowCarry: input.outflowCarry,
         timestamp,
         txHash,
         usdcTokenId: input.usdcTokenId,
@@ -402,6 +416,8 @@ async function rowFromLog(input: {
         id: rowId,
         log: input.log,
         logIndex: rowLogIndex,
+        logOrdinal: input.logOrdinal,
+        outflowCarry: input.outflowCarry,
         timestamp,
         txHash,
       });
@@ -418,6 +434,8 @@ async function privateTransferRow(input: {
   id: string;
   log: EercLog;
   logIndex?: number;
+  logOrdinal: number;
+  outflowCarry: OutflowCarry;
   timestamp: number;
   txHash: Hex;
   usdcTokenId: bigint;
@@ -455,13 +473,15 @@ async function privateTransferRow(input: {
   }
 
   if (from.toLowerCase() === account) {
-    const previous = await input.eerc.getHistoricalBalance(
-      input.account,
-      input.blockNumber > 0n ? input.blockNumber - 1n : 0n,
-      USDC_TOKEN_ADDRESS,
-    );
-    const remaining = input.eerc.decryptPCT(balancePCT);
-    const amount = previous >= remaining ? previous - remaining : 0n;
+    const amount = await outflowAmount({
+      account: input.account,
+      balancePCT,
+      blockNumber: input.blockNumber,
+      eerc: input.eerc,
+      logOrdinal: input.logOrdinal,
+      outflowCarry: input.outflowCarry,
+      tokenAddress: USDC_TOKEN_ADDRESS,
+    });
     return {
       id: input.id,
       type: "send",
@@ -545,7 +565,10 @@ async function privateMintRow(input: {
 }): Promise<ActivityRow | null> {
   const decoded = await decodeTx(input.client, input.txHash);
   if (!decoded || decoded.functionName !== "privateMint") return null;
-  const proof = proofArg((decoded.args as readonly unknown[])[1]);
+  // MintProof.publicSignals is uint256[24] (vs uint256[32] for a transfer), so
+  // viem decodes exactly 24 elements. Passing the transfer-sized minimum here
+  // would reject every mint proof and silently drop incoming private mints.
+  const proof = proofArg((decoded.args as readonly unknown[])[1], 24);
   if (!proof) return null;
   const amount = input.eerc.decryptPCT(proof.publicSignals.slice(8, 15));
   return {
@@ -570,6 +593,8 @@ async function privateBurnRow(input: {
   id: string;
   log: EercLog;
   logIndex?: number;
+  logOrdinal: number;
+  outflowCarry: OutflowCarry;
   timestamp: number;
   txHash: Hex;
 }): Promise<ActivityRow | null> {
@@ -578,13 +603,14 @@ async function privateBurnRow(input: {
   const args = decoded.args as readonly unknown[];
   const balancePCT = pctArg(args.length === 2 ? args[1] : args[2]);
   if (!balancePCT) return null;
-  const previous = await input.eerc.getHistoricalBalance(
-    input.account,
-    input.blockNumber > 0n ? input.blockNumber - 1n : 0n,
-    undefined,
-  );
-  const remaining = input.eerc.decryptPCT(balancePCT);
-  const amount = previous >= remaining ? previous - remaining : 0n;
+  const amount = await outflowAmount({
+    account: input.account,
+    balancePCT,
+    blockNumber: input.blockNumber,
+    eerc: input.eerc,
+    logOrdinal: input.logOrdinal,
+    outflowCarry: input.outflowCarry,
+  });
   return {
     id: input.id,
     type: "send",
@@ -659,6 +685,43 @@ function blockWindows(fromBlock: bigint, toBlock: bigint, windowSize: bigint): A
     windows.push([from, to]);
   }
   return windows;
+}
+
+function sortLogsChronologically(logs: EercLog[]): EercLog[] {
+  return [...logs].sort((a, b) => {
+    const blockA = a.blockNumber ?? 0n;
+    const blockB = b.blockNumber ?? 0n;
+    if (blockA !== blockB) return blockA < blockB ? -1 : 1;
+    const idxA = a.logIndex ?? Number.MAX_SAFE_INTEGER;
+    const idxB = b.logIndex ?? Number.MAX_SAFE_INTEGER;
+    return idxA - idxB;
+  });
+}
+
+// Derive an outgoing (send/burn) amount from the post-event balancePCT, chaining
+// consecutive same-block outflows so later events don't reuse a stale starting
+// balance. See the OutflowCarry type for the rationale.
+async function outflowAmount(input: {
+  account: Address;
+  balancePCT: bigint[];
+  blockNumber: bigint;
+  eerc: EercDecryptor;
+  logOrdinal: number;
+  outflowCarry: OutflowCarry;
+  tokenAddress?: Address;
+}): Promise<bigint> {
+  const carry = input.outflowCarry.current;
+  const carried = carry && carry.block === input.blockNumber && carry.ordinal === input.logOrdinal - 1
+    ? carry.remaining
+    : null;
+  const previous = carried ?? (await input.eerc.getHistoricalBalance(
+    input.account,
+    input.blockNumber > 0n ? input.blockNumber - 1n : 0n,
+    input.tokenAddress,
+  ));
+  const remaining = input.eerc.decryptPCT(input.balancePCT);
+  input.outflowCarry.current = { block: input.blockNumber, ordinal: input.logOrdinal, remaining };
+  return previous >= remaining ? previous - remaining : 0n;
 }
 
 function uniqueLogs(logs: EercLog[]): EercLog[] {
@@ -795,10 +858,13 @@ function saveActivityCache(address: Address, scannedTo: bigint, rows: ActivityRo
   }
 }
 
-function proofArg(value: unknown): { publicSignals: bigint[] } | null {
+// `minLength` matches the proof's on-chain publicSignals width: 32 for a
+// transfer, 24 for a mint, 19 for a burn. Callers must pass the right length so
+// a valid proof of a different shape is not rejected.
+function proofArg(value: unknown, minLength = 32): { publicSignals: bigint[] } | null {
   if (typeof value !== "object" || value === null) return null;
   const signals = (value as { publicSignals?: unknown }).publicSignals;
-  const publicSignals = pctArray(signals, 32);
+  const publicSignals = pctArray(signals, minLength);
   return publicSignals ? { publicSignals } : null;
 }
 
