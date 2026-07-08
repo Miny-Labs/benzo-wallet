@@ -2,8 +2,8 @@
  * Receive - your USDC address + QR so ANY wallet or exchange can pay you. What
  * lands here is your PUBLIC balance (plain liquid USDC). No bank, no ramp. The
  * address + QR are public (anyone can pay you here). Optional one-tap "Make
- * private" moves what's landed into your private balance - the same real
- * Groth16/BN254 on-chain op as Add money. Web2-clean: a clear address, a copy
+ * private" moves what's landed into your private balance through converter
+ * deposit(). Web2-clean: a clear address, a copy
  * button, a "landed" amount, and one button.
  */
 import { useEffect, useState } from "react";
@@ -133,11 +133,11 @@ export function Deposit() {
             <span className={`tnum text-[15px] font-semibold ${ready ? "text-ink" : "text-muted"}`}>{fmtUsd(info?.liquid ?? "0")}</span>
           </div>
           <div className="mt-1 text-[11.5px] text-muted">
-            {ready ? "When it lands, tap Make private to move it into your private balance." : "Waiting for your payment to land on-chain…"}
+            {ready ? "When it lands, tap Make private to deposit it into your encrypted balance." : "Waiting for your payment to land on-chain…"}
           </div>
         </div>
 
-        <div className="mt-5 flex justify-center"><PrivateChip label="Make private hides the amount on-chain" /></div>
+        <div className="mt-5 flex justify-center"><PrivateChip label="Edge public; balance encrypted" /></div>
 
         <Button full size="lg" className="mt-3" disabled={!ready} loading={phase === "busy"} onClick={shieldIt} data-testid="deposit-shield">
           <ArrowDownToLine size={17} /> {ready ? `Make private · ${fmtUsd(info?.liquid ?? "0")}` : "Make private"}
@@ -168,7 +168,7 @@ function ImportDone({ amount, onChain, result, onDone }: { amount: string; onCha
       </div>
       {onChain ? (
         <div className="flex items-center gap-1.5 text-[12px] text-pos">
-          <ShieldCheck size={13} /> It's now in your private balance - the amount is hidden on-chain
+          <ShieldCheck size={13} /> It's now in your encrypted private balance
         </div>
       ) : null}
       <div className="w-full max-w-[320px]"><OnChainDetails txHash={result?.txHash} prover={result?.prover} provingMs={result?.provingMs} onChain={onChain} kind="shield" /></div>

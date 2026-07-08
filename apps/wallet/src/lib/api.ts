@@ -2,6 +2,9 @@ import { createSiweMessage } from "viem/siwe";
 import { getAddress, isAddress, type Address, type Hex } from "viem";
 import { CHAIN_ID } from "./network";
 import { handleAvailableOnChain, normalizeHandle } from "./handleRegistry";
+import { usdcToStroops } from "./format";
+import { saveLocalHistory } from "./history";
+import { INVALID_USDC_AMOUNT_ERROR } from "./errors";
 
 export type ProverKind = "local";
 
@@ -280,6 +283,117 @@ function unsupportedWorkflow(_amount = "0"): SettleResult {
   throw new Error("This workflow is waiting for the Avalanche/eERC flow issue.");
 }
 
+function nowMs(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
+function parseDisplayAmount(amount: string): bigint {
+  try {
+    return usdcToStroops(amount);
+  } catch (e) {
+    const message = (e as Error).message;
+    throw new Error(message.startsWith("USDC has at most") ? message : INVALID_USDC_AMOUNT_ERROR);
+  }
+}
+
+function makeLocalSettleResult(args: {
+  amount: bigint;
+  onChain: boolean;
+  prover: ProverKind;
+  provingMs?: number;
+  status?: SettleResult["status"];
+  txHash?: string;
+}): SettleResult {
+  return {
+    amount: args.amount.toString(),
+    onChain: args.onChain,
+    prover: args.prover,
+    provingMs: args.provingMs,
+    status: args.status ?? "settled",
+    txHash: args.txHash,
+  };
+}
+
+async function localPublicBalance(): Promise<string> {
+  const { readPublicBalanceClientSide } = await import("./benzoClient");
+  return (await readPublicBalanceClientSide()) ?? "0";
+}
+
+async function localWalletAddress(): Promise<Address | null> {
+  const { getLocalAccountSummary } = await import("./localWallet");
+  return (getLocalAccountSummary()?.address ?? null) as Address | null;
+}
+
+async function shieldAmountFromInput(amount: string): Promise<bigint> {
+  const requested = parseDisplayAmount(amount);
+  if (requested < 0n) throw new Error(INVALID_USDC_AMOUNT_ERROR);
+  if (requested > 0n) return requested;
+  const available = BigInt(await localPublicBalance());
+  if (available > 0n) return available;
+  throw new Error("No public USDC is available to make private.");
+}
+
+async function shieldClientSide(amount: string, _prover: ProverKind = "local"): Promise<SettleResult> {
+  const amountBaseUnits = await shieldAmountFromInput(amount);
+  const { shieldPublicUsdcClientSide } = await import("./benzoClient");
+  const startedAt = nowMs();
+  const result = await shieldPublicUsdcClientSide(
+    amountBaseUnits.toString(),
+    "Benzo make-private: public deposit amount is visible; resulting eERC balance is encrypted.",
+  );
+  if (!result?.txHash) throw new Error("Local eERC deposit did not return a transaction hash.");
+  const settled = makeLocalSettleResult({
+    amount: amountBaseUnits,
+    onChain: true,
+    prover: "local",
+    provingMs: Math.round(nowMs() - startedAt),
+    txHash: result.txHash,
+  });
+  saveLocalHistory({
+    id: result.txHash,
+    type: "shield",
+    name: "Made private",
+    note: "Public deposit amount is visible; resulting eERC balance is encrypted.",
+    amount: amountBaseUnits.toString(),
+    direction: "in",
+    status: "settled",
+    timestamp: Math.floor(Date.now() / 1000),
+    txHash: result.txHash,
+  });
+  return settled;
+}
+
+async function unshieldClientSide(amount: string, _prover: ProverKind = "local"): Promise<SettleResult> {
+  const amountBaseUnits = parseDisplayAmount(amount);
+  if (amountBaseUnits <= 0n) throw new Error("Enter an amount greater than zero.");
+  const { unshieldPrivateUsdcClientSide } = await import("./benzoClient");
+  const startedAt = nowMs();
+  const result = await unshieldPrivateUsdcClientSide(
+    amountBaseUnits.toString(),
+    "Benzo make-public: withdraw proof was generated locally.",
+  );
+  if (!result?.txHash) throw new Error("Local eERC withdraw did not return a transaction hash.");
+  const settled = makeLocalSettleResult({
+    amount: amountBaseUnits,
+    onChain: true,
+    prover: "local",
+    provingMs: Math.round(nowMs() - startedAt),
+    txHash: result.txHash,
+  });
+  saveLocalHistory({
+    id: result.txHash,
+    type: "unshield",
+    name: "Made public",
+    note: "Moved to Public balance",
+    amount: amountBaseUnits.toString(),
+    direction: "out",
+    status: "settled",
+    timestamp: Math.floor(Date.now() / 1000),
+    txHash: result.txHash,
+  });
+  return settled;
+}
+
 function tokenClaimLink(token: string): string {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   return `${origin}/claim?token=${encodeURIComponent(token)}`;
@@ -367,10 +481,16 @@ export const api = {
   },
   balance: async () => ({ stroops: "0", live: false, source: "chain" as const }),
   rampReserve: async () => ({ reserve: null, live: false }),
-  depositInfo: async () => ({ address: null, liquid: "0", asset: "USDC", issuer: "", live: false }),
-  importDeposit: async (amount = "0", _prover: ProverKind = "local") => unsupportedWorkflow(amount),
-  publicBalance: async () => ({ stroops: "0", address: "", asset: "USDC", issuer: "", live: false }),
-  makePublic: async (amount: string, _prover: ProverKind = "local") => unsupportedWorkflow(amount),
+  depositInfo: async () => {
+    const [address, liquid] = await Promise.all([localWalletAddress(), localPublicBalance()]);
+    return { address, liquid, asset: "USDC", issuer: "", live: !!address };
+  },
+  importDeposit: async (amount = "0", prover: ProverKind = "local") => shieldClientSide(amount, prover),
+  publicBalance: async () => {
+    const [address, stroops] = await Promise.all([localWalletAddress(), localPublicBalance()]);
+    return { stroops, address: address ?? "", asset: "USDC", issuer: "", live: !!address };
+  },
+  makePublic: async (amount: string, prover: ProverKind = "local") => unshieldClientSide(amount, prover),
   sendPublic: async (_to: string, amount: string) => ({
     txHash: undefined,
     onChain: false,
@@ -455,8 +575,8 @@ export const api = {
     await http(`/invites/${encodeURIComponent(secret)}/claim`, { method: "POST", body: "{}" });
     return { amount, onChain: false };
   },
-  cashOut: async (amount: string, _prover: ProverKind = "local") => unsupportedWorkflow(amount),
-  addMoney: async (amount: string, _prover: ProverKind = "local") => unsupportedWorkflow(amount),
+  cashOut: async (amount: string, prover: ProverKind = "local") => unshieldClientSide(amount, prover),
+  addMoney: async (amount: string, prover: ProverKind = "local") => shieldClientSide(amount, prover),
   shareProof: async (_min: string, _prover: ProverKind = "local") => ({
     holds: false,
     proof: "",

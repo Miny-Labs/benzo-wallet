@@ -1,4 +1,5 @@
 import { usdcToStroops } from "./format";
+import { INSUFFICIENT_PRIVATE_USDC_ERROR } from "./errors";
 
 export function inviteAmountToStroops(amount: string): string {
   try {
@@ -40,6 +41,6 @@ export function validateFundedInviteAmount(amount: string, privateBalanceStroops
     amountOk,
     amountStroops,
     insufficient,
-    message: insufficient ? "Not enough private USDC. Add money or use a smaller amount." : null,
+    message: insufficient ? INSUFFICIENT_PRIVATE_USDC_ERROR : null,
   };
 }

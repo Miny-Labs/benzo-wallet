@@ -98,6 +98,24 @@ function ShieldedProofRows({
   txHash?: string;
 }) {
   const p = KIND_PROOF[kind];
+  if (kind === "shield") {
+    return (
+      <>
+        <Row k="Action" v={p.circuit} />
+        <Row k="Verified on-chain" v={<span className="font-semibold text-pos">Yes · inside the eERC contract</span>} />
+        <Row k="What changed" v={<span className="text-ink">{p.statement}</span>} />
+        <Row k="What is public" v={<span className="text-ink">the deposit amount at the public edge</span>} />
+        <Row k="Prepared by" v={`Local wallet${provingMs ? ` · ${(provingMs / 1000).toFixed(2)}s` : ""}`} />
+        {txHash ? <LinkRow k="Settlement tx" id={txHash} href={explorerTx(txHash)} /> : null}
+        {DEPLOYMENT.contracts.EncryptedERC ? <LinkRow k="eERC contract" id={DEPLOYMENT.contracts.EncryptedERC} href={explorerContract(DEPLOYMENT.contracts.EncryptedERC)} /> : null}
+        {DEPLOYMENT.contracts.Registrar ? <LinkRow k="Registrar" id={DEPLOYMENT.contracts.Registrar} href={explorerContract(DEPLOYMENT.contracts.Registrar)} /> : null}
+        <div className="pt-1 text-[11px] leading-snug text-muted">
+          Converter deposits are public at the edge. After deposit, eERC stores the wallet balance encrypted;
+          the network can update the balance without publishing your full private balance.
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <Row k="Proof" v={`Groth16 / BN254 · ${p.circuit}`} />

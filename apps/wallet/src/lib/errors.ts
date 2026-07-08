@@ -8,6 +8,9 @@
 // Smells of machine output: cli invocations, hex, panics, xdr, sequence/contract jargon.
 const RAW = /command failed|stellar |invoke|\s--|0x[0-9a-f]|error\(|panic|sequence|xdr|contract|fetch failed|networkerror|timeout|HTTP \d{3}/i;
 
+export const INVALID_USDC_AMOUNT_ERROR = "Enter a valid USDC amount.";
+export const INSUFFICIENT_PRIVATE_USDC_ERROR = "Not enough private USDC. Add money or use a smaller amount.";
+
 /** Human-safe message for any thrown error. Keep raw causes out of browser logs. */
 export function friendlyError(e: unknown, fallback = "Something went wrong. Your money is safe - please try again."): string {
   const m = e instanceof Error ? e.message : typeof e === "string" ? e : "";

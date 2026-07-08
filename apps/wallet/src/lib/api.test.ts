@@ -1,9 +1,26 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const registryMocks = vi.hoisted(() => ({ handleAvailableOnChain: vi.fn() }));
 vi.mock("./handleRegistry", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./handleRegistry")>()),
   handleAvailableOnChain: registryMocks.handleAvailableOnChain,
+}));
+
+const clientMocks = vi.hoisted(() => ({
+  getLocalAccountSummary: vi.fn(),
+  readPublicBalanceClientSide: vi.fn(),
+  shieldPublicUsdcClientSide: vi.fn(),
+  unshieldPrivateUsdcClientSide: vi.fn(),
+}));
+
+vi.mock("./benzoClient", () => ({
+  readPublicBalanceClientSide: clientMocks.readPublicBalanceClientSide,
+  shieldPublicUsdcClientSide: clientMocks.shieldPublicUsdcClientSide,
+  unshieldPrivateUsdcClientSide: clientMocks.unshieldPrivateUsdcClientSide,
+}));
+
+vi.mock("./localWallet", () => ({
+  getLocalAccountSummary: clientMocks.getLocalAccountSummary,
 }));
 
 import {
@@ -15,6 +32,8 @@ import {
 } from "./api";
 
 const ADDRESS = "0x00f6B82Ea91E429FDD6Dfed8f273190092dd14D6" as const;
+const SHIELD_TX = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as const;
+const UNSHIELD_TX = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as const;
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -30,8 +49,16 @@ function callHeaders(call: unknown[]): Headers {
 }
 
 describe("wallet API on Avalanche services/api", () => {
+  beforeEach(() => {
+    clientMocks.getLocalAccountSummary.mockReturnValue({ address: ADDRESS });
+    clientMocks.readPublicBalanceClientSide.mockResolvedValue("0");
+    clientMocks.shieldPublicUsdcClientSide.mockResolvedValue({ txHash: SHIELD_TX, prover: "local" });
+    clientMocks.unshieldPrivateUsdcClientSide.mockResolvedValue({ txHash: UNSHIELD_TX, prover: "local" });
+  });
+
   afterEach(() => {
     vi.useRealTimers();
+    vi.clearAllMocks();
     localStorage.clear();
     vi.unstubAllGlobals();
   });
@@ -204,8 +231,120 @@ describe("wallet API on Avalanche services/api", () => {
     expect(credentialLooksWellFormed(ADDRESS.toLowerCase())).toBe(true);
   });
 
-  it("keeps unsupported workflow methods honest while flow issues wire them fully", async () => {
-    await expect(api.addMoney("1", "local")).rejects.toThrow("waiting for the Avalanche/eERC flow issue");
-    await expect(api.cashOut("1", "local")).rejects.toThrow("waiting for the Avalanche/eERC flow issue");
+  it("shields public USDC through the local eERC client with the backend unplugged", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("backend unplugged"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.importDeposit("1", "local")).resolves.toMatchObject({
+      amount: "1000000",
+      onChain: true,
+      prover: "local",
+      status: "settled",
+      txHash: SHIELD_TX,
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(clientMocks.shieldPublicUsdcClientSide).toHaveBeenCalledWith(
+      "1000000",
+      expect.stringContaining("make-private"),
+    );
+    const history = JSON.parse(localStorage.getItem("benzo.history.local.v1") ?? "[]") as Array<Record<string, unknown>>;
+    expect(history[0]).toMatchObject({
+      amount: "1000000",
+      direction: "in",
+      id: SHIELD_TX,
+      name: "Made private",
+      status: "settled",
+      txHash: SHIELD_TX,
+      type: "shield",
+    });
+  });
+
+  it("shields the full public balance for Deposit Make private without the backend", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("backend unplugged"));
+    vi.stubGlobal("fetch", fetchMock);
+    clientMocks.readPublicBalanceClientSide.mockResolvedValue("2500000");
+
+    await expect(api.importDeposit(undefined, "local")).resolves.toMatchObject({
+      amount: "2500000",
+      onChain: true,
+      txHash: SHIELD_TX,
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(clientMocks.shieldPublicUsdcClientSide).toHaveBeenCalledWith(
+      "2500000",
+      expect.any(String),
+    );
+  });
+
+  it("rejects a negative shield amount instead of shielding the full public balance", async () => {
+    clientMocks.readPublicBalanceClientSide.mockResolvedValue("2500000");
+
+    await expect(api.importDeposit("-1", "local")).rejects.toThrow("Enter a valid USDC amount.");
+
+    expect(clientMocks.readPublicBalanceClientSide).not.toHaveBeenCalled();
+    expect(clientMocks.shieldPublicUsdcClientSide).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-numeric shield amount with the invalid amount error", async () => {
+    clientMocks.readPublicBalanceClientSide.mockResolvedValue("2500000");
+
+    await expect(api.importDeposit("NaN", "local")).rejects.toThrow("Enter a valid USDC amount.");
+
+    expect(clientMocks.readPublicBalanceClientSide).not.toHaveBeenCalled();
+    expect(clientMocks.shieldPublicUsdcClientSide).not.toHaveBeenCalled();
+  });
+
+  it("unshields private USDC through the local eERC client with the backend unplugged", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("backend unplugged"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.makePublic("2.5", "local")).resolves.toMatchObject({
+      amount: "2500000",
+      onChain: true,
+      prover: "local",
+      status: "settled",
+      txHash: UNSHIELD_TX,
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(clientMocks.unshieldPrivateUsdcClientSide).toHaveBeenCalledWith(
+      "2500000",
+      expect.stringContaining("make-public"),
+    );
+    const history = JSON.parse(localStorage.getItem("benzo.history.local.v1") ?? "[]") as Array<Record<string, unknown>>;
+    expect(history[0]).toMatchObject({
+      amount: "2500000",
+      direction: "out",
+      id: UNSHIELD_TX,
+      name: "Made public",
+      status: "settled",
+      txHash: UNSHIELD_TX,
+      type: "unshield",
+    });
+  });
+
+  it("routes Cash shield and unshield through the same client-side paths", async () => {
+    await expect(api.addMoney("3", "local")).resolves.toMatchObject({ amount: "3000000", txHash: SHIELD_TX });
+    await expect(api.cashOut("4", "local")).resolves.toMatchObject({ amount: "4000000", txHash: UNSHIELD_TX });
+
+    expect(clientMocks.shieldPublicUsdcClientSide).toHaveBeenCalledWith("3000000", expect.any(String));
+    expect(clientMocks.unshieldPrivateUsdcClientSide).toHaveBeenCalledWith("4000000", expect.any(String));
+  });
+
+  it("returns local deposit info without requiring services/api", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error("backend unplugged"));
+    vi.stubGlobal("fetch", fetchMock);
+    clientMocks.readPublicBalanceClientSide.mockResolvedValue("9000000");
+
+    await expect(api.depositInfo()).resolves.toEqual({
+      address: ADDRESS,
+      asset: "USDC",
+      issuer: "",
+      liquid: "9000000",
+      live: true,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

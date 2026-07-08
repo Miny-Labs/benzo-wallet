@@ -1,11 +1,11 @@
 /**
  * Convert - the two-way bridge between your two balances, in dead-simple words.
  *   • "Make private"  (mode=private) : move Public USDC into your Private balance
- *                                      (shield → privacy pool). api.importDeposit.
+ *                                      (converter deposit → encrypted eERC balance). api.importDeposit.
  *   • "Make public"   (mode=public)  : move Private USDC back to your Public
  *                                      balance (unshield → your own address).
  *                                      api.makePublic.
- * Both run the same REAL Groth16/BN254 on-chain op as Cash; we reuse the Cash
+ * Both run the same on-chain eERC path as Cash; we reuse the Cash
  * "journey" done-overlay so the moment feels crafted and honest.
  * The amount you can move is capped by the source balance, surfaced inline.
  */
@@ -80,9 +80,9 @@ export function Convert() {
           toLabel: "To Private",
           fromIcon: <Globe size={14} />,
           toIcon: <Lock size={14} />,
-          sub: "Moves it into your private balance - only you can see it.",
+          sub: "Deposits public USDC into your encrypted eERC balance.",
           cta: "Make private",
-          chip: "Only you can see this",
+          chip: "Edge public; balance encrypted",
         }
       : {
           title: "Make public",
@@ -102,7 +102,7 @@ export function Convert() {
       const apiProver = apiProverKind(plan.kind);
       const r =
         mode === "private"
-          ? await api.importDeposit(amount, apiProver) // shield Public → Private (BFF expects dollars, like makePublic)
+          ? await api.importDeposit(amount, apiProver) // shield Public → Private, fully client-side
           : await api.makePublic(amount, apiProver); // unshield Private → your Public
       setResult(r);
       setPhase("done");
@@ -202,8 +202,8 @@ function ConvertDone({ mode, amount, result, onDone }: { mode: Mode; amount: str
   const onChain = !!result?.onChain;
   const steps =
     mode === "private"
-      ? ["Took it from your public balance", "Shielded privately on your device", "Now in your private balance"]
-      : ["Unshielded privately", "Sent to your public address", "Now in your public balance"];
+      ? ["Approved public USDC", "Deposited into encrypted eERC balance", "Now in your private balance"]
+      : ["Built withdraw proof locally", "Submitted eERC withdraw", "Now in your public balance"];
   const [lit, setLit] = useState(0);
   useEffect(() => {
     const timers = steps.map((_, i) => setTimeout(() => setLit(i + 1), 420 * (i + 1)));
@@ -241,7 +241,7 @@ function ConvertDone({ mode, amount, result, onDone }: { mode: Mode; amount: str
       {onChain ? (
         <div className="flex items-center gap-1.5 text-[12px] text-pos" data-testid="convert-proof">
           <ShieldCheck size={13} />
-          {mode === "private" ? "Now private - the amount is hidden on-chain" : "Moved to your public balance - ready to send"}
+          {mode === "private" ? "Private balance updated on-chain" : "Withdraw proof verified on-chain"}
         </div>
       ) : null}
       <div className="w-full max-w-[320px]">

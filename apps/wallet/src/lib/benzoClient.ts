@@ -1,6 +1,14 @@
 import { getAddress, isAddress, type Address, type Hex } from "viem";
 import type { BenzoRecipient } from "@benzo/core";
-import { createEerc, readEercPrivateBalance, readPublicUsdcBalance, transferPrivateUsdc, transferPublicUsdc } from "./eerc";
+import {
+  createEerc,
+  readEercPrivateBalance,
+  readPublicUsdcBalance,
+  shieldPublicUsdc,
+  transferPrivateUsdc,
+  transferPublicUsdc,
+  unshieldPrivateUsdc,
+} from "./eerc";
 import { claimHandleOnChain } from "./handleRegistry";
 import { getLocalAccount } from "./localWallet";
 
@@ -45,6 +53,27 @@ export async function sendPublicClientSide(
   if (!isAddress(to, { strict: false })) throw new Error("Enter a valid Avalanche wallet address.");
   const result = await transferPublicUsdc(account, getAddress(to), BigInt(amountBaseUnits));
   return { txHash: result.txHash, prover: "local" };
+}
+
+export async function shieldPublicUsdcClientSide(
+  amountBaseUnits: string,
+  memo?: string,
+): Promise<{ approvalTxHash?: string; registrationTxHash?: string; txHash?: string; prover: "local" } | null> {
+  const account = getLocalAccount();
+  if (!account) return null;
+  const result = await shieldPublicUsdc(account, BigInt(amountBaseUnits), memo);
+  return { ...result, prover: "local" };
+}
+
+export async function unshieldPrivateUsdcClientSide(
+  amountBaseUnits: string,
+  memo?: string,
+): Promise<{ registrationTxHash?: string; txHash?: string; prover: "local" } | null> {
+  const account = getLocalAccount();
+  if (!account) return null;
+  const result = await unshieldPrivateUsdc(account, BigInt(amountBaseUnits), memo);
+  return { ...result, prover: "local" };
+
 }
 
 export async function clientSideReadsAvailable(): Promise<boolean> {

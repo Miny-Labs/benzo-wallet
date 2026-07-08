@@ -90,15 +90,27 @@ describe("OnChainDetails", () => {
     expect(screen.queryByText(/zero-knowledge guarantee/i)).not.toBeInTheDocument();
   });
 
-  it("keeps ZK proof details for shielded actions", () => {
+  it("labels shield as a converter deposit with a public edge amount", () => {
     render(<OnChainDetails txHash={txHash} onChain kind="shield" prover="local" provingMs={10120} />);
 
     fireEvent.click(screen.getByTestId("onchain-toggle"));
 
-    expect(screen.getByText("Groth16 / BN254 · eERC DEPOSIT")).toBeInTheDocument();
+    expect(screen.getByText("eERC DEPOSIT")).toBeInTheDocument();
+    expect(screen.getByText("the deposit amount at the public edge")).toBeInTheDocument();
     expect(screen.getByText("eERC contract")).toBeInTheDocument();
     expect(screen.getByText("Registrar")).toBeInTheDocument();
-    expect(screen.getByText(/eERC hides amounts/i)).toBeInTheDocument();
-    expect(screen.getByText("Local prover · 10.12s")).toBeInTheDocument();
+    expect(screen.getByText(/Converter deposits are public at the edge/i)).toBeInTheDocument();
+    expect(screen.getByText("Local wallet · 10.12s")).toBeInTheDocument();
+    expect(screen.queryByText(/Groth16 \/ BN254 · eERC DEPOSIT/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps ZK proof details for unshield withdraws", () => {
+    render(<OnChainDetails txHash={txHash} onChain kind="unshield" prover="local" provingMs={8120} />);
+
+    fireEvent.click(screen.getByTestId("onchain-toggle"));
+
+    expect(screen.getByText("Groth16 / BN254 · eERC WITHDRAW")).toBeInTheDocument();
+    expect(screen.getByText("you own enough encrypted balance to make this amount public")).toBeInTheDocument();
+    expect(screen.getByText("Local prover · 8.12s")).toBeInTheDocument();
   });
 });
