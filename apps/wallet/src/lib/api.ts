@@ -98,18 +98,6 @@ export interface ProofReceipt {
   createdAt: number;
 }
 
-export interface RecoveryStatus {
-  status: "ok";
-  recovery: {
-    bound: boolean;
-    createdAt?: number;
-    lastSeenAt?: number;
-    status: "unbound" | "healthy";
-    custody: "non-custodial";
-    nextSteps: string[];
-  };
-}
-
 export interface DeleteAccountResult {
   deleted: boolean;
 }
@@ -466,15 +454,6 @@ export const api = {
     const { user } = await http<{ user: ApiUser }>("/auth/me");
     return sessionFromUser(user);
   },
-  recoveryStatus: async (): Promise<RecoveryStatus> => ({
-    status: "ok",
-    recovery: {
-      bound: false,
-      status: "unbound",
-      custody: "non-custodial",
-      nextSteps: ["Your wallet is secured by this device backup."],
-    },
-  }),
   deleteAccount: async (): Promise<DeleteAccountResult> => {
     await api.logout();
     return { deleted: true };
