@@ -1,4 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const registryMocks = vi.hoisted(() => ({ handleAvailableOnChain: vi.fn() }));
+vi.mock("./handleRegistry", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./handleRegistry")>()),
+  handleAvailableOnChain: registryMocks.handleAvailableOnChain,
+}));
+
 import {
   api,
   apiHref,
@@ -93,15 +100,17 @@ describe("wallet API on Avalanche services/api", () => {
     expect(fetchMock.mock.calls[0][0]).toBe(apiHref("/auth/me"));
   });
 
-  it("treats 404 resolve responses as available handles", async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({ error: "handle_not_found" }, 404))
-      .mockResolvedValueOnce(jsonResponse({ address: ADDRESS, registeredOnEerc: true, source: "handle" }));
+  it("reads handle availability from the on-chain registry, not the BFF", async () => {
+    const fetchMock = vi.fn(() => Promise.reject(new Error("BFF must not be called")));
     vi.stubGlobal("fetch", fetchMock);
+    registryMocks.handleAvailableOnChain
+      .mockResolvedValueOnce({ available: true })
+      .mockResolvedValueOnce({ available: false });
 
     await expect(api.handleAvailable("@alice")).resolves.toEqual({ available: true });
     await expect(api.handleAvailable("@alice")).resolves.toEqual({ available: false });
-    expect(fetchMock.mock.calls[0][0]).toBe(apiHref("/resolve/alice"));
+    expect(registryMocks.handleAvailableOnChain).toHaveBeenCalledWith("@alice");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("creates gift-link invites against /invites", async () => {

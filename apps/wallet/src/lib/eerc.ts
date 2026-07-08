@@ -53,6 +53,17 @@ export function createViemClients(account: BenzoAccount): {
   };
 }
 
+// Account-independent read client shared by on-chain reads (e.g. @handle
+// resolution) that don't need a signer. Memoized so we reuse a single Fuji RPC
+// transport rather than spinning one up per lookup.
+let sharedPublicClient: PublicClient | null = null;
+export function getPublicClient(): PublicClient {
+  if (!sharedPublicClient) {
+    sharedPublicClient = createPublicClient({ chain: ACTIVE_CHAIN, transport: http(RPC_URL) });
+  }
+  return sharedPublicClient;
+}
+
 // The eERC SDK bundles snarkjs + circuit tooling (multi-MB), and is only needed
 // once the user performs an encrypted op (balance read / transfer). Load it via
 // dynamic import so it stays out of the initial bundle and is fetched on demand.
