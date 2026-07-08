@@ -610,6 +610,7 @@ async function privateBurnRow(input: {
     eerc: input.eerc,
     logOrdinal: input.logOrdinal,
     outflowCarry: input.outflowCarry,
+    tokenAddress: USDC_TOKEN_ADDRESS,
   });
   return {
     id: input.id,
