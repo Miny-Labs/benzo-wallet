@@ -31,8 +31,9 @@ const InviteExternal = lazy(() => import("./screens/InviteExternal").then((m) =>
 const Claim = lazy(() => import("./screens/Claim").then((m) => ({ default: m.Claim })));
 const Work = lazy(() => import("./screens/Work").then((m) => ({ default: m.Work })));
 import { Onboarding } from "./screens/Onboarding";
-import { AUTH_REQUIRED_EVENT } from "./lib/api";
-import { walletExists, isWalletUnlocked } from "./lib/localWallet";
+import { AUTH_CHANGED_EVENT, AUTH_REQUIRED_EVENT, credentialLooksWellFormed } from "./lib/api";
+import { walletExists, isWalletUnlocked, reauthenticateSession } from "./lib/localWallet";
+import { backendAuthLossEjectsWallet } from "./lib/backendSession";
 
 const TABS = [
   { to: "/", label: "Home", icon: HomeIcon },
@@ -137,6 +138,7 @@ export function App() {
   const [onboarded, setOnboarded] = useState(false);
   const [locked, setLocked] = useState(true);
   const [checking, setChecking] = useState(true);
+  const [backendSignedOut, setBackendSignedOut] = useState(false);
 
   useEffect(() => {
     async function checkWallet() {
@@ -147,12 +149,29 @@ export function App() {
     }
     checkWallet();
 
-    const onAuthRequired = () => {
-      setLocked(true);
-      setOnboarded(false);
+    // A backend 401 (expired/absent SIWE session) must NOT tear down a valid
+    // device-local wallet — keys, balance, and private send are local/on-chain.
+    // Only fall back to Onboarding when there is genuinely no wallet on this
+    // device; otherwise keep the user in and re-auth the backend in the
+    // background, surfacing only a subtle offline indicator.
+    const onAuthRequired = async () => {
+      if (backendAuthLossEjectsWallet(await walletExists())) {
+        setLocked(true);
+        setOnboarded(false);
+        return;
+      }
+      setBackendSignedOut(true);
+      void reauthenticateSession();
+    };
+    const onAuthChanged = () => {
+      if (credentialLooksWellFormed()) setBackendSignedOut(false);
     };
     window.addEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
-    return () => window.removeEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
+    window.addEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
+    return () => {
+      window.removeEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
+      window.removeEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
+    };
   }, []);
 
   function finishOnboarding() {
@@ -189,6 +208,13 @@ export function App() {
           <AnimatePresence>{!onboarded ? <Onboarding onDone={finishOnboarding} /> : null}</AnimatePresence>
           {showShell ? (
           <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
+            {backendSignedOut ? (
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center pt-1">
+                <span className="rounded-full bg-black/55 px-2.5 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur">
+                  Offline · your wallet still works
+                </span>
+              </div>
+            ) : null}
             <main className="no-scrollbar flex-1 overflow-y-auto">
               <RouteErrorBoundary>
               <Suspense
