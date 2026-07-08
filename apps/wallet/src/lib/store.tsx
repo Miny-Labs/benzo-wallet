@@ -4,6 +4,7 @@ import { readShieldedBalanceClientSide, readPublicBalanceClientSide } from "./be
 import { getLocalAccount, isWalletUnlocked, getLocalAccountSummary } from "./localWallet";
 import { listLocalHistory } from "./history";
 import { listLocal } from "./contacts";
+import { applyActivityHints, mergeActivityRows, readEercActivityClientSide } from "./eercActivity";
 
 export interface PublicBalance {
   stroops: string;
@@ -74,15 +75,23 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         setDeviceVerified(true);
       }
       
-      const apiHistory = await api.history().catch(() => []);
       const local = listLocalHistory();
-      const merged = [...local];
-      for (const item of apiHistory) {
-        if (!merged.some((x) => x.txHash === item.txHash)) {
-          merged.push(item);
-        }
+      const account = getLocalAccount();
+      let chainHistory: ActivityRow[] = [];
+      if (account) {
+        chainHistory = await readEercActivityClientSide(account).catch((err) => {
+          console.warn("Failed to refresh eERC activity from RPC:", err);
+          return [] as ActivityRow[];
+        });
       }
-      setHistory(merged.sort((a, b) => b.timestamp - a.timestamp));
+      setHistory(mergeActivityRows(local, chainHistory));
+
+      void api.activityHints()
+        .then((hints) => {
+          if (hints.length === 0) return;
+          setHistory((current) => mergeActivityRows(applyActivityHints(current, hints)));
+        })
+        .catch(() => {});
 
       setError(null);
     } catch (e) {

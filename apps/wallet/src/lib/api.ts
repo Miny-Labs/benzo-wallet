@@ -36,6 +36,22 @@ export interface ActivityRow {
   tone?: "accent" | "amber" | "neutral";
   unverified?: boolean;
 }
+export interface ActivityLink {
+  label?: string | null;
+  objectId?: string | null;
+  objectType?: string | null;
+  txHash?: string | null;
+}
+export interface ActivityHint {
+  blockNumber?: bigint;
+  eventName: string;
+  fromAddr: string | null;
+  links: ActivityLink[];
+  logIndex?: number;
+  timestamp?: number;
+  toAddr: string | null;
+  txHash?: Hex;
+}
 export interface Contact {
   handle: string;
   name: string;
@@ -387,23 +403,31 @@ function tokenClaimLink(token: string): string {
   return `${origin}/claim?token=${encodeURIComponent(token)}`;
 }
 
-function mapActivity(row: Record<string, unknown>): ActivityRow {
-  const txHash = typeof row.txHash === "string" ? row.txHash : undefined;
-  const from = typeof row.fromAddr === "string" ? row.fromAddr : "";
-  const to = typeof row.toAddr === "string" ? row.toAddr : "";
-  const eventName = typeof row.eventName === "string" ? row.eventName : "eERC event";
-  const blockTime = typeof row.blockTime === "string" ? Date.parse(row.blockTime) : Date.now();
+function mapActivityHint(row: Record<string, unknown>): ActivityHint | null {
+  const txHash = typeof row.txHash === "string" && /^0x[0-9a-fA-F]{64}$/.test(row.txHash)
+    ? (row.txHash as Hex)
+    : undefined;
+  const eventName = typeof row.eventName === "string" ? row.eventName : "";
+  if (!eventName || !txHash) return null;
+  const blockTime = typeof row.blockTime === "string" ? Date.parse(row.blockTime) : undefined;
+  const blockNumber = typeof row.blockNumber === "string" && /^\d+$/.test(row.blockNumber)
+    ? BigInt(row.blockNumber)
+    : undefined;
+  const links = Array.isArray(row.links) ? row.links.filter(isActivityLink) : [];
   return {
-    id: txHash ?? `${eventName}-${blockTime}`,
-    type: eventName,
-    name: to || from || "Encrypted eERC event",
-    note: "Encrypted eERC activity. Amount decrypts on your device.",
-    amount: "0",
-    direction: to ? "in" : "out",
-    status: "settled",
-    timestamp: Math.floor(blockTime / 1000),
+    blockNumber,
+    eventName,
+    fromAddr: typeof row.fromAddr === "string" ? row.fromAddr : null,
+    links,
+    logIndex: typeof row.logIndex === "number" ? row.logIndex : undefined,
+    timestamp: blockTime ? Math.floor(blockTime / 1000) : undefined,
+    toAddr: typeof row.toAddr === "string" ? row.toAddr : null,
     txHash,
   };
+}
+
+function isActivityLink(value: unknown): value is ActivityLink {
+  return typeof value === "object" && value !== null;
 }
 
 export const api = {
@@ -477,10 +501,14 @@ export const api = {
     status: "failed" as const,
     prover: "local" as const,
   }),
-  history: async () => {
+  activityHints: async () => {
     const result = await http<{ activity: Array<Record<string, unknown>>; nextCursor: string | null }>("/activity");
-    return result.activity.map(mapActivity);
+    return result.activity.flatMap((row) => {
+      const hint = mapActivityHint(row);
+      return hint ? [hint] : [];
+    });
   },
+  history: async () => [] as ActivityRow[],
   proofReceipts: async () => [] as ProofReceipt[],
   contacts: async () => {
     const result = await http<{
