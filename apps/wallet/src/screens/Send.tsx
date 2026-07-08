@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AlertTriangle, AtSign, Globe, Send as SendIcon, ShieldCheck, Smartphone, UserPlus } from "lucide-react";
-import { api, type ProverKind, type SettleResult } from "../lib/api";
+import type { ProverKind, SettleResult } from "../lib/api";
 import { proverPlan } from "../lib/proverPolicy";
 import { useSendStream } from "../lib/useSendStream";
 import { shouldLockOnSend, requireUnlock } from "../lib/lock";
@@ -11,6 +11,7 @@ import { useWallet } from "../lib/store";
 import { fmtUsd, usdcToStroops } from "../lib/format";
 import { isValidEvmAddress, shortAddress } from "../lib/strkey";
 import { classifyRecipientInput, looksLikeStellarAddressInput, type RecipientKind } from "../lib/recipient";
+import { sendPublicClientSide } from "../lib/benzoClient";
 import { Screen, motion } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
 import { AmountField, Avatar, Button, Input } from "../ui/primitives";
@@ -99,22 +100,23 @@ export function Send() {
         setPubPhase("busy");
         setPubErr(null);
         try {
-          const r = await api.sendPublic(recipient, amount);
-          if (!r.onChain) throw new Error("Payment was not submitted on-chain.");
-          
+          const amountBaseUnits = toStroopsSafe(amount);
+          const r = await sendPublicClientSide(recipient, amountBaseUnits);
+          if (!r?.txHash) throw new Error("Local wallet did not return a transaction hash.");
+
           saveLocalHistory({
-            id: r.txHash || Math.random().toString(),
-            type: "unshield",
+            id: r.txHash,
+            type: "publicSend",
             name: recipient.length > 24 ? `${recipient.slice(0, 8)}...${recipient.slice(-8)}` : recipient,
-            note: memo || "",
-            amount: toStroopsSafe(amount),
+            note: memo || "Public send",
+            amount: amountBaseUnits,
             direction: "out",
             status: "settled",
             timestamp: Math.floor(Date.now() / 1000),
             txHash: r.txHash,
           });
 
-          setPubResult({ status: "settled", txHash: r.txHash, onChain: true, amount: toStroopsSafe(amount), prover: "local" });
+          setPubResult({ status: "settled", txHash: r.txHash, onChain: true, amount: amountBaseUnits, prover: "local" });
           setPubPhase("done");
           void refresh();
         } catch (e) {
