@@ -1,9 +1,10 @@
 import { useCallback, useReducer, useState } from "react";
 import { paymentReducer, initialPaymentState, type PaymentState } from "@benzo/ui/payment-state";
-import { api, type ProverKind, type SettleResult, type SendPhaseEvent } from "./api";
+import { type ProverKind, type SettleResult, type SendPhaseEvent } from "./api";
 import { sendClientSide } from "./benzoClient";
 import { usdcToStroops } from "./format";
 import { decodeRecipient } from "./recipient";
+import { resolveHandleOnChain } from "./handleRegistry";
 import { saveLocalHistory } from "./history";
 import { isValidEvmAddress, normalizeEvmAddress } from "./strkey";
 
@@ -74,6 +75,8 @@ async function resolvePrivateRecipient(to: string): Promise<`0x${string}`> {
   if (isValidEvmAddress(trimmed)) return normalizeEvmAddress(trimmed) as `0x${string}`;
   const decoded = decodeRecipient(trimmed);
   if (decoded?.address) return decoded.address;
-  const resolved = await api.resolveHandle(trimmed);
+  // A bare @handle resolves on-chain via HandleRegistry over Fuji RPC — no BFF
+  // call sits on the send path, so this succeeds with the backend unreachable.
+  const resolved = await resolveHandleOnChain(trimmed);
   return resolved.address;
 }
