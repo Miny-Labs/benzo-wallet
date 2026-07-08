@@ -241,11 +241,10 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
         /* ignore */
       }
       if (res.status === 401) {
-        // Redact dynamic segments — a raw path can carry secrets
-        // (e.g. /invites/<secret>/claim) that must not leak into logs.
-        const route = `/${path.replace(/^\//, "").split(/[/?]/)[0]}`;
+        // Log only the method, never the path — any path segment can carry a
+        // secret (e.g. an invite/claim token) that must not leak into logs.
         console.warn(
-          `Benzo API session expired on ${method} ${route}; the device wallet stays usable offline.`,
+          `Benzo API session expired (${method}); the device wallet stays usable offline.`,
         );
         notifyAuthRequired();
       }
