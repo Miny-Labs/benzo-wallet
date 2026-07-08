@@ -1,7 +1,7 @@
 /**
- * Cash - the testnet on-ramp/off-ramp surface. The reserve contract moves real
- * testnet USDC; the app shields or unshields at the edge. No bank, cash, Stripe,
- * or MoneyGram partner payout is wired in this build.
+ * Cash - the plain-money surface for shield/unshield. Core conversion is
+ * local-first through eERC; fiat/reserve rails are optional online features and
+ * are not required for moving between Public and Private balances.
  */
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -21,7 +21,8 @@ const QUICK = ["20", "50", "100", "250"];
 type Tab = "in" | "out";
 type Phase = "form" | "busy" | "done";
 
-// Testnet reserve per-tx caps (USD). Honest parity, surfaced and enforced.
+// Per-tx caps for the Cash surface. These guard the local shield/unshield leg;
+// online fiat/reserve rails can enforce their own limits when they are wired.
 const MIN = 5;
 const MAX_IN = 950;
 const MAX_OUT = 2500;
@@ -48,7 +49,7 @@ export function Cash() {
   const [reserve, setReserve] = useState<string | null>(null);
   const [reserveErr, setReserveErr] = useState(false);
 
-  // Live on-chain reserve - proof that the USDC leg is real.
+  // Optional online reserve signal. It is never required for local shield/unshield.
   const loadReserve = () =>
     api
       .rampReserve()
@@ -66,7 +67,7 @@ export function Cash() {
   // Local-only proving: ramp proofs use the local Benzo runtime.
   const plan = proverPlan();
   const apiProver = apiProverKind(plan.kind);
-  const rampProverReason = plan.onDevice ? plan.reason : "Ramp proof uses the local Benzo runtime.";
+  const rampProverReason = plan.onDevice ? plan.reason : "Proof runs on the local Benzo runtime.";
 
   const n = Number(amount);
   const max = tab === "in" ? MAX_IN : MAX_OUT;
@@ -99,7 +100,7 @@ export function Cash() {
       <ScreenHeader title="Cash" />
       <div className="px-5 pt-2">
         <Segmented<Tab>
-          items={[{ id: "in", label: "On-ramp" }, { id: "out", label: "Off-ramp" }]}
+          items={[{ id: "in", label: "Shield" }, { id: "out", label: "Unshield" }]}
           active={tab}
           onChange={(t) => { setTab(t); setPhase("form"); setErr(null); }}
         />
@@ -110,11 +111,11 @@ export function Cash() {
               <AmountField value={amount} onChange={setAmount} autoFocus />
               <div className="text-center text-[13px] text-muted">
                 {tab === "in"
-                  ? "Reserve USDC enters, then a shield proof makes it private"
-                  : "Private USDC exits through an unshield proof to the reserve"}
+                  ? "Move Public USDC into your encrypted eERC balance"
+                  : "Move Private USDC back to your public wallet balance"}
               </div>
               <div className={`mt-1 text-center text-[12px] ${tooLow || tooHigh ? "text-[#9a6b12]" : "text-muted/70"}`} data-testid="cash-limits">
-                {tooLow ? `Minimum is $${MIN}` : tooHigh ? `Max ${tab === "in" ? "on-ramp" : "off-ramp"} is $${max.toLocaleString()}` : `$${MIN} to $${max.toLocaleString()} per ${tab === "in" ? "on-ramp" : "off-ramp"}`}
+                {tooLow ? `Minimum is $${MIN}` : tooHigh ? `Max ${tab === "in" ? "shield" : "unshield"} is $${max.toLocaleString()}` : `$${MIN} to $${max.toLocaleString()} per ${tab === "in" ? "shield" : "unshield"}`}
               </div>
             </div>
 
@@ -130,25 +131,27 @@ export function Cash() {
               <div className="mt-5 space-y-2 rounded-2xl border border-hair bg-card p-4 text-[13px]" data-testid="cash-quote">
                 <QRow k="Amount" v={fmtUsd(toS(amount))} />
                 <QRow k="Fee" v={<span className="font-semibold text-pos">Free</span>} />
-                <QRow k="Edge" v={tab === "in" ? "Testnet reserve to private" : "Private to testnet reserve"} />
-                <QRow k="Proof" v={tab === "in" ? "Shield" : "Unshield"} />
-                <QRow k="Privacy" v="Amount stays private inside Benzo" />
+                <QRow k="Move" v={tab === "in" ? "Public USDC to Private" : "Private to Public USDC"} />
+                <QRow k="eERC" v={tab === "in" ? "Converter deposit" : "Withdraw proof"} />
+                <QRow k="Online rail" v="Optional fiat/reserve feature" />
               </div>
             ) : null}
 
-            {tab === "out" ? (
-              <div className="mt-6 flex items-center gap-2 rounded-2xl border border-hair bg-card px-3.5 py-2.5 text-[12.5px] text-muted" data-testid="cash-prover-plan">
-                <Smartphone size={15} className="flex-none text-accent" />
-                <span>{rampProverReason}</span>
-              </div>
-            ) : null}
+            <div className="mt-6 flex items-center gap-2 rounded-2xl border border-hair bg-card px-3.5 py-2.5 text-[12.5px] text-muted" data-testid="cash-prover-plan">
+              <Smartphone size={15} className="flex-none text-accent" />
+              <span>{tab === "in" ? "Shield submits from this wallet over RPC. No backend required." : rampProverReason}</span>
+            </div>
+
+            <div className="mt-3 rounded-2xl border border-hair bg-card px-3.5 py-2.5 text-[12.5px] text-muted" data-testid="cash-online-note">
+              Fiat add-money and cash-out are optional online features. This button only moves funds between your own Public and Private balances.
+            </div>
 
             <div className="mt-6 flex justify-center">
-              <PrivateChip label={tab === "in" ? "Your balance stays private" : "Amount stays private"} />
+              <PrivateChip label={tab === "in" ? "Edge public; balance encrypted" : "Withdraw proof hides remaining balance"} />
             </div>
 
             <Button full size="lg" className="mt-4" disabled={!valid || phase !== "form"} loading={phase === "busy"} onClick={go} data-testid={tab === "in" ? "add-submit" : "cashout-submit"}>
-              <span className="truncate">{tab === "in" ? "On-ramp" : "Off-ramp to reserve"}{valid ? ` · ${fmtUsd(toS(amount))}` : ""}</span>
+              <span className="truncate">{tab === "in" ? "Make private" : "Make public"}{valid ? ` · ${fmtUsd(toS(amount))}` : ""}</span>
             </Button>
             {tab === "in" ? (
               <button onClick={() => nav("/deposit")} className="mt-3 w-full rounded-lg py-1 text-center text-[13px] font-semibold text-accent outline-none focus-visible:ring-2 focus-visible:ring-accent/40" data-testid="cash-deposit-link">
@@ -159,9 +162,7 @@ export function Cash() {
           </motion.div>
         </AnimatePresence>
 
-        {/* The on-chain reserve - special, and honest: this ramp is backed by a real
-            testnet reserve you can read on-chain. Sits below the amount
-            so the eye lands on the input first, then the trust signal. */}
+        {/* Optional online rail status. This never gates local shield/unshield. */}
         <ReserveBadge reserve={reserve} error={reserveErr} onRetry={() => { setReserveErr(false); void loadReserve(); }} />
       </div>
 
@@ -172,26 +173,26 @@ export function Cash() {
   );
 }
 
-/** Live on-chain reserve chip - the "this is real testnet USDC" signal. */
+/** Optional online reserve chip. It never gates local shield/unshield. */
 function ReserveBadge({ reserve, error, onRetry }: { reserve: string | null; error: boolean; onRetry: () => void }) {
   if (error && reserve == null) {
     return (
       <div className="mt-4 flex items-center gap-2.5 rounded-2xl border border-hair bg-card px-4 py-2.5" data-testid="reserve-badge">
         <span className="h-2 w-2 flex-none rounded-full bg-muted/50" />
-        <div className="flex-1 text-[12px] text-muted">Couldn't load the reserve.</div>
+        <div className="flex-1 text-[12px] text-muted">Online fiat/reserve feature unavailable. Shield and unshield still work.</div>
         <button onClick={onRetry} className="flex-none text-[12px] font-semibold text-accent" data-testid="reserve-retry">Retry</button>
       </div>
     );
   }
   return (
-    <div className="mt-4 flex items-center gap-2.5 rounded-2xl border border-hair bg-gradient-to-br from-accent/[0.07] to-transparent px-4 py-2.5" data-testid="reserve-badge" title="Read live from the on-chain testnet reserve.">
+    <div className="mt-4 flex items-center gap-2.5 rounded-2xl border border-hair bg-gradient-to-br from-accent/[0.07] to-transparent px-4 py-2.5" data-testid="reserve-badge" title="Optional online fiat/reserve leg.">
       <span className="relative flex h-2 w-2">
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-pos opacity-60" />
         <span className="relative inline-flex h-2 w-2 rounded-full bg-pos" />
       </span>
       <div className="min-w-0 flex-1 leading-tight">
-        <div className="tnum truncate text-xs font-semibold text-ink">Testnet on/off-ramp reserve {reserve != null ? `· ${fmtUsd(reserve)}` : ""}</div>
-        <div className="text-[11px] text-muted">Read live from Avalanche testnet</div>
+        <div className="tnum truncate text-xs font-semibold text-ink">Optional online fiat/reserve leg {reserve != null ? `· ${fmtUsd(reserve)}` : ""}</div>
+        <div className="text-[11px] text-muted">Core shield/unshield uses your device and Fuji RPC</div>
       </div>
       <Radio size={15} className="flex-none text-accent" />
     </div>
@@ -201,8 +202,8 @@ function ReserveBadge({ reserve, error, onRetry }: { reserve: string | null; err
 /** The crafted done overlay - plays the REAL journey, step by step. */
 function RampDone({ tab, amount, onChain, result, onDone }: { tab: Tab; amount: string; onChain: boolean; result: SettleResult | null; onDone: () => void }) {
   const steps = tab === "in"
-    ? ["Reserve released testnet USDC", "Shield proof created a private note", "Private balance updated"]
-    : ["Unshield proof opened the edge", "USDC returned to reserve", "Off-ramp receipt recorded"];
+    ? ["Public USDC approved", "Deposited into encrypted eERC balance", "Private balance updated"]
+    : ["Withdraw proof created locally", "eERC withdraw submitted", "Public balance updated"];
   const [lit, setLit] = useState(0);
   useEffect(() => {
     const timers = steps.map((_, i) => setTimeout(() => setLit(i + 1), 420 * (i + 1)));
@@ -219,7 +220,7 @@ function RampDone({ tab, amount, onChain, result, onDone }: { tab: Tab; amount: 
         <Landmark size={30} />
       </motion.div>
       <div>
-        <div className="font-display text-2xl">{tab === "in" ? "On-ramp complete" : "Off-ramp complete"}</div>
+        <div className="font-display text-2xl">{tab === "in" ? "Made private" : "Made public"}</div>
         <div className="mt-1 text-[15px] text-muted">{fmtUsd(amount)}{onChain ? "" : " · not verified on-chain"}</div>
       </div>
 
@@ -239,7 +240,7 @@ function RampDone({ tab, amount, onChain, result, onDone }: { tab: Tab; amount: 
 
       {onChain ? (
         <div className="flex items-center gap-1.5 text-[12px] text-pos" data-testid="cash-proof">
-          <ShieldCheck size={13} /> {tab === "in" ? "Testnet USDC moved into encrypted eERC balance" : "eERC withdraw settles on Avalanche testnet"}
+          <ShieldCheck size={13} /> {tab === "in" ? "USDC moved into encrypted eERC balance" : "Withdraw proof verified on Avalanche testnet"}
         </div>
       ) : null}
       <div className="w-full max-w-[320px]">

@@ -189,6 +189,99 @@ export async function transferPrivateUsdc(
   return { txHash: result.transactionHash };
 }
 
+export async function shieldPublicUsdc(
+  account: BenzoAccount,
+  amount: bigint,
+  message?: string,
+): Promise<{ approvalTxHash?: Hex; registrationTxHash?: Hex; txHash: Hex }> {
+  if (!USDC_TOKEN_ADDRESS) throw new Error("USDC token is not configured.");
+  if (amount <= 0n) throw new Error("Enter an amount greater than zero.");
+  const eerc = await createEerc(account);
+  if (!eerc) throw new Error("eERC contracts are not configured.");
+  const publicBalance = await readPublicUsdcBalance(account);
+  if (publicBalance == null) throw new Error("Public USDC balance is not available.");
+  if (BigInt(publicBalance) < amount) throw new Error("Insufficient public USDC balance.");
+
+  const registrationTxHash = await ensureEercRegistered(eerc, account.address);
+  const approvalTxHash = await ensureUsdcAllowance(account, amount);
+  const eercDecimals = await readEercDecimals(eerc);
+  const result = await eerc.deposit(amount, USDC_TOKEN_ADDRESS, eercDecimals, message);
+  return { approvalTxHash, registrationTxHash, txHash: result.transactionHash };
+}
+
+export async function unshieldPrivateUsdc(
+  account: BenzoAccount,
+  amount: bigint,
+  message?: string,
+): Promise<{ registrationTxHash?: Hex; txHash: Hex }> {
+  if (!USDC_TOKEN_ADDRESS) throw new Error("USDC token is not configured.");
+  if (amount <= 0n) throw new Error("Enter an amount greater than zero.");
+  const eerc = await createEerc(account);
+  if (!eerc) throw new Error("eERC contracts are not configured.");
+  const registrationTxHash = await ensureEercRegistered(eerc, account.address);
+  const balance = await readEercBalanceParts(eerc, account.address, USDC_TOKEN_ADDRESS);
+  const auditor = await readAuditorPublicKey(eerc);
+  const result = await eerc.withdraw(
+    amount,
+    balance.encryptedBalance,
+    balance.decryptedBalance,
+    auditor,
+    USDC_TOKEN_ADDRESS,
+    message,
+  );
+  return { registrationTxHash, txHash: result.transactionHash };
+}
+
+async function ensureEercRegistered(eerc: EERC, address: Address): Promise<Hex | undefined> {
+  const publicKey = await eerc.fetchPublicKey(address);
+  if (publicKey[0] !== 0n && publicKey[1] !== 0n) return undefined;
+  const result = await eerc.register();
+  const hash = result.transactionHash as Hex;
+  await eercPublicClient(eerc).waitForTransactionReceipt({ hash });
+  return hash;
+}
+
+async function ensureUsdcAllowance(account: BenzoAccount, amount: bigint): Promise<Hex | undefined> {
+  if (!USDC_TOKEN_ADDRESS || !ENCRYPTED_ERC_ADDRESS) throw new Error("USDC/eERC contracts are not configured.");
+  const { publicClient, walletClient } = createViemClients(account);
+  const allowance = await publicClient.readContract({
+    address: USDC_TOKEN_ADDRESS,
+    abi: erc20Abi,
+    functionName: "allowance",
+    args: [account.address, ENCRYPTED_ERC_ADDRESS],
+  });
+  if (allowance >= amount) return undefined;
+  const { request } = await publicClient.simulateContract({
+    address: USDC_TOKEN_ADDRESS,
+    abi: erc20Abi,
+    functionName: "approve",
+    args: [ENCRYPTED_ERC_ADDRESS, amount],
+    account: account.address,
+  });
+  const hash = await walletClient.writeContract(request);
+  await publicClient.waitForTransactionReceipt({ hash });
+  return hash;
+}
+
+async function readAuditorPublicKey(eerc: EERC): Promise<bigint[]> {
+  return eercPublicClient(eerc).readContract({
+    address: ENCRYPTED_ERC_ADDRESS!,
+    abi: eerc.encryptedErcAbi,
+    functionName: "auditorPublicKey",
+    args: [],
+  } as never) as Promise<bigint[]>;
+}
+
+async function readEercDecimals(eerc: EERC): Promise<bigint> {
+  const value = await eercPublicClient(eerc).readContract({
+    address: ENCRYPTED_ERC_ADDRESS!,
+    abi: eerc.encryptedErcAbi,
+    functionName: "decimals",
+    args: [],
+  } as never);
+  return BigInt(value as bigint | number | string);
+}
+
 async function readEercBalanceParts(eerc: EERC, address: Address, token: Address): Promise<{
   decryptedBalance: bigint;
   encryptedBalance: bigint[];

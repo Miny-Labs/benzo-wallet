@@ -100,8 +100,8 @@ function timeline(row: ActivityRow): Step[] {
   // On-ramp (add money): received → added.
   if (row.type === "cashIn" || row.type === "shield") {
     return [
-      { label: "Funds received", state: "done" },
-      { label: "Added to your balance", state: failed ? "failed" : "done" },
+      { label: "Public USDC received", state: "done" },
+      { label: "Encrypted balance updated", state: failed ? "failed" : "done" },
     ];
   }
   // Incoming payment.
@@ -160,6 +160,7 @@ export function TxDetail() {
   const cash = isCashRow(row);
   const makePublic = isMakePublicRow(row);
   const publicSend = isPublicSendRow(row);
+  const shield = row.type === "cashIn" || row.type === "shield";
   const failed = isFailedLikeRow(row);
   const steps = timeline(row);
   // Honest on-chain claim: a legacy local row never counts as "Verified on-chain",
@@ -206,7 +207,7 @@ export function TxDetail() {
             ) : failed ? (
               <PrivateChip label="No on-chain transfer recorded" />
             ) : privatePayment ? (
-              <PrivateChip label={cash ? "Your balance stayed private" : `Only you and ${row.name} can see this`} />
+              <PrivateChip label={shield ? "Edge public; balance encrypted" : cash ? "Your balance stayed private" : `Only you and ${row.name} can see this`} />
             ) : (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fbf1dd] px-3 py-1 text-[12px] font-semibold text-[#9a6b12]">
                 <Landmark size={13} /> {makePublic ? "Made public" : "Testnet reserve cash-out"}
@@ -231,7 +232,7 @@ export function TxDetail() {
             k="Privacy"
             v={
               <span className={`inline-flex items-center gap-1.5 ${publicSend ? "text-[#9a6b12]" : "text-pos"}`}>
-                {publicSend ? <Globe2 size={14} /> : <ShieldCheck size={14} />} {publicSend ? "Public" : privatePayment ? "Private" : "Amount private"}
+                {publicSend ? <Globe2 size={14} /> : <ShieldCheck size={14} />} {publicSend ? "Public" : shield ? "Edge public; balance encrypted" : privatePayment ? "Private" : "Amount private"}
               </span>
             }
           />
