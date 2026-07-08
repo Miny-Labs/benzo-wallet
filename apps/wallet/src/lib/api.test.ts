@@ -168,11 +168,18 @@ describe("wallet API on Avalanche services/api", () => {
     });
   });
 
-  it("maps encrypted eERC activity without claiming decrypted amounts", async () => {
+  it("maps /activity as optional indexer hints without fabricating display amounts", async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
       activity: [{
+        blockNumber: "56879309",
         eventName: "PrivateTransfer",
-        txHash: "0xtx",
+        logIndex: 4,
+        links: [
+          [],
+          { label: "Gift claim", objectType: "invite" },
+          null,
+        ],
+        txHash: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         toAddr: ADDRESS,
         blockTime: "2026-07-07T00:00:00.000Z",
       }],
@@ -180,14 +187,17 @@ describe("wallet API on Avalanche services/api", () => {
     }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(api.history()).resolves.toEqual([expect.objectContaining({
-      amount: "0",
-      direction: "in",
-      name: ADDRESS,
-      note: "Encrypted eERC activity. Amount decrypts on your device.",
-      status: "settled",
-      txHash: "0xtx",
+    const hints = await api.activityHints();
+    expect(hints).toEqual([expect.objectContaining({
+      blockNumber: 56879309n,
+      eventName: "PrivateTransfer",
+      logIndex: 4,
+      timestamp: 1_783_382_400,
+      toAddr: ADDRESS,
+      txHash: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     })]);
+    expect(hints[0]?.links).toEqual([{ label: "Gift claim", objectType: "invite" }]);
+    await expect(api.history()).resolves.toEqual([]);
   });
 
   it("times out hanging read requests with a clean error", async () => {
