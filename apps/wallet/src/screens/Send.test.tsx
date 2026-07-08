@@ -150,4 +150,47 @@ describe("Send", () => {
     }));
     expect(walletState.refresh).toHaveBeenCalled();
   });
+
+  it("rejects an invalid public amount without sending or recording history", () => {
+    render(
+      <MemoryRouter initialEntries={["/send"]}>
+        <Send />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByTestId("send-handle"), { target: { value: "0x1111111111111111111111111111111111111111" } });
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "1.0000001" } });
+
+    expect(screen.getByTestId("send-amount-error")).toHaveTextContent("USDC has at most 6 decimals");
+    expect(screen.getByTestId("send-submit")).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("send-submit"));
+
+    expect(mocks.sendPublicClientSide).not.toHaveBeenCalled();
+    expect(mocks.saveLocalHistory).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("send-public-overlay")).not.toBeInTheDocument();
+  });
+
+  it("records an empty note for a public send when memo is blank", async () => {
+    render(
+      <MemoryRouter initialEntries={["/send"]}>
+        <Send />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByTestId("send-handle"), { target: { value: "0x1111111111111111111111111111111111111111" } });
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "2.5" } });
+
+    fireEvent.click(screen.getByTestId("send-submit"));
+    fireEvent.click(await screen.findByTestId("send-confirm"));
+
+    expect(await screen.findByTestId("send-public-overlay")).toBeInTheDocument();
+    expect(mocks.saveLocalHistory).toHaveBeenCalledWith(expect.objectContaining({
+      id: TX_HASH,
+      type: "publicSend",
+      note: "",
+      amount: "2500000",
+      status: "settled",
+    }));
+  });
 });
