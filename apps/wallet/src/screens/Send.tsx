@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AlertTriangle, AtSign, Globe, Send as SendIcon, ShieldCheck, Smartphone, UserPlus } from "lucide-react";
-import { api, type ProverKind, type SettleResult } from "../lib/api";
+import type { ProverKind, SettleResult } from "../lib/api";
 import { proverPlan } from "../lib/proverPolicy";
 import { useSendStream } from "../lib/useSendStream";
 import { shouldLockOnSend, requireUnlock } from "../lib/lock";
 import { mergeContacts } from "../lib/contacts";
 import { needsStepUp, stepUpMessage, sendCapUsd } from "../lib/tiers";
 import { useWallet } from "../lib/store";
-import { fmtUsd, usdcToStroops } from "../lib/format";
+import { fmtUsd, USDC_BASE_UNITS, usdcToStroops } from "../lib/format";
 import { isValidEvmAddress, shortAddress } from "../lib/strkey";
 import { classifyRecipientInput, looksLikeStellarAddressInput, type RecipientKind } from "../lib/recipient";
+import { sendPublicClientSide } from "../lib/benzoClient";
 import { Screen, motion } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
 import { AmountField, Avatar, Button, Input } from "../ui/primitives";
@@ -22,12 +23,21 @@ import { saveLocalHistory } from "../lib/history";
 type Step = "form" | "confirm";
 type Kind = RecipientKind;
 
-function toStroopsSafe(amount: string): string {
+const INVALID_AMOUNT = "Enter an amount above $0.";
+
+function parsePositiveAmount(amount: string): { valid: boolean; value: bigint; baseUnits: string; error: string | null } {
+  const raw = amount.trim();
+  if (!raw) return { valid: false, value: 0n, baseUnits: "0", error: null };
+  const clean = raw.replace(/[$,]/g, "");
+  if (!/^(?:\d+\.?\d*|\.\d+)$/.test(clean)) {
+    return { valid: false, value: 0n, baseUnits: "0", error: INVALID_AMOUNT };
+  }
   try {
-    const value = usdcToStroops(amount);
-    return value > 0n ? value.toString() : "0";
-  } catch {
-    return "0";
+    const value = usdcToStroops(raw);
+    if (value <= 0n) return { valid: false, value: 0n, baseUnits: "0", error: INVALID_AMOUNT };
+    return { valid: true, value, baseUnits: value.toString(), error: null };
+  } catch (e) {
+    return { valid: false, value: 0n, baseUnits: "0", error: (e as Error).message || INVALID_AMOUNT };
   }
 }
 
@@ -47,7 +57,10 @@ export function Send() {
   const [pubPhase, setPubPhase] = useState<"idle" | "busy" | "done">("idle");
   const [pubResult, setPubResult] = useState<SettleResult | null>(null);
   const [pubErr, setPubErr] = useState<string | null>(null);
-  const overCap = needsStepUp(Number(amount), session?.kycTier);
+  const parsedAmount = useMemo(() => parsePositiveAmount(amount), [amount]);
+  const amountBaseUnits = parsedAmount.baseUnits;
+  const amountUsd = parsedAmount.valid ? Number(parsedAmount.value) / Number(USDC_BASE_UNITS) : 0;
+  const overCap = needsStepUp(amountUsd, session?.kycTier);
 
   const plan = useMemo(() => proverPlan(), []);
   const recipient = to.trim();
@@ -68,12 +81,12 @@ export function Send() {
 
   const privateStroops = BigInt(balance?.stroops ?? "0");
   const publicStroops = BigInt(publicBalance?.stroops ?? "0");
-  const wantStroops = BigInt(toStroopsSafe(amount));
+  const wantStroops = parsedAmount.value;
   const checkingPrivateBalance = kind === "private" && wantStroops > 0n && balance == null;
   const checkingPublicBalance = kind === "address" && wantStroops > 0n && publicBalance == null;
   const lowPrivate = kind === "private" && wantStroops > 0n && balance != null && wantStroops > privateStroops;
   const lowPublic = kind === "address" && wantStroops > 0n && publicBalance != null && wantStroops > publicStroops;
-  const recipientReady = recipient.length > 0 && Number(amount) > 0 && kind !== "invite" && !badAddress;
+  const recipientReady = recipient.length > 0 && parsedAmount.valid && kind !== "invite" && !badAddress;
   const canOpenStepUp = overCap && recipientReady;
   const valid = recipientReady && !checkingPrivateBalance && !checkingPublicBalance && !lowPrivate && !(kind === "address" && lowPublic);
 
@@ -81,7 +94,7 @@ export function Send() {
   const pubInFlight = pubPhase !== "idle";
 
   const view: SendReceipt = {
-    amount: receipt?.amount ?? toStroopsSafe(amount),
+    amount: receipt?.amount ?? amountBaseUnits,
     recipient: display,
     memo: memo || undefined,
     prover: receipt?.prover ?? plan.kind,
@@ -96,25 +109,29 @@ export function Send() {
     try {
       if (shouldLockOnSend() && !(await requireUnlock())) return;
       if (kind === "address") {
-        setPubPhase("busy");
         setPubErr(null);
+        if (!parsedAmount.valid) {
+          setPubErr(parsedAmount.error ?? INVALID_AMOUNT);
+          return;
+        }
+        setPubPhase("busy");
         try {
-          const r = await api.sendPublic(recipient, amount);
-          if (!r.onChain) throw new Error("Payment was not submitted on-chain.");
-          
+          const r = await sendPublicClientSide(recipient, amountBaseUnits);
+          if (!r?.txHash) throw new Error("Local wallet did not return a transaction hash.");
+
           saveLocalHistory({
-            id: r.txHash || Math.random().toString(),
-            type: "unshield",
+            id: r.txHash,
+            type: "publicSend",
             name: recipient.length > 24 ? `${recipient.slice(0, 8)}...${recipient.slice(-8)}` : recipient,
             note: memo || "",
-            amount: toStroopsSafe(amount),
+            amount: amountBaseUnits,
             direction: "out",
             status: "settled",
             timestamp: Math.floor(Date.now() / 1000),
             txHash: r.txHash,
           });
 
-          setPubResult({ status: "settled", txHash: r.txHash, onChain: true, amount: toStroopsSafe(amount), prover: "local" });
+          setPubResult({ status: "settled", txHash: r.txHash, onChain: true, amount: amountBaseUnits, prover: "local" });
           setPubPhase("done");
           void refresh();
         } catch (e) {
@@ -187,6 +204,11 @@ export function Send() {
                   Sends over ${sendCapUsd(session?.kycTier).toLocaleString()} need a quick one-time ID check.
                 </div>
               ) : null}
+              {parsedAmount.error ? (
+                <div className="mx-auto mt-2 max-w-[300px] text-center text-[12px] font-medium text-danger" data-testid="send-amount-error">
+                  {parsedAmount.error}
+                </div>
+              ) : null}
               {lowPublic && !canOpenStepUp ? (
                 <div className="mx-auto mt-2 flex max-w-[300px] flex-col items-center gap-1.5 text-center text-[12px] text-[#9a6b12]" data-testid="send-low-public">
                   <span>Not enough public USDC - Make public first.</span>
@@ -250,7 +272,7 @@ export function Send() {
 
             {kind !== "invite" ? (
               <Button full size="lg" className="mt-6" disabled={!valid && !canOpenStepUp} onClick={() => (overCap ? setStepUp(true) : setStep("confirm"))} data-testid="send-submit">
-                {amount && (valid || canOpenStepUp) ? `${overCap ? "Verify" : "Review"} · ${fmtUsd(toStroopsSafe(amount))}` : "Review"}
+                {amount && (valid || canOpenStepUp) ? `${overCap ? "Verify" : "Review"} · ${fmtUsd(amountBaseUnits)}` : "Review"}
               </Button>
             ) : null}
           </>
@@ -259,7 +281,7 @@ export function Send() {
             kind={kind!}
             display={display}
             address={kind === "address" ? recipient : undefined}
-            amount={toStroopsSafe(amount)}
+            amount={amountBaseUnits}
             memo={memo}
             plan={plan}
             isNewRecipient={!known && kind === "private"}
@@ -272,8 +294,8 @@ export function Send() {
       </div>
 
       {inFlight ? <SendCeremony state={state} receipt={view} onDone={done} onRetry={() => { reset(); setStep("confirm"); }} /> : null}
-      {pubPhase === "done" ? <PublicSendDone display={display} address={recipient} amount={toStroopsSafe(amount)} result={pubResult} onDone={done} /> : null}
-      {stepUp ? <StepUpSheet message={stepUpMessage(Number(amount), session?.kycTier)} onClose={() => setStepUp(false)} /> : null}
+      {pubPhase === "done" ? <PublicSendDone display={display} address={recipient} amount={pubResult?.amount ?? amountBaseUnits} result={pubResult} onDone={done} /> : null}
+      {stepUp ? <StepUpSheet message={stepUpMessage(amountUsd, session?.kycTier)} onClose={() => setStepUp(false)} /> : null}
     </Screen>
   );
 }

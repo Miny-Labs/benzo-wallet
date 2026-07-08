@@ -7,7 +7,6 @@ import {
   type Address,
   type Hex,
   type PublicClient,
-  type WalletClient,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
@@ -22,6 +21,19 @@ import {
 import type { BenzoAccount } from "@benzo/core";
 
 type CircuitURLs = ConstructorParameters<typeof EERC>[5];
+
+const ERC20_TRANSFER_ABI = [
+  {
+    type: "function",
+    name: "transfer",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
 
 const env = import.meta.env as unknown as Record<string, string | undefined>;
 
@@ -38,10 +50,7 @@ export const EERC_CIRCUIT_URLS: CircuitURLs = {
   burn: { wasm: circuitUrl("burn", "wasm"), zkey: circuitUrl("burn", "zkey") },
 };
 
-export function createViemClients(account: BenzoAccount): {
-  publicClient: PublicClient;
-  walletClient: WalletClient;
-} {
+export function createViemClients(account: BenzoAccount) {
   const viemAccount = privateKeyToAccount(account.evmPrivateKey);
   return {
     publicClient: createPublicClient({ chain: ACTIVE_CHAIN, transport: http(RPC_URL) }),
@@ -111,6 +120,24 @@ export async function readPublicUsdcBalance(account: BenzoAccount): Promise<stri
     args: [account.address],
   });
   return balance.toString();
+}
+
+export async function transferPublicUsdc(
+  account: BenzoAccount,
+  to: Address,
+  amount: bigint,
+): Promise<{ txHash: Hex }> {
+  if (!USDC_TOKEN_ADDRESS) throw new Error("USDC token is not configured.");
+  const { walletClient } = createViemClients(account);
+  if (!walletClient.account) throw new Error("Local wallet account is not available.");
+  const txHash = await walletClient.writeContract({
+    account: walletClient.account,
+    address: USDC_TOKEN_ADDRESS,
+    abi: ERC20_TRANSFER_ABI,
+    functionName: "transfer",
+    args: [to, amount],
+  });
+  return { txHash };
 }
 
 export async function readEercPrivateBalance(account: BenzoAccount): Promise<string | null> {
