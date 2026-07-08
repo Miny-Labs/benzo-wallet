@@ -133,16 +133,9 @@ export interface OnChainGift {
   status: number;
 }
 
-type RawGift = {
-  sender: Address;
-  claimAddress: Address;
-  token: Address;
-  recipient: Address;
-  amount: bigint;
-  createdAt: bigint;
-  expiry: bigint;
-  status: number;
-};
+// The raw getGift tuple mirrors OnChainGift; normalizeGift re-checksums the
+// addresses and coerces status (which the ABI decoder may hand back as bigint).
+type RawGift = Omit<OnChainGift, "status"> & { status: number | bigint };
 
 // The ephemeral claim key needs a poseidon encryptor + the recipient's public
 // key. Only the subset of the eERC SDK surface we use, so tests can stub it.
@@ -316,7 +309,7 @@ export async function createGiftOnChain(
 
   const { publicClient, walletClient } = createViemClients(account);
   if (!walletClient.account) throw new Error("Local wallet account is not available.");
-  const { request, result } = await publicClient.simulateContract({
+  const { request } = await publicClient.simulateContract({
     address: escrow,
     abi: privateGiftEscrowAbi,
     functionName: "createGift",
@@ -327,9 +320,10 @@ export async function createGiftOnChain(
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") throw new Error("gift_create_failed");
 
-  // The mined GiftCreated event is authoritative for the id; fall back to the
-  // simulated return value when logs aren't decodable (e.g. a stubbed client).
-  const giftId = giftIdFromReceipt(receipt.logs) ?? (result as bigint);
+  // The MINED GiftCreated event is authoritative for the gift id — never fall
+  // back to the simulation result, which can be stale if another createGift is
+  // mined first, pointing the claim link at the wrong gift.
+  const giftId = giftIdFromReceipt(receipt.logs);
   if (giftId === undefined) throw new Error("gift_create_no_id");
   return { giftId, claimPrivateKey, claimAddress, txHash };
 }

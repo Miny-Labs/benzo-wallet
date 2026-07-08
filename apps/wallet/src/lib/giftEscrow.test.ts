@@ -1,5 +1,11 @@
 import type { BenzoAccount } from "@benzo/core";
-import { getAddress, recoverAddress, type Hex } from "viem";
+import {
+  encodeAbiParameters,
+  encodeEventTopics,
+  getAddress,
+  recoverAddress,
+  type Hex,
+} from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -40,6 +46,23 @@ import {
 
 type ContractCall = { address?: string; functionName?: string; args?: unknown[] };
 
+// Mirrors the GiftCreated event in giftEscrow.ts so the stubbed receipt can emit
+// a log that giftIdFromReceipt (parseEventLogs) decodes back into a giftId.
+const giftCreatedEventAbi = [
+  {
+    type: "event",
+    name: "GiftCreated",
+    inputs: [
+      { name: "giftId", type: "uint256", indexed: true },
+      { name: "sender", type: "address", indexed: true },
+      { name: "claimAddress", type: "address", indexed: true },
+      { name: "token", type: "address", indexed: false },
+      { name: "amount", type: "uint256", indexed: false },
+      { name: "expiry", type: "uint64", indexed: false },
+    ],
+  },
+] as const;
+
 function createdGift(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     sender: getAddress("0x1111111111111111111111111111111111111111"),
@@ -77,7 +100,32 @@ function makeClients(opts: {
     }
     return { request: { __sim: c.functionName, args: c.args }, result: true };
   });
-  const waitForTransactionReceipt = vi.fn(async () => ({ status: "success", logs: [] }));
+  // The mined GiftCreated event is authoritative for the gift id, so the stubbed
+  // receipt must carry a decodable log (not empty) or createGiftOnChain throws.
+  const giftCreatedLog = {
+    address: ESCROW,
+    topics: encodeEventTopics({
+      abi: giftCreatedEventAbi,
+      eventName: "GiftCreated",
+      args: {
+        giftId: opts.createGiftId ?? 7n,
+        sender: getAddress("0x3333333333333333333333333333333333333333"),
+        claimAddress: getAddress("0x4444444444444444444444444444444444444444"),
+      },
+    }),
+    data: encodeAbiParameters(
+      [
+        { name: "token", type: "address" },
+        { name: "amount", type: "uint256" },
+        { name: "expiry", type: "uint64" },
+      ],
+      [USDC, 2_500_000n, 4_000_000_000n],
+    ),
+  };
+  const waitForTransactionReceipt = vi.fn(async () => ({
+    status: "success",
+    logs: [giftCreatedLog],
+  }));
   const getChainId = vi.fn(async () => CHAIN_ID);
   const writeContract = vi.fn(async (req: unknown) => {
     writes.push(req);

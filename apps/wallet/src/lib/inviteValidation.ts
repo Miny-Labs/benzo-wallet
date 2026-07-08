@@ -1,5 +1,5 @@
 import { usdcToStroops } from "./format";
-import { INSUFFICIENT_PRIVATE_USDC_ERROR } from "./errors";
+import { INSUFFICIENT_PUBLIC_USDC_ERROR } from "./errors";
 
 export function inviteAmountToStroops(amount: string): string {
   try {
@@ -18,7 +18,9 @@ function parseStroops(value?: string | null): bigint {
   }
 }
 
-export function validateFundedInviteAmount(amount: string, privateBalanceStroops?: string | null): {
+// A gift/invite escrows PUBLIC USDC on-chain, so this validates against the
+// public balance and points an under-funded user at the public top-up flow.
+export function validateFundedInviteAmount(amount: string, publicBalanceStroops?: string | null): {
   amountOk: boolean;
   amountStroops: string;
   insufficient: boolean;
@@ -36,11 +38,11 @@ export function validateFundedInviteAmount(amount: string, privateBalanceStroops
       message: raw.length > 0 ? "Enter an amount above $0." : null,
     };
   }
-  const insufficient = BigInt(amountStroops) > parseStroops(privateBalanceStroops);
+  const insufficient = BigInt(amountStroops) > parseStroops(publicBalanceStroops);
   return {
     amountOk,
     amountStroops,
     insufficient,
-    message: insufficient ? INSUFFICIENT_PRIVATE_USDC_ERROR : null,
+    message: insufficient ? INSUFFICIENT_PUBLIC_USDC_ERROR : null,
   };
 }

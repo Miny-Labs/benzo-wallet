@@ -55,6 +55,8 @@ export const HANDLE_REGISTRY_ADDRESS = (env.VITE_HANDLE_REGISTRY_ADDRESS ??
 // clear error until then, so gift ops fail loudly rather than sending to 0x0.
 const PRIVATE_GIFT_ESCROW_PLACEHOLDER = "0x0000000000000000000000000000000000000000";
 export const PRIVATE_GIFT_ESCROW_ADDRESS = (env.VITE_PRIVATE_GIFT_ESCROW_ADDRESS ??
+  // TODO(@benzo/config): drop this cast once the config package's contracts type
+  // includes PrivateGiftEscrow (added by the WL7 Fuji deploy).
   (DEPLOYMENT.contracts as { PrivateGiftEscrow?: Address }).PrivateGiftEscrow ??
   PRIVATE_GIFT_ESCROW_PLACEHOLDER) as Address;
 

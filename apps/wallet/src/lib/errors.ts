@@ -10,6 +10,7 @@ const RAW = /command failed|stellar |invoke|\s--|0x[0-9a-f]|error\(|panic|sequen
 
 export const INVALID_USDC_AMOUNT_ERROR = "Enter a valid USDC amount.";
 export const INSUFFICIENT_PRIVATE_USDC_ERROR = "Not enough private USDC. Add money or use a smaller amount.";
+export const INSUFFICIENT_PUBLIC_USDC_ERROR = "Not enough public USDC. Unshield some funds or use a smaller amount.";
 
 /** Human-safe message for any thrown error. Keep raw causes out of browser logs. */
 export function friendlyError(e: unknown, fallback = "Something went wrong. Your money is safe - please try again."): string {

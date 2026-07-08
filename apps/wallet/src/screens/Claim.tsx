@@ -145,7 +145,12 @@ export function Claim() {
     setPhase("claiming");
     setErr(null);
     try {
-      const r = await claimLinkClientSide(secret);
+      // Mirror the precheck's routing: an on-chain gift secret settles over RPC
+      // against the escrow; a legacy backend claim token settles through the BFF
+      // (claimLinkClientSide only understands gift secrets and would reject it).
+      const r = decodeGiftClaimSecret(secret)
+        ? await claimLinkClientSide(secret)
+        : await api.claim(secret, undefined, claimAmount ?? "0");
       if (!r) throw new Error("Could not claim link.");
       setAmount(r.amount);
       setPhase("done");
