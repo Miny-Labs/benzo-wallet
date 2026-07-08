@@ -31,8 +31,11 @@ type EercLog = {
 
 type DecodedCall = ReturnType<typeof decodeFunctionData<typeof encryptedErcActivityAbi>>;
 type EercEventName = "PrivateTransfer" | "PrivateMint" | "PrivateBurn" | "Deposit" | "Withdraw";
+type HintLookup = {
+  byLog: Map<string, ActivityHint>;
+  byTx: Map<string, ActivityHint>;
+};
 
-const ZERO_PCT = [0n, 0n, 0n, 0n, 0n, 0n, 0n] as const;
 const CACHE_PREFIX = "benzo.eercActivity.v1";
 const RESCAN_OVERLAP_BLOCKS = 20n;
 const MAX_CACHED_ROWS = 200;
@@ -215,25 +218,38 @@ export async function readEercActivityClientSide(
   if (fromBlock > latestBlock) return [];
 
   const logs = await collectActivityLogs(client, account.address, fromBlock, latestBlock);
-  const hintsByTx = hintsByHash(options.hints ?? []);
+  const hints = options.hints ?? [];
+  const hintLookup = activityHintLookup(hints);
   const blockTimes = new Map<bigint, number>();
+  const unresolvedBlockTimestamps = new Set<bigint>();
   const rows: ActivityRow[] = [];
 
-  for (const log of uniqueLogs(logs)) {
-    const row = await rowFromLog({
-      account: account.address,
-      blockTimes,
-      client,
-      eerc,
-      hint: log.transactionHash ? hintsByTx.get(log.transactionHash.toLowerCase()) : undefined,
-      log,
-      usdcTokenId,
-    });
-    if (row) rows.push(row);
+  for (const [logOrdinal, log] of uniqueLogs(logs).entries()) {
+    try {
+      const row = await rowFromLog({
+        account: account.address,
+        blockTimes,
+        client,
+        eerc,
+        hint: hintForLog(log, hintLookup),
+        log,
+        logOrdinal,
+        unresolvedBlockTimestamps,
+        usdcTokenId,
+      });
+      if (row) rows.push(row);
+    } catch (err) {
+      console.warn("Skipping eERC activity log:", {
+        error: err,
+        eventName: log.eventName,
+        logIndex: log.logIndex,
+        txHash: log.transactionHash,
+      });
+    }
   }
 
-  const merged = mergeActivityRows(cache?.rows ?? [], applyActivityHints(rows, options.hints ?? []));
-  saveActivityCache(account.address, latestBlock, merged);
+  const merged = mergeActivityRows(cache?.rows ?? [], applyActivityHints(rows, hints));
+  if (unresolvedBlockTimestamps.size === 0) saveActivityCache(account.address, latestBlock, merged);
   return merged;
 }
 
@@ -243,7 +259,24 @@ export function mergeActivityRows(...groups: ActivityRow[][]): ActivityRow[] {
     for (const row of group) {
       const key = activityKey(row);
       const existing = byKey.get(key);
-      byKey.set(key, mergeActivityRow(existing, row));
+      if (existing) {
+        byKey.set(key, mergeActivityRow(existing, row));
+        continue;
+      }
+      const txOnlyKey = txOnlyActivityKey(row);
+      const txOnly = txOnlyKey ? byKey.get(txOnlyKey) : undefined;
+      if (txOnlyKey && txOnly && canMergeTxOnlyActivity(txOnly, row)) {
+        byKey.delete(txOnlyKey);
+        byKey.set(key, mergeActivityRow(txOnly, row));
+        continue;
+      }
+      const logAwareKey = findCompatibleLogAwareKey(byKey, row);
+      if (logAwareKey) {
+        const logAware = byKey.get(logAwareKey);
+        byKey.set(logAwareKey, mergeActivityRow(row, logAware ?? row));
+        continue;
+      }
+      byKey.set(key, row);
     }
   }
   return [...byKey.values()].sort((a, b) => b.timestamp - a.timestamp);
@@ -251,9 +284,9 @@ export function mergeActivityRows(...groups: ActivityRow[][]): ActivityRow[] {
 
 export function applyActivityHints(rows: ActivityRow[], hints: ActivityHint[]): ActivityRow[] {
   if (hints.length === 0) return rows;
-  const byTx = hintsByHash(hints);
+  const lookup = activityHintLookup(hints);
   return rows.map((row) => {
-    const hint = row.txHash ? byTx.get(row.txHash.toLowerCase()) : undefined;
+    const hint = hintForRow(row, lookup);
     if (!hint) return row;
     const label = hint.links.find((link) => link.label)?.label;
     return {
@@ -311,6 +344,8 @@ async function rowFromLog(input: {
   eerc: EercDecryptor;
   hint?: ActivityHint;
   log: EercLog;
+  logOrdinal: number;
+  unresolvedBlockTimestamps: Set<bigint>;
   usdcTokenId: bigint;
 }): Promise<ActivityRow | null> {
   const txHash = input.log.transactionHash ?? input.hint?.txHash;
@@ -318,8 +353,16 @@ async function rowFromLog(input: {
   if (!txHash || blockNumber == null) return null;
 
   const eventName = input.log.eventName ?? input.hint?.eventName;
-  const timestamp =
-    input.hint?.timestamp ?? (await blockTimestamp(input.client, input.blockTimes, blockNumber));
+  const timestamp = input.hint?.timestamp ?? (await blockTimestamp(
+    input.client,
+    input.blockTimes,
+    blockNumber,
+    input.unresolvedBlockTimestamps,
+  ));
+  if (timestamp == null) return null;
+  const logIndex = input.log.logIndex ?? input.hint?.logIndex ?? null;
+  const rowId = chainRowId(txHash, logIndex, input.logOrdinal);
+  const rowLogIndex = logIndex ?? undefined;
 
   switch (eventName) {
     case "PrivateTransfer":
@@ -328,21 +371,25 @@ async function rowFromLog(input: {
         blockNumber,
         client: input.client,
         eerc: input.eerc,
+        id: rowId,
         log: input.log,
+        logIndex: rowLogIndex,
         timestamp,
         txHash,
         usdcTokenId: input.usdcTokenId,
       });
     case "Deposit":
-      return depositRow(input.log, txHash, timestamp, input.usdcTokenId);
+      return depositRow(input.log, txHash, timestamp, input.usdcTokenId, rowId, rowLogIndex);
     case "Withdraw":
-      return withdrawRow(input.log, txHash, timestamp, input.usdcTokenId);
+      return withdrawRow(input.log, txHash, timestamp, input.usdcTokenId, rowId, rowLogIndex);
     case "PrivateMint":
       return privateMintRow({
         account: input.account,
         client: input.client,
         eerc: input.eerc,
+        id: rowId,
         log: input.log,
+        logIndex: rowLogIndex,
         timestamp,
         txHash,
       });
@@ -352,7 +399,9 @@ async function rowFromLog(input: {
         blockNumber,
         client: input.client,
         eerc: input.eerc,
+        id: rowId,
         log: input.log,
+        logIndex: rowLogIndex,
         timestamp,
         txHash,
       });
@@ -366,7 +415,9 @@ async function privateTransferRow(input: {
   blockNumber: bigint;
   client: PublicClient;
   eerc: EercDecryptor;
+  id: string;
   log: EercLog;
+  logIndex?: number;
   timestamp: number;
   txHash: Hex;
   usdcTokenId: bigint;
@@ -380,16 +431,17 @@ async function privateTransferRow(input: {
 
   const args = decoded.args as readonly unknown[];
   const tokenId = bigintArg(args[1]);
-  if (tokenId !== input.usdcTokenId) return null;
+  if (tokenId == null || tokenId !== input.usdcTokenId) return null;
 
   const proof = proofArg(args[2]);
   const balancePCT = pctArg(args[3]);
+  if (!proof || !balancePCT) return null;
   const account = input.account.toLowerCase();
 
   if (to.toLowerCase() === account) {
     const amount = input.eerc.decryptPCT(proof.publicSignals.slice(16, 23));
     return {
-      id: input.txHash,
+      id: input.id,
       type: "receive",
       name: shortAddress(from),
       note: "Private eERC transfer decrypted on this device.",
@@ -397,6 +449,7 @@ async function privateTransferRow(input: {
       direction: "in",
       status: "settled",
       timestamp: input.timestamp,
+      logIndex: input.logIndex,
       txHash: input.txHash,
     };
   }
@@ -410,7 +463,7 @@ async function privateTransferRow(input: {
     const remaining = input.eerc.decryptPCT(balancePCT);
     const amount = previous >= remaining ? previous - remaining : 0n;
     return {
-      id: input.txHash,
+      id: input.id,
       type: "send",
       name: shortAddress(to),
       note: "Private eERC transfer proved locally.",
@@ -418,6 +471,7 @@ async function privateTransferRow(input: {
       direction: "out",
       status: "settled",
       timestamp: input.timestamp,
+      logIndex: input.logIndex,
       txHash: input.txHash,
     };
   }
@@ -425,12 +479,23 @@ async function privateTransferRow(input: {
   return null;
 }
 
-function depositRow(log: EercLog, txHash: Hex, timestamp: number, usdcTokenId: bigint): ActivityRow | null {
+function depositRow(
+  log: EercLog,
+  txHash: Hex,
+  timestamp: number,
+  usdcTokenId: bigint,
+  id: string,
+  logIndex?: number,
+): ActivityRow | null {
   const tokenId = bigintArg(log.args?.tokenId);
-  if (tokenId !== usdcTokenId) return null;
-  const amount = bigintArg(log.args?.amount) - bigintArg(log.args?.dust);
+  if (tokenId == null || tokenId !== usdcTokenId) return null;
+  const amountArg = bigintArg(log.args?.amount);
+  const dustArg = bigintArg(log.args?.dust);
+  if (amountArg == null || dustArg == null) return null;
+  const raw = amountArg - dustArg;
+  const amount = raw < 0n ? 0n : raw;
   return {
-    id: txHash,
+    id,
     type: "shield",
     name: "Made private",
     note: "Public deposit amount is visible; resulting eERC balance is encrypted.",
@@ -438,22 +503,32 @@ function depositRow(log: EercLog, txHash: Hex, timestamp: number, usdcTokenId: b
     direction: "in",
     status: "settled",
     timestamp,
+    logIndex,
     txHash,
   };
 }
 
-function withdrawRow(log: EercLog, txHash: Hex, timestamp: number, usdcTokenId: bigint): ActivityRow | null {
+function withdrawRow(
+  log: EercLog,
+  txHash: Hex,
+  timestamp: number,
+  usdcTokenId: bigint,
+  id: string,
+  logIndex?: number,
+): ActivityRow | null {
   const tokenId = bigintArg(log.args?.tokenId);
-  if (tokenId !== usdcTokenId) return null;
+  const amount = bigintArg(log.args?.amount);
+  if (tokenId == null || tokenId !== usdcTokenId || amount == null) return null;
   return {
-    id: txHash,
+    id,
     type: "unshield",
     name: "Made public",
     note: "Moved to Public balance",
-    amount: bigintArg(log.args?.amount).toString(),
+    amount: amount.toString(),
     direction: "out",
     status: "settled",
     timestamp,
+    logIndex,
     txHash,
   };
 }
@@ -462,16 +537,19 @@ async function privateMintRow(input: {
   account: Address;
   client: PublicClient;
   eerc: EercDecryptor;
+  id: string;
   log: EercLog;
+  logIndex?: number;
   timestamp: number;
   txHash: Hex;
 }): Promise<ActivityRow | null> {
   const decoded = await decodeTx(input.client, input.txHash);
   if (!decoded || decoded.functionName !== "privateMint") return null;
   const proof = proofArg((decoded.args as readonly unknown[])[1]);
+  if (!proof) return null;
   const amount = input.eerc.decryptPCT(proof.publicSignals.slice(8, 15));
   return {
-    id: input.txHash,
+    id: input.id,
     type: "receive",
     name: "Private mint",
     note: "Private mint decrypted on this device.",
@@ -479,6 +557,7 @@ async function privateMintRow(input: {
     direction: "in",
     status: "settled",
     timestamp: input.timestamp,
+    logIndex: input.logIndex,
     txHash: input.txHash,
   };
 }
@@ -488,7 +567,9 @@ async function privateBurnRow(input: {
   blockNumber: bigint;
   client: PublicClient;
   eerc: EercDecryptor;
+  id: string;
   log: EercLog;
+  logIndex?: number;
   timestamp: number;
   txHash: Hex;
 }): Promise<ActivityRow | null> {
@@ -496,6 +577,7 @@ async function privateBurnRow(input: {
   if (!decoded || decoded.functionName !== "privateBurn") return null;
   const args = decoded.args as readonly unknown[];
   const balancePCT = pctArg(args.length === 2 ? args[1] : args[2]);
+  if (!balancePCT) return null;
   const previous = await input.eerc.getHistoricalBalance(
     input.account,
     input.blockNumber > 0n ? input.blockNumber - 1n : 0n,
@@ -504,7 +586,7 @@ async function privateBurnRow(input: {
   const remaining = input.eerc.decryptPCT(balancePCT);
   const amount = previous >= remaining ? previous - remaining : 0n;
   return {
-    id: input.txHash,
+    id: input.id,
     type: "send",
     name: "Private burn",
     note: "Private burn proved locally.",
@@ -512,6 +594,7 @@ async function privateBurnRow(input: {
     direction: "out",
     status: "settled",
     timestamp: input.timestamp,
+    logIndex: input.logIndex,
     txHash: input.txHash,
   };
 }
@@ -544,16 +627,18 @@ async function blockTimestamp(
   client: PublicClient,
   cache: Map<bigint, number>,
   blockNumber: bigint,
-): Promise<number> {
+  unresolved: Set<bigint>,
+): Promise<number | null> {
   const cached = cache.get(blockNumber);
-  if (cached) return cached;
+  if (cached != null) return cached;
   try {
     const block = await client.getBlock({ blockNumber });
     const timestamp = Number(block.timestamp);
     cache.set(blockNumber, timestamp);
     return timestamp;
   } catch {
-    return Math.floor(Date.now() / 1000);
+    unresolved.add(blockNumber);
+    return null;
   }
 }
 
@@ -563,7 +648,7 @@ function scanStartBlock(latestBlock: bigint, hints: ActivityHint[], cachedScanne
   const incrementalStart = cachedScannedTo == null
     ? EERC_ACTIVITY_START_BLOCK
     : maxBigint(EERC_ACTIVITY_START_BLOCK, cachedScannedTo > RESCAN_OVERLAP_BLOCKS ? cachedScannedTo - RESCAN_OVERLAP_BLOCKS : EERC_ACTIVITY_START_BLOCK);
-  return minBigint(incrementalStart, hintedStart);
+  return maxBigint(EERC_ACTIVITY_START_BLOCK, minBigint(incrementalStart, hintedStart));
 }
 
 function blockWindows(fromBlock: bigint, toBlock: bigint, windowSize: bigint): Array<[bigint, bigint]> {
@@ -578,8 +663,10 @@ function blockWindows(fromBlock: bigint, toBlock: bigint, windowSize: bigint): A
 
 function uniqueLogs(logs: EercLog[]): EercLog[] {
   const seen = new Set<string>();
-  return logs.filter((log) => {
-    const key = `${log.transactionHash ?? ""}:${log.logIndex ?? ""}`;
+  return logs.filter((log, i) => {
+    const key = log.transactionHash && log.logIndex != null
+      ? `${log.transactionHash}:${log.logIndex}`
+      : `__idx:${i}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -587,7 +674,35 @@ function uniqueLogs(logs: EercLog[]): EercLog[] {
 }
 
 function activityKey(row: ActivityRow): string {
-  return row.txHash?.toLowerCase() ?? row.id;
+  return isLogAwareActivity(row) ? row.id.toLowerCase() : row.txHash?.toLowerCase() ?? row.id;
+}
+
+function txOnlyActivityKey(row: ActivityRow): string | null {
+  return row.txHash ? row.txHash.toLowerCase() : null;
+}
+
+function isTxOnlyActivity(row: ActivityRow): boolean {
+  return Boolean(row.txHash && row.id.toLowerCase() === row.txHash.toLowerCase());
+}
+
+function isLogAwareActivity(row: ActivityRow): boolean {
+  return Boolean(row.txHash && row.id.toLowerCase() !== row.txHash.toLowerCase());
+}
+
+function findCompatibleLogAwareKey(byKey: Map<string, ActivityRow>, row: ActivityRow): string | null {
+  if (!isTxOnlyActivity(row)) return null;
+  for (const [key, candidate] of byKey) {
+    if (canMergeTxOnlyActivity(row, candidate)) return key;
+  }
+  return null;
+}
+
+function canMergeTxOnlyActivity(txOnly: ActivityRow, logAware: ActivityRow): boolean {
+  return isTxOnlyActivity(txOnly) &&
+    isLogAwareActivity(logAware) &&
+    txOnly.txHash?.toLowerCase() === logAware.txHash?.toLowerCase() &&
+    txOnly.type === logAware.type &&
+    txOnly.direction === logAware.direction;
 }
 
 function mergeActivityRow(existing: ActivityRow | undefined, row: ActivityRow): ActivityRow {
@@ -601,12 +716,37 @@ function mergeActivityRow(existing: ActivityRow | undefined, row: ActivityRow): 
   };
 }
 
-function hintsByHash(hints: ActivityHint[]): Map<string, ActivityHint> {
-  const byTx = new Map<string, ActivityHint>();
+function activityHintLookup(hints: ActivityHint[]): HintLookup {
+  const lookup: HintLookup = {
+    byLog: new Map(),
+    byTx: new Map(),
+  };
   for (const hint of hints) {
-    if (hint.txHash) byTx.set(hint.txHash.toLowerCase(), hint);
+    if (!hint.txHash) continue;
+    lookup.byTx.set(hint.txHash.toLowerCase(), hint);
+    if (hint.logIndex != null) lookup.byLog.set(logHintKey(hint.txHash, hint.logIndex), hint);
   }
-  return byTx;
+  return lookup;
+}
+
+function hintForLog(log: EercLog, lookup: HintLookup): ActivityHint | undefined {
+  if (!log.transactionHash) return undefined;
+  if (log.logIndex != null) return lookup.byLog.get(logHintKey(log.transactionHash, log.logIndex));
+  return lookup.byTx.get(log.transactionHash.toLowerCase());
+}
+
+function hintForRow(row: ActivityRow, lookup: HintLookup): ActivityHint | undefined {
+  if (!row.txHash) return undefined;
+  if (row.logIndex != null) return lookup.byLog.get(logHintKey(row.txHash as Hex, row.logIndex));
+  return lookup.byTx.get(row.txHash.toLowerCase());
+}
+
+function logHintKey(txHash: Hex, logIndex: number): string {
+  return `${txHash.toLowerCase()}:${logIndex}`;
+}
+
+function chainRowId(txHash: Hex, logIndex: number | null, logOrdinal: number): string {
+  return logIndex == null ? `${txHash}:idx:${logOrdinal}` : `${txHash}:${logIndex}`;
 }
 
 function minBigint(first: bigint, ...rest: bigint[]): bigint {
@@ -655,27 +795,33 @@ function saveActivityCache(address: Address, scannedTo: bigint, rows: ActivityRo
   }
 }
 
-function proofArg(value: unknown): { publicSignals: bigint[] } {
+function proofArg(value: unknown): { publicSignals: bigint[] } | null {
+  if (typeof value !== "object" || value === null) return null;
   const signals = (value as { publicSignals?: unknown }).publicSignals;
-  return { publicSignals: pctArray(signals, 32) };
+  const publicSignals = pctArray(signals, 32);
+  return publicSignals ? { publicSignals } : null;
 }
 
-function pctArg(value: unknown): bigint[] {
+function pctArg(value: unknown): bigint[] | null {
   return pctArray(value, 7);
 }
 
-function pctArray(value: unknown, minLength: number): bigint[] {
-  const items = Array.isArray(value) ? value : ZERO_PCT;
-  const out = items.map((item) => bigintArg(item));
-  while (out.length < minLength) out.push(0n);
+function pctArray(value: unknown, minLength: number): bigint[] | null {
+  if (!Array.isArray(value) || value.length < minLength) return null;
+  const out: bigint[] = [];
+  for (const item of value) {
+    const parsed = bigintArg(item);
+    if (parsed == null) return null;
+    out.push(parsed);
+  }
   return out;
 }
 
-function bigintArg(value: unknown): bigint {
-  if (typeof value === "bigint") return value;
-  if (typeof value === "number" && Number.isFinite(value)) return BigInt(value);
+function bigintArg(value: unknown): bigint | null {
+  if (typeof value === "bigint" && value >= 0n) return value;
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0) return BigInt(value);
   if (typeof value === "string" && /^\d+$/.test(value)) return BigInt(value);
-  return 0n;
+  return null;
 }
 
 function addressArg(value: unknown): Address | null {

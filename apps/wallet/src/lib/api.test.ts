@@ -174,6 +174,11 @@ describe("wallet API on Avalanche services/api", () => {
         blockNumber: "56879309",
         eventName: "PrivateTransfer",
         logIndex: 4,
+        links: [
+          [],
+          { label: "Gift claim", objectType: "invite" },
+          null,
+        ],
         txHash: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         toAddr: ADDRESS,
         blockTime: "2026-07-07T00:00:00.000Z",
@@ -182,7 +187,8 @@ describe("wallet API on Avalanche services/api", () => {
     }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(api.activityHints()).resolves.toEqual([expect.objectContaining({
+    const hints = await api.activityHints();
+    expect(hints).toEqual([expect.objectContaining({
       blockNumber: 56879309n,
       eventName: "PrivateTransfer",
       logIndex: 4,
@@ -190,6 +196,7 @@ describe("wallet API on Avalanche services/api", () => {
       toAddr: ADDRESS,
       txHash: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     })]);
+    expect(hints[0]?.links).toEqual([{ label: "Gift claim", objectType: "invite" }]);
     await expect(api.history()).resolves.toEqual([]);
   });
 

@@ -12,6 +12,8 @@ const ACCOUNT = "0x00f6B82Ea91E429FDD6Dfed8f273190092dd14D6" as Address;
 const SENDER = "0x1111111111111111111111111111111111111111" as Address;
 const RECIPIENT = ACCOUNT;
 const TX = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as const;
+const TX2 = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as const;
+const TX3 = "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" as const;
 
 function proof(publicSignals: bigint[]) {
   return {
@@ -103,6 +105,8 @@ describe("eERC RPC activity", () => {
     };
     const chain: ActivityRow = {
       ...local,
+      id: `${TX}:4`,
+      logIndex: 4,
       name: "0x2222...2222",
       note: "Private eERC transfer proved locally.",
       amount: "2500000",
@@ -112,10 +116,205 @@ describe("eERC RPC activity", () => {
     expect(mergeActivityRows([local], [chain])).toEqual([
       expect.objectContaining({
         amount: "2500000",
+        id: `${TX}:4`,
         name: "@mara",
         note: "coffee",
         timestamp: 20,
       }),
     ]);
+  });
+
+  it("floors malformed Deposit dust greater than amount to zero", async () => {
+    const client = {
+      getBlockNumber: vi.fn().mockResolvedValue(56879310n),
+      readContract: vi.fn().mockResolvedValue(1n),
+      getLogs: vi.fn(async (params: { event: { name: string } }) => {
+        if (params.event.name !== "Deposit") return [];
+        return [{
+          args: { amount: 100n, dust: 200n, tokenId: 1n },
+          blockNumber: 56879309n,
+          eventName: "Deposit",
+          logIndex: 5,
+          transactionHash: TX,
+        }];
+      }),
+      getBlock: vi.fn().mockResolvedValue({ timestamp: 1_800_000_000n }),
+    } as unknown as PublicClient;
+    const eerc = { decryptPCT: vi.fn(), getHistoricalBalance: vi.fn() };
+
+    const rows = await readEercActivityClientSide(
+      { address: ACCOUNT } as BenzoAccount,
+      { client, eerc },
+    );
+
+    expect(rows).toEqual([expect.objectContaining({
+      amount: "0",
+      id: `${TX}:5`,
+      type: "shield",
+    })]);
+  });
+
+  it("keeps same-transaction logs without log indexes distinct via the index fallback", async () => {
+    const client = {
+      getBlockNumber: vi.fn().mockResolvedValue(56879310n),
+      readContract: vi.fn().mockResolvedValue(1n),
+      getLogs: vi.fn(async (params: { event: { name: string } }) => {
+        if (params.event.name !== "Deposit") return [];
+        return [
+          {
+            args: { amount: 111n, dust: 0n, tokenId: 1n },
+            blockNumber: 56879309n,
+            eventName: "Deposit",
+            transactionHash: TX,
+          },
+          {
+            args: { amount: 222n, dust: 0n, tokenId: 1n },
+            blockNumber: 56879309n,
+            eventName: "Deposit",
+            transactionHash: TX,
+          },
+        ];
+      }),
+      getBlock: vi.fn().mockResolvedValue({ timestamp: 1_800_000_000n }),
+    } as unknown as PublicClient;
+    const eerc = { decryptPCT: vi.fn(), getHistoricalBalance: vi.fn() };
+
+    const rows = await readEercActivityClientSide(
+      { address: ACCOUNT } as BenzoAccount,
+      { client, eerc },
+    );
+
+    expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.id)).toEqual([`${TX}:idx:0`, `${TX}:idx:1`]);
+    expect(rows.map((row) => row.amount)).toEqual(["111", "222"]);
+  });
+
+  it("does not collapse distinct chain events from the same transaction", () => {
+    const first: ActivityRow = {
+      id: `${TX}:1`,
+      type: "shield",
+      name: "Made private",
+      note: "",
+      amount: "100",
+      direction: "in",
+      status: "settled",
+      timestamp: 10,
+      logIndex: 1,
+      txHash: TX,
+    };
+    const second: ActivityRow = {
+      ...first,
+      id: `${TX}:2`,
+      amount: "200",
+      logIndex: 2,
+    };
+
+    expect(mergeActivityRows([first, second])).toEqual([
+      expect.objectContaining({ amount: "100", id: `${TX}:1` }),
+      expect.objectContaining({ amount: "200", id: `${TX}:2` }),
+    ]);
+  });
+
+  it("skips one bad log and keeps later valid activity", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const client = {
+      getBlockNumber: vi.fn().mockResolvedValue(56879310n),
+      readContract: vi.fn().mockResolvedValue(1n),
+      getLogs: vi.fn(async (params: { event: { name: string }; args: Record<string, string> }) => {
+        if (params.event.name === "PrivateTransfer" && params.args.to === ACCOUNT) {
+          return [
+            {
+              args: { from: SENDER, to: ACCOUNT },
+              blockNumber: 56879309n,
+              eventName: "PrivateTransfer",
+              logIndex: 1,
+              transactionHash: TX,
+            },
+            {
+              args: { from: SENDER, to: ACCOUNT },
+              blockNumber: 56879310n,
+              eventName: "PrivateTransfer",
+              logIndex: 2,
+              transactionHash: TX2,
+            },
+          ];
+        }
+        return [];
+      }),
+      getTransaction: vi.fn(async ({ hash }: { hash: string }) => ({
+        input: transferInput(hash === TX ? 1_000_000n : 2_000_000n),
+      })),
+      getBlock: vi.fn().mockResolvedValue({ timestamp: 1_800_000_000n }),
+    } as unknown as PublicClient;
+    const eerc = {
+      decryptPCT: vi.fn((pct: bigint[]) => {
+        if (pct[0] === 1_000_000n) throw new Error("bad decrypt");
+        return pct[0];
+      }),
+      getHistoricalBalance: vi.fn(),
+    };
+
+    const rows = await readEercActivityClientSide(
+      { address: ACCOUNT } as BenzoAccount,
+      { client, eerc },
+    );
+
+    expect(rows).toEqual([expect.objectContaining({
+      amount: "2000000",
+      id: `${TX2}:2`,
+      txHash: TX2,
+    })]);
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
+  it("drops malformed Deposit events instead of fabricating zero-amount rows", async () => {
+    const client = {
+      getBlockNumber: vi.fn().mockResolvedValue(56879310n),
+      readContract: vi.fn().mockResolvedValue(1n),
+      getLogs: vi.fn(async (params: { event: { name: string } }) => {
+        if (params.event.name !== "Deposit") return [];
+        return [{
+          args: { dust: 0n, tokenId: 1n },
+          blockNumber: 56879309n,
+          eventName: "Deposit",
+          logIndex: 5,
+          transactionHash: TX,
+        }];
+      }),
+      getBlock: vi.fn().mockResolvedValue({ timestamp: 1_800_000_000n }),
+    } as unknown as PublicClient;
+    const eerc = { decryptPCT: vi.fn(), getHistoricalBalance: vi.fn() };
+
+    await expect(readEercActivityClientSide(
+      { address: ACCOUNT } as BenzoAccount,
+      { client, eerc },
+    )).resolves.toEqual([]);
+  });
+
+  it("does not cache a fabricated timestamp when block lookup fails", async () => {
+    const client = {
+      getBlockNumber: vi.fn().mockResolvedValue(56879310n),
+      readContract: vi.fn().mockResolvedValue(1n),
+      getLogs: vi.fn(async (params: { event: { name: string } }) => {
+        if (params.event.name !== "Deposit") return [];
+        return [{
+          args: { amount: 100n, dust: 0n, tokenId: 1n },
+          blockNumber: 56879309n,
+          eventName: "Deposit",
+          logIndex: 5,
+          transactionHash: TX3,
+        }];
+      }),
+      getBlock: vi.fn().mockRejectedValue(new Error("RPC unavailable")),
+    } as unknown as PublicClient;
+    const eerc = { decryptPCT: vi.fn(), getHistoricalBalance: vi.fn() };
+
+    await expect(readEercActivityClientSide(
+      { address: ACCOUNT } as BenzoAccount,
+      { client, eerc },
+    )).resolves.toEqual([]);
+
+    expect(localStorage.length).toBe(0);
   });
 });

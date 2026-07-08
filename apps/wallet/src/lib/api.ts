@@ -32,6 +32,7 @@ export interface ActivityRow {
   direction: "in" | "out";
   status: "settled" | "pending" | "proving" | "arriving" | "failed";
   timestamp: number;
+  logIndex?: number;
   txHash?: string;
   tone?: "accent" | "amber" | "neutral";
   unverified?: boolean;
@@ -427,7 +428,9 @@ function mapActivityHint(row: Record<string, unknown>): ActivityHint | null {
 }
 
 function isActivityLink(value: unknown): value is ActivityLink {
-  return typeof value === "object" && value !== null;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 export const api = {

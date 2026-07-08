@@ -77,21 +77,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       
       const local = listLocalHistory();
       const account = getLocalAccount();
+      const hints = await api.activityHints().catch(() => []);
       let chainHistory: ActivityRow[] = [];
       if (account) {
-        chainHistory = await readEercActivityClientSide(account).catch((err) => {
+        chainHistory = await readEercActivityClientSide(account, { hints }).catch((err) => {
           console.warn("Failed to refresh eERC activity from RPC:", err);
           return [] as ActivityRow[];
         });
       }
-      setHistory(mergeActivityRows(local, chainHistory));
-
-      void api.activityHints()
-        .then((hints) => {
-          if (hints.length === 0) return;
-          setHistory((current) => mergeActivityRows(applyActivityHints(current, hints)));
-        })
-        .catch(() => {});
+      setHistory(mergeActivityRows(applyActivityHints(local, hints), chainHistory));
 
       setError(null);
     } catch (e) {

@@ -106,6 +106,29 @@ describe("WalletProvider activity refresh", () => {
     expect(screen.getByTestId("history")).toHaveTextContent("receive:4200000:in");
     expect(screen.getByTestId("error")).toHaveTextContent("");
     expect(mocks.activityHints).toHaveBeenCalled();
-    expect(mocks.readEercActivityClientSide).toHaveBeenCalledWith({ address: ADDRESS });
+    expect(mocks.readEercActivityClientSide).toHaveBeenCalledWith({ address: ADDRESS }, { hints: [] });
+  });
+
+  it("passes fetched activity hints into the RPC scan", async () => {
+    const hints = [{
+      blockNumber: 56879309n,
+      eventName: "PrivateTransfer",
+      fromAddr: null,
+      links: [],
+      logIndex: 4,
+      toAddr: ADDRESS,
+      txHash: TX,
+    }];
+    mocks.activityHints.mockResolvedValue(hints);
+
+    render(
+      <WalletProvider>
+        <Probe />
+      </WalletProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
+
+    expect(mocks.readEercActivityClientSide).toHaveBeenCalledWith({ address: ADDRESS }, { hints });
   });
 });
