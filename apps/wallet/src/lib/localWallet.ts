@@ -74,13 +74,21 @@ async function loginSiweSession(): Promise<void> {
   }
 }
 
+let reauthInFlight: Promise<void> | null = null;
+
 /**
  * Best-effort background SIWE re-auth. No-ops when the wallet is locked, and
  * swallows/logs errors, so a 401 can silently refresh the backend session
- * without ever tearing down the device-local wallet.
+ * without ever tearing down the device-local wallet. Single-flighted: a burst
+ * of concurrent 401s triggers only ONE SIWE sign-in, not a thundering herd of
+ * redundant logins (and only one signature prompt).
  */
 export async function reauthenticateSession(): Promise<void> {
-  await loginSiweSession();
+  if (reauthInFlight) return reauthInFlight;
+  reauthInFlight = loginSiweSession().finally(() => {
+    reauthInFlight = null;
+  });
+  return reauthInFlight;
 }
 
 export async function createWallet(passphrase: string): Promise<BenzoAccount> {
