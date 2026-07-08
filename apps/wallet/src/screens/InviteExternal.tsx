@@ -20,7 +20,8 @@ function daysLeft(expiresAt: number): number {
 export function InviteExternal() {
   const [params] = useSearchParams();
   const toast = useToast();
-  const { balance, refresh } = useWallet();
+  // A gift escrows public USDC on-chain, so it's funded from the public balance.
+  const { publicBalance, refresh } = useWallet();
   const [amount, setAmount] = useState(params.get("amount") ?? "");
   const [note, setNote] = useState("");
   const [creating, setCreating] = useState(false);
@@ -36,7 +37,7 @@ export function InviteExternal() {
     void load();
   }, []);
 
-  const amountState = validateFundedInviteAmount(amount, balance?.stroops);
+  const amountState = validateFundedInviteAmount(amount, publicBalance?.stroops);
   const canCreate = amountState.amountOk && !amountState.insufficient;
 
   async function create() {
@@ -96,7 +97,7 @@ export function InviteExternal() {
                 <Gift size={18} />
               </div>
               <p className="text-[13px] text-ink">
-                Send money to anyone, even if they're not on Benzo yet{recipient ? ` (${recipient})` : ""}. They get a link to claim it.
+                Send money to anyone, even if they're not on Benzo yet{recipient ? ` (${recipient})` : ""}. The amount is locked in an on-chain escrow and released only when they claim the link — unclaimed funds come back to you.
               </p>
             </div>
 
@@ -192,7 +193,9 @@ function ShareLink({ result, onAnother }: { result: InviteResult; onAnother: () 
       </div>
 
       <p className="mt-4 text-[12.5px] text-muted">
-        Unclaimed funds return to you in {daysLeft(result.expiresAt)} days. {result.onChain ? "" : "This link is not funded on-chain."}
+        {result.onChain
+          ? `Escrowed on-chain. Unclaimed funds return to you in ${daysLeft(result.expiresAt)} days — refund anytime after that.`
+          : `Unclaimed funds return to you in ${daysLeft(result.expiresAt)} days. This link is not funded on-chain.`}
       </p>
       <button onClick={onAnother} className="mt-4 rounded text-[13px] font-semibold text-accent outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
         Send another

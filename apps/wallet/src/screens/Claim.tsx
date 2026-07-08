@@ -47,7 +47,8 @@ function linkFromHash(hash: string): string | null {
   }
 }
 
-import { claimLinkClientSide } from "../lib/benzoClient";
+import { claimLinkClientSide, giftClaimStatusClientSide } from "../lib/benzoClient";
+import { decodeGiftClaimSecret } from "../lib/giftEscrow";
 
 export function Claim() {
   const [params] = useSearchParams();
@@ -78,10 +79,17 @@ export function Claim() {
       return () => { cancelled = true; };
     }
     setCheckingClaim(true);
-    api.claimStatus(link.secret, link.amount, link.expiresAt)
+    // An on-chain gift is checked against the escrow over RPC (source of truth);
+    // a legacy backend-token link falls back to the optional /invites metadata.
+    const decoded = decodeGiftClaimSecret(link.secret);
+    const statusPromise = decoded
+      ? giftClaimStatusClientSide(link.secret)
+      : api.claimStatus(link.secret, link.amount, link.expiresAt);
+    statusPromise
       .then((status) => {
         if (cancelled) return;
-        setClaimUnavailable(status.status === "open" ? null : status.status);
+        const value = status?.status ?? "open";
+        setClaimUnavailable(value === "open" ? null : value);
       })
       .catch(() => {
         if (!cancelled) setClaimUnavailable(null);
