@@ -18,7 +18,7 @@ import { exportWallet, getLocalAccountSummary, getLocalRecoveryStatus, markWalle
 
 export function Profile() {
   const nav = useNavigate();
-  const { session, balance, hidden, toggleHidden } = useWallet();
+  const { session, balance, publicBalance, hidden, toggleHidden } = useWallet();
   const toast = useToast();
   const live = session?.live;
   const summary = getLocalAccountSummary();
@@ -42,6 +42,10 @@ export function Profile() {
   const [deleting, setDeleting] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
   const privateHasFunds = BigInt(balance?.baseUnits ?? "0") > 0n;
+  // Public USDC (received to the address but never shielded) is ALSO lost when
+  // deletion rotates the wallet key — warn on either balance.
+  const publicHasFunds = BigInt(publicBalance?.baseUnits ?? "0") > 0n;
+  const hasFunds = privateHasFunds || publicHasFunds;
   async function toggleLock(key: "onOpen" | "onSend") {
     const next = { ...lock, [key]: !lock[key] };
     // Turning a lock ON requires proving the platform passkey prompt works right now.
@@ -321,7 +325,7 @@ export function Profile() {
                 <div className="text-[12.5px] leading-relaxed text-muted">
                   Deletion clears hosted Benzo profile data for this sign-in and rotates your Benzo wallet. Move remaining funds first.
                 </div>
-                {privateHasFunds ? (
+                {hasFunds ? (
                   <div className="mt-2 rounded-lg bg-amber/12 px-3 py-2 text-[12px] font-medium text-[#9a6b12]" data-testid="account-delete-blocked">
                     Move funds out first. Balance is not empty.
                   </div>
