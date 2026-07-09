@@ -4,6 +4,7 @@ import { defineChain, type Address } from "viem";
 // from Miny-Labs/benzo once it is available to this frontend workspace.
 export const FUJI_CHAIN_ID = 43_113;
 export const BENZONET_CHAIN_ID = 68_420;
+export const AVALANCHE_CHAIN_ID = 43_114;
 export const BENZONET_BLOCKCHAIN_ID =
   "21iisL1nkpM2AauUadAz7p1gK3waRBZLEJme3LU3gsWpaxy792";
 export const BENZONET_RPC_PATH = `/ext/bc/${BENZONET_BLOCKCHAIN_ID}/rpc`;
@@ -31,6 +32,27 @@ export const fuji = defineChain({
   testnet: true,
 });
 
+export const avalanche = defineChain({
+  id: AVALANCHE_CHAIN_ID,
+  name: "Avalanche",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Avalanche AVAX",
+    symbol: "AVAX",
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://api.avax.network/ext/bc/C/rpc"],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: "Snowtrace",
+      url: "https://snowtrace.io",
+    },
+  },
+});
+
 export const benzonet = defineChain({
   id: BENZONET_CHAIN_ID,
   name: "BenzoNet",
@@ -47,11 +69,14 @@ export const benzonet = defineChain({
   testnet: true,
 });
 
-export const benzoChains = [fuji, benzonet] as const;
+export const benzoChains = [fuji, benzonet, avalanche] as const;
 
-export const DEPLOYMENT_NETWORKS = ["fuji", "benzonet"] as const;
+export const DEPLOYMENT_NETWORKS = ["fuji", "benzonet", "avalanche"] as const;
 export type DeploymentNetwork = (typeof DEPLOYMENT_NETWORKS)[number];
-export type DeploymentChainId = typeof FUJI_CHAIN_ID | typeof BENZONET_CHAIN_ID;
+export type DeploymentChainId =
+  | typeof FUJI_CHAIN_ID
+  | typeof BENZONET_CHAIN_ID
+  | typeof AVALANCHE_CHAIN_ID;
 export type CircuitOperation = "registration" | "transfer" | "mint" | "withdraw" | "burn";
 export type VerifierDeployments = Record<CircuitOperation, Address>;
 
@@ -108,7 +133,26 @@ export const benzonetDeployments = {
   },
 } as const satisfies Deployments;
 
+export const avalancheDeployments = {
+  network: "avalanche",
+  chainId: AVALANCHE_CHAIN_ID,
+  contracts: {
+    verifiers: {
+      registration: "0x35b4C4227082f67c01656A39aC47F6c5D6005CaA",
+      transfer: "0x4A716026a0C1F7158165520B6DF2009fFeB79f01",
+      mint: "0xb0ea11Bf58ad83F1027E476cbA7B8E196Cc0C972",
+      withdraw: "0xDf3caC632d70365cEb5CD1DD72E5de741936fdb7",
+      burn: "0xCb59d38DA7F1E4cA11BfFa6BEd383624fa49bc3d",
+    },
+    Registrar: "0x902B8D5585A5124C9B9c001A95b7f520C07a79F2",
+    EncryptedERC: "0x708d0b83461973F46041a36f588b8760dbC0Db0e",
+    tUSDC: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+    PrivateGiftEscrow: "0xb22c366e000165683A51C2630F6Ab818e5227C94",
+  },
+} as const satisfies Deployments;
+
 export const deploymentsByNetwork: Record<DeploymentNetwork, Deployments> = {
   fuji: fujiDeployments,
   benzonet: benzonetDeployments,
+  avalanche: avalancheDeployments,
 };
