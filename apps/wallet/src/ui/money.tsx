@@ -32,20 +32,20 @@ function useCountUp(target: number, durationMs = 900): number {
 }
 
 export function BalanceHero({
-  stroops,
+  baseUnits,
   hidden,
   loading,
 }: {
-  stroops: string | bigint;
+  baseUnits: string | bigint;
   hidden: boolean;
   loading?: boolean;
 }) {
   // Count up over the integer-dollar value; render the live string from it.
-  const targetDollars = Number(BigInt(stroops || 0) / USDC_BASE_UNITS);
+  const targetDollars = Number(BigInt(baseUnits || 0) / USDC_BASE_UNITS);
   const animated = useCountUp(targetDollars);
-  const { cents } = splitAmount(stroops);
-  const liveStroops = BigInt(Math.round(animated)) * USDC_BASE_UNITS;
-  const { dollars } = splitAmount(liveStroops);
+  const { cents } = splitAmount(baseUnits);
+  const liveBaseUnits = BigInt(Math.round(animated)) * USDC_BASE_UNITS;
+  const { dollars } = splitAmount(liveBaseUnits);
 
   if (loading) {
     return <div className="skeleton mt-1.5 h-[54px] w-48 rounded-2xl" aria-label="Loading balance" />;
@@ -62,7 +62,7 @@ export function BalanceHero({
     );
   }
   return (
-    <div className="font-display tnum text-hero mt-1.5 flex items-baseline tracking-tight" aria-label={fmtUsd(stroops)}>
+    <div className="font-display tnum text-hero mt-1.5 flex items-baseline tracking-tight" aria-label={fmtUsd(baseUnits)}>
       <span className="text-hero-sub font-semibold">$</span>
       <span>{dollars.replace(/^\$/, "")}</span>
       <span className="text-hero-sub text-muted">.{cents}</span>
@@ -72,15 +72,15 @@ export function BalanceHero({
 
 /** Inline amount for activity rows / sheets. `direction` colors + signs it. */
 export function AmountText({
-  stroops,
+  baseUnits,
   direction,
   className = "",
 }: {
-  stroops: string | bigint;
+  baseUnits: string | bigint;
   direction?: "in" | "out";
   className?: string;
 }) {
-  const s = fmtUsd(typeof stroops === "bigint" ? (stroops < 0n ? -stroops : stroops) : String(stroops).replace(/^-/, ""));
+  const s = fmtUsd(typeof baseUnits === "bigint" ? (baseUnits < 0n ? -baseUnits : baseUnits) : String(baseUnits).replace(/^-/, ""));
   const sign = direction === "in" ? "+" : direction === "out" ? "−" : "";
   const color = direction === "in" ? "text-pos" : "text-ink";
   return (

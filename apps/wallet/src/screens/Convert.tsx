@@ -16,7 +16,8 @@ import { ArrowRight, Check, Eye, Globe, Lock, ShieldCheck, Smartphone } from "lu
 import { api, type SettleResult } from "../lib/api";
 import { apiBoundaryProverPlan, apiProverKind, proverPlan } from "../lib/proverPolicy";
 import { useWallet } from "../lib/store";
-import { fmtUsd, USDC_BASE_UNITS, usdcToStroops } from "../lib/format";
+import { mapError } from "../lib/errors";
+import { fmtUsd, USDC_BASE_UNITS, usdcToBaseUnits } from "../lib/format";
 import { Screen } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
 import { AmountField, Button } from "../ui/primitives";
@@ -28,7 +29,7 @@ type Phase = "form" | "busy" | "done";
 
 const toS = (a: string): string => {
   try {
-    const value = usdcToStroops(a);
+    const value = usdcToBaseUnits(a);
     return value > 0n ? value.toString() : "0";
   } catch {
     return "0";
@@ -36,8 +37,8 @@ const toS = (a: string): string => {
 };
 const PRESET_AMOUNTS = ["1", "5", "10", "20", "50", "100"];
 
-export function convertQuickAmounts(sourceStroops: string): string[] {
-  const source = BigInt(sourceStroops || "0");
+export function convertQuickAmounts(sourceBaseUnits: string): string[] {
+  const source = BigInt(sourceBaseUnits || "0");
   const enabled = PRESET_AMOUNTS.filter((q) => BigInt(toS(q)) <= source);
   return enabled.slice(Math.max(0, enabled.length - 3));
 }
@@ -58,8 +59,8 @@ export function Convert() {
 
   // Source = where the money comes FROM. Make private pulls from Public; make
   // public pulls from Private. We cap the entry to the source balance.
-  const sourceStroops = mode === "private" ? (publicBalance?.stroops ?? "0") : (balance?.stroops ?? "0");
-  const source = BigInt(sourceStroops || "0");
+  const sourceBaseUnits = mode === "private" ? (publicBalance?.baseUnits ?? "0") : (balance?.baseUnits ?? "0");
+  const source = BigInt(sourceBaseUnits || "0");
   const n = Number(amount);
   const want = BigInt(toS(amount));
   const empty = source <= 0n;
@@ -69,7 +70,7 @@ export function Convert() {
     amount && empty
       ? `No ${mode === "private" ? "public" : "private"} USDC available to move.`
       : amount && tooMuch
-        ? `Insufficient ${mode === "private" ? "public" : "private"} balance. You only have ${fmtUsd(sourceStroops)}.`
+        ? `Insufficient ${mode === "private" ? "public" : "private"} balance. You only have ${fmtUsd(sourceBaseUnits)}.`
         : null;
 
   const copy =
@@ -108,10 +109,7 @@ export function Convert() {
       setPhase("done");
       void refresh();
     } catch (e) {
-      // Defense in depth: never surface raw CLI/stack text to a person.
-      const m = (e as Error).message ?? "";
-      const looksRaw = /command failed|stellar |invoke|\s--|0x[0-9a-f]|error\(|panic|sequence|xdr|contract/i.test(m);
-      setErr(!m || looksRaw ? "Something went wrong. Your money is safe - please try again." : m);
+      setErr(mapError(e));
       setPhase("form");
     }
   }
@@ -141,14 +139,14 @@ export function Convert() {
             {empty
               ? `No ${mode === "private" ? "public" : "private"} USDC to move yet`
               : tooMuch
-                ? `You only have ${fmtUsd(sourceStroops)} ${mode === "private" ? "public" : "private"}`
-                : `${fmtUsd(sourceStroops)} available`}
+                ? `You only have ${fmtUsd(sourceBaseUnits)} ${mode === "private" ? "public" : "private"}`
+                : `${fmtUsd(sourceBaseUnits)} available`}
           </div>
         </div>
 
         {/* Quick presets + "move all", clamped to the source balance. */}
         <div className="mt-4 flex justify-center gap-2">
-          {convertQuickAmounts(sourceStroops).map((q) => (
+          {convertQuickAmounts(sourceBaseUnits).map((q) => (
             <button
               key={q}
               type="button"

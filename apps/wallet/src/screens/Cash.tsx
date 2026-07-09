@@ -10,7 +10,8 @@ import { Check, Landmark, Radio, ShieldCheck, Smartphone } from "lucide-react";
 import { api, type SettleResult } from "../lib/api";
 import { apiProverKind, proverPlan } from "../lib/proverPolicy";
 import { useWallet } from "../lib/store";
-import { fmtUsd, usdcToStroops } from "../lib/format";
+import { mapError } from "../lib/errors";
+import { fmtUsd, usdcToBaseUnits } from "../lib/format";
 import { Screen } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
 import { AmountField, Button, Segmented } from "../ui/primitives";
@@ -29,7 +30,7 @@ const MAX_OUT = 2500;
 
 const toS = (a: string): string => {
   try {
-    const value = usdcToStroops(a);
+    const value = usdcToBaseUnits(a);
     return value > 0n ? value.toString() : "0";
   } catch {
     return "0";
@@ -86,11 +87,7 @@ export function Cash() {
       setPhase("done");
       void refresh();
     } catch (e) {
-      // The BFF returns plain-English copy (RampError). Defense in depth: never
-      // surface raw CLI/stack text to a person, even if something upstream forgot.
-      const m = (e as Error).message ?? "";
-      const looksRaw = /command failed|stellar |invoke|\s--|0x[0-9a-f]|error\(|panic|sequence|xdr|contract/i.test(m);
-      setErr(!m || looksRaw ? "Something went wrong. Your money is safe - please try again." : m);
+      setErr(mapError(e));
       setPhase("form");
     }
   }

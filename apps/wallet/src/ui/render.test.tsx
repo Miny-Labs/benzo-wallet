@@ -10,16 +10,16 @@ import type { ActivityRow } from "../lib/api";
 
 describe("BalanceHero", () => {
   it("renders the formatted balance (accessible label)", () => {
-    render(<BalanceHero stroops="1240500000" hidden={false} />);
+    render(<BalanceHero baseUnits="1240500000" hidden={false} />);
     expect(screen.getByLabelText("$1,240.50")).toBeInTheDocument();
   });
   it("masks the balance when hidden", () => {
-    render(<BalanceHero stroops="1240500000" hidden />);
+    render(<BalanceHero baseUnits="1240500000" hidden />);
     expect(screen.getByLabelText("Balance hidden")).toBeInTheDocument();
     expect(screen.queryByLabelText("$1,240.50")).not.toBeInTheDocument();
   });
   it("shows a skeleton while loading", () => {
-    render(<BalanceHero stroops="0" hidden={false} loading />);
+    render(<BalanceHero baseUnits="0" hidden={false} loading />);
     expect(screen.getByLabelText("Loading balance")).toBeInTheDocument();
   });
 });

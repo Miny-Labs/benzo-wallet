@@ -15,9 +15,9 @@ const walletState = vi.hoisted(() => ({
     missing: [],
     prover: { available: ["local"], mode: "local", location: "local" },
   },
-  balance: { stroops: "0", live: true },
+  balance: { baseUnits: "0", live: true },
   publicBalance: {
-    stroops: "1001000000",
+    baseUnits: "1001000000",
     address: "0x2222222222222222222222222222222222222222",
     asset: "USDC",
     issuer: "",

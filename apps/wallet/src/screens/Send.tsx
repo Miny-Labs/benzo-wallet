@@ -8,9 +8,9 @@ import { shouldLockOnSend, requireUnlock } from "../lib/lock";
 import { mergeContacts } from "../lib/contacts";
 import { needsStepUp, stepUpMessage, sendCapUsd } from "../lib/tiers";
 import { useWallet } from "../lib/store";
-import { fmtUsd, USDC_BASE_UNITS, usdcToStroops } from "../lib/format";
-import { isValidEvmAddress, shortAddress } from "../lib/strkey";
-import { classifyRecipientInput, looksLikeStellarAddressInput, type RecipientKind } from "../lib/recipient";
+import { fmtUsd, USDC_BASE_UNITS, usdcToBaseUnits } from "../lib/format";
+import { isValidEvmAddress, shortAddress } from "../lib/address";
+import { classifyRecipientInput, looksLikeEvmAddressInput, type RecipientKind } from "../lib/recipient";
 import { sendPublicClientSide } from "../lib/benzoClient";
 import { Screen, motion } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
@@ -19,7 +19,7 @@ import { PrivateChip } from "../ui/privacy";
 import { OnChainDetails } from "../ui/OnChainDetails";
 import { SendCeremony, type SendReceipt } from "../ui/send/SendCeremony";
 import { saveLocalHistory } from "../lib/history";
-import { INSUFFICIENT_PRIVATE_USDC_ERROR } from "../lib/errors";
+import { INSUFFICIENT_PRIVATE_USDC_ERROR, mapError } from "../lib/errors";
 
 type Step = "form" | "confirm";
 type Kind = RecipientKind;
@@ -34,7 +34,7 @@ function parsePositiveAmount(amount: string): { valid: boolean; value: bigint; b
     return { valid: false, value: 0n, baseUnits: "0", error: INVALID_AMOUNT };
   }
   try {
-    const value = usdcToStroops(raw);
+    const value = usdcToBaseUnits(raw);
     if (value <= 0n) return { valid: false, value: 0n, baseUnits: "0", error: INVALID_AMOUNT };
     return { valid: true, value, baseUnits: value.toString(), error: null };
   } catch (e) {
@@ -67,7 +67,7 @@ export function Send() {
   const recipient = to.trim();
   const kind = useMemo(() => (recipient ? classifyRecipientInput(recipient) : null), [recipient]);
 
-  const badAddress = useMemo(() => looksLikeStellarAddressInput(recipient) && !isValidEvmAddress(recipient), [recipient]);
+  const badAddress = useMemo(() => looksLikeEvmAddressInput(recipient) && !isValidEvmAddress(recipient), [recipient]);
   useEffect(() => {
     void refreshBalance();
   }, [refreshBalance]);
@@ -80,13 +80,13 @@ export function Send() {
     return recipient;
   }, [known, recipient]);
 
-  const privateStroops = BigInt(balance?.stroops ?? "0");
-  const publicStroops = BigInt(publicBalance?.stroops ?? "0");
-  const wantStroops = parsedAmount.value;
-  const checkingPrivateBalance = kind === "private" && wantStroops > 0n && balance == null;
-  const checkingPublicBalance = kind === "address" && wantStroops > 0n && publicBalance == null;
-  const lowPrivate = kind === "private" && wantStroops > 0n && balance != null && wantStroops > privateStroops;
-  const lowPublic = kind === "address" && wantStroops > 0n && publicBalance != null && wantStroops > publicStroops;
+  const privateBaseUnits = BigInt(balance?.baseUnits ?? "0");
+  const publicBaseUnits = BigInt(publicBalance?.baseUnits ?? "0");
+  const wantBaseUnits = parsedAmount.value;
+  const checkingPrivateBalance = kind === "private" && wantBaseUnits > 0n && balance == null;
+  const checkingPublicBalance = kind === "address" && wantBaseUnits > 0n && publicBalance == null;
+  const lowPrivate = kind === "private" && wantBaseUnits > 0n && balance != null && wantBaseUnits > privateBaseUnits;
+  const lowPublic = kind === "address" && wantBaseUnits > 0n && publicBalance != null && wantBaseUnits > publicBaseUnits;
   const recipientReady = recipient.length > 0 && parsedAmount.valid && kind !== "invite" && !badAddress;
   const canOpenStepUp = overCap && recipientReady;
   const valid = recipientReady && !checkingPrivateBalance && !checkingPublicBalance && !lowPrivate && !(kind === "address" && lowPublic);
@@ -136,9 +136,7 @@ export function Send() {
           setPubPhase("done");
           void refresh();
         } catch (e) {
-          const m = (e as Error).message ?? "";
-          const looksRaw = /command failed|stellar |invoke|\s--|0x[0-9a-f]|error\(|panic|sequence|xdr|contract/i.test(m);
-          setPubErr(/trustline|isn't set up|not set up/i.test(m) ? "That wallet isn't set up to receive USDC yet." : !m || looksRaw ? "Couldn't send right now. Your money is safe - please try again." : m);
+          setPubErr(mapError(e, "Couldn't send right now. Your money is safe - please try again."));
           setPubPhase("idle");
         }
         return;
@@ -425,10 +423,10 @@ function ConfirmStep({
       </div>
 
       {kind === "address" ? (
-        <div className="mt-3 flex items-start gap-2 rounded-2xl bg-[#fbf1dd] px-3.5 py-2.5 text-sm text-[#9a6b12]" data-testid="send-address-trustline">
+        <div className="mt-3 flex items-start gap-2 rounded-2xl bg-[#fbf1dd] px-3.5 py-2.5 text-sm text-[#9a6b12]" data-testid="send-address-warning">
           <AlertTriangle size={15} className="mt-0.5 flex-none" />
           <span>
-            <b>Public address payout.</b> This address must already be set up to receive USDC - if it isn't, the payment can't land. Sends are instant and final, so double-check it.
+            <b>Public address payout.</b> This sends normal USDC to an EVM wallet address. Sends are instant and final, so double-check it.
           </span>
         </div>
       ) : isNewRecipient ? (

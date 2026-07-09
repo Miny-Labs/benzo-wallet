@@ -1,5 +1,5 @@
 import { type BenzoRecipient } from "@benzo/core";
-import { isValidEvmAddress, normalizeEvmAddress } from "./strkey";
+import { isValidEvmAddress, normalizeEvmAddress } from "./address";
 
 export type RecipientKind = "private" | "address" | "invite";
 
@@ -39,8 +39,6 @@ export function decodeRecipient(str: string): BenzoRecipient | null {
 export function looksLikeEvmAddressInput(to: string): boolean {
   return /^0x[0-9a-fA-F]*$/.test(to.trim()) && to.trim().length >= 10;
 }
-
-export const looksLikeStellarAddressInput = looksLikeEvmAddressInput;
 
 export function looksLikeHandle(to: string): boolean {
   return /^@?[a-z0-9_]{3,20}$/i.test(to.trim());

@@ -16,7 +16,7 @@ export type RequestStatus = "pending" | "partially_paid" | "paid" | "declined" |
 export interface MoneyRequest {
   id: string;
   link: string;
-  amount?: string; // stroops; omit = "any amount"
+  amount?: string; // USDC base units; omit = "any amount"
   memo?: string;
   to?: string; // bound payer @handle, or undefined = open invoice
   createdAt: number; // unix seconds

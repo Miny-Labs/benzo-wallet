@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../lib/store", () => ({
   useWallet: () => ({
-    balance: { stroops: "0" },
-    publicBalance: { stroops: "0" },
+    balance: { baseUnits: "0" },
+    publicBalance: { baseUnits: "0" },
     refresh: vi.fn(),
   }),
 }));

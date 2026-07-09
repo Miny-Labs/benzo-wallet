@@ -5,7 +5,7 @@
  * Autoplays muted + looped (the only way mobile browsers allow autoplay), and
  * falls back to a still first frame under prefers-reduced-motion.
  *
- * Drop-in: same `tint` prop shape as the old CanvasBackground.
+ * Drop-in video layer with the same `tint` prop shape as the old art layer.
  */
 import { useEffect, useRef } from "react";
 

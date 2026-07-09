@@ -7,7 +7,7 @@ import { listLocal } from "./contacts";
 import { applyActivityHints, mergeActivityRows, readEercActivityClientSide } from "./eercActivity";
 
 export interface PublicBalance {
-  stroops: string;
+  baseUnits: string;
   address: string;
   asset: string;
   issuer: string;
@@ -73,7 +73,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const summary = getLocalAccountSummary();
       if (pBalVal && summary && summary.address) {
         setPublicBalance({
-          stroops: pBalVal,
+          baseUnits: pBalVal,
           address: summary.address,
           asset: "USDC",
           issuer: "",
@@ -83,7 +83,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const sBalVal = await readShieldedBalanceClientSide();
       if (sBalVal) {
         setBalance({
-          stroops: sBalVal,
+          baseUnits: sBalVal,
           live: true,
           source: "chain",
         });

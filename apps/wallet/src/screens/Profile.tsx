@@ -41,8 +41,8 @@ export function Profile() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
-  const privateHasFunds = BigInt(balance?.stroops ?? "0") > 0n;
-  const publicHasFunds = BigInt(publicBalance?.stroops ?? "0") > 0n;
+  const privateHasFunds = BigInt(balance?.baseUnits ?? "0") > 0n;
+  const publicHasFunds = BigInt(publicBalance?.baseUnits ?? "0") > 0n;
   async function toggleLock(key: "onOpen" | "onSend") {
     const next = { ...lock, [key]: !lock[key] };
     // Turning a lock ON requires proving the platform passkey prompt works right now.
@@ -197,7 +197,7 @@ export function Profile() {
             <Row
               icon={<Sparkles size={18} />}
               label="Mode"
-              right={<span className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${live ? "bg-pos/12 text-pos" : "bg-amber/12 text-[#9a6b12]"}`} data-testid="profile-mode">{live ? `Live · ${NETWORK_LABEL.replace(/^Stellar ?/, "") || "Mainnet"}` : "Chain unavailable"}</span>}
+              right={<span className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${live ? "bg-pos/12 text-pos" : "bg-amber/12 text-[#9a6b12]"}`} data-testid="profile-mode">{live ? `Live · ${NETWORK_LABEL || "Mainnet"}` : "Chain unavailable"}</span>}
             />
             <Row
               icon={<ShieldCheck size={18} />}

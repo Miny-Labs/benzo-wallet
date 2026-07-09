@@ -2,11 +2,12 @@ import { useCallback, useReducer, useState } from "react";
 import { paymentReducer, initialPaymentState, type PaymentState } from "@benzo/ui/payment-state";
 import { type ProverKind, type SettleResult, type SendPhaseEvent } from "./api";
 import { sendClientSide } from "./benzoClient";
-import { usdcToStroops } from "./format";
+import { usdcToBaseUnits } from "./format";
 import { decodeRecipient } from "./recipient";
 import { resolveHandleOnChain } from "./handleRegistry";
 import { saveLocalHistory } from "./history";
-import { isValidEvmAddress, normalizeEvmAddress } from "./strkey";
+import { isValidEvmAddress, normalizeEvmAddress } from "./address";
+import { mapError } from "./errors";
 
 export function useSendStream() {
   const [state, dispatch] = useReducer(paymentReducer, initialPaymentState);
@@ -35,15 +36,16 @@ export function useSendStream() {
       try {
         const recipient = await resolvePrivateRecipient(to);
         apply({ phase: "proving" });
-        const cs = await sendClientSide(recipient, usdcToStroops(amount).toString(), memo);
+        const baseUnits = usdcToBaseUnits(amount).toString();
+        const cs = await sendClientSide(recipient, baseUnits, memo);
         if (cs?.txHash) {
-          const r: SettleResult = { status: "settled", txHash: cs.txHash, prover: cs.prover, amount: usdcToStroops(amount).toString(), onChain: true };
+          const r: SettleResult = { status: "settled", txHash: cs.txHash, prover: cs.prover, amount: baseUnits, onChain: true };
           saveLocalHistory({
             id: cs.txHash,
             type: "send",
             name: to.startsWith("bzr_") ? `${to.slice(0, 10)}...${to.slice(-8)}` : to,
             note: memo || "",
-            amount: usdcToStroops(amount).toString(),
+            amount: baseUnits,
             direction: "out",
             status: "settled",
             timestamp: Math.floor(Date.now() / 1000),
@@ -55,7 +57,7 @@ export function useSendStream() {
         }
         throw new Error("Local-first send failed to return transaction hash.");
       } catch (err) {
-        dispatch({ type: "FAIL", error: (err as Error).message });
+        dispatch({ type: "FAIL", error: mapError(err, "Couldn't send right now. Your money is safe - please try again.") });
         return null;
       }
     },

@@ -18,7 +18,7 @@ import { fmtUsd } from "../../lib/format";
 import { explorerTx } from "../OnChainDetails";
 
 export interface SendReceipt {
-  amount: string; // stroops
+  amount: string; // USDC base units
   recipient: string; // @handle or display name
   memo?: string;
   txHash?: string;

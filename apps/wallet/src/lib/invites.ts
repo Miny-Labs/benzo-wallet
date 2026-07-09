@@ -3,7 +3,7 @@ const THIRTY_DAYS = 30 * 24 * 3600;
 
 export interface LocalInvite {
   localId: string;
-  amount: string; // stroops
+  amount: string; // USDC base units
   note?: string;
   status: "pending" | "claimed" | "refunded" | "expired";
   createdAt: number; // unix seconds
