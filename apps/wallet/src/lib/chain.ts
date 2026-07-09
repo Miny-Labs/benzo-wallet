@@ -20,8 +20,11 @@ subscribeNetwork(() => {
   client = buildClient();
 });
 
-export async function getChainStatus(_signal?: AbortSignal): Promise<ChainStatus> {
+export async function getChainStatus(signal?: AbortSignal): Promise<ChainStatus> {
   const block = await client.getBlock();
+  // viem's getBlock can't be cancelled mid-flight; if the caller aborted while
+  // it was pending (e.g. a network switch), don't surface a now-stale block.
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
   return {
     sequence: Number(block.number),
     protocolVersion: ACTIVE_CHAIN.id,

@@ -71,9 +71,15 @@ export function resolveNetworkConfig(network: DeploymentNetwork): NetworkConfig 
 
   const rpcUrl = rpcFor(network);
   const chain: Chain = { ...baseChains[network], rpcUrls: { default: { http: [rpcUrl] } } };
-  const explorerBaseUrl =
-    chain.blockExplorers?.default.url ??
-    (network === "benzonet" ? "https://rpc.benzo.space" : "https://testnet.snowtrace.io");
+  // Per-network fallback so a viem chain-def change can't silently point mainnet
+  // at the testnet explorer.
+  const explorerFallback =
+    network === "benzonet"
+      ? "https://explorer.benzo.space"
+      : network === "avalanche"
+        ? "https://snowtrace.io"
+        : "https://testnet.snowtrace.io";
+  const explorerBaseUrl = chain.blockExplorers?.default.url ?? explorerFallback;
 
   const encryptedErc = (override(env.VITE_EERC_ENCRYPTED_ERC_ADDRESS) ?? contracts.EncryptedERC) as Address | undefined;
   const usdc = (override(env.VITE_USDC_TOKEN_ADDRESS) ?? contracts.tUSDC) as Address | undefined;
