@@ -61,6 +61,7 @@ export type DeploymentContracts = {
   EncryptedERC?: Address;
   tUSDC?: Address;
   HandleRegistry?: Address;
+  PrivateGiftEscrow?: Address;
   InvoiceRegistry?: Address;
   GiftEscrow?: Address;
 };
@@ -86,6 +87,7 @@ export const fujiDeployments = {
     EncryptedERC: "0x9E16eD3B799541B4929f7E2014904C65E81035b1",
     tUSDC: "0x5425890298aed601595a70AB815c96711a31Bc65",
     HandleRegistry: "0xC74EcCDE4D9A1F48D560de9A96521D28D58B474b",
+    PrivateGiftEscrow: "0x0B1f4e78C54E7696663b62F9cD7956f5FDE5b71d",
   },
 } as const satisfies Deployments;
 
@@ -106,7 +108,7 @@ export const benzonetDeployments = {
   },
 } as const satisfies Deployments;
 
-export const deploymentsByNetwork = {
+export const deploymentsByNetwork: Record<DeploymentNetwork, Deployments> = {
   fuji: fujiDeployments,
   benzonet: benzonetDeployments,
-} as const satisfies Record<DeploymentNetwork, Deployments>;
+};
