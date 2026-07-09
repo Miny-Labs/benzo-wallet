@@ -1,6 +1,6 @@
 import {
+  avalanche,
   benzonet,
-  benzonetDeployments,
   BENZONET_CHAIN_ID,
   BENZONET_LOCAL_RPC_URL,
   deploymentsByNetwork,
@@ -12,7 +12,8 @@ import type { Address, Chain } from "viem";
 const env = import.meta.env as unknown as Record<string, string | undefined>;
 
 function deploymentNetwork(value: string | undefined): DeploymentNetwork {
-  return value === "benzonet" ? "benzonet" : "fuji";
+  if (value === "benzonet" || value === "avalanche") return value;
+  return "fuji";
 }
 
 export const NETWORK = deploymentNetwork(env.VITE_CHAIN_ENV ?? env.VITE_BENZO_NETWORK);
@@ -21,19 +22,16 @@ export const CHAIN_ID = DEPLOYMENT.chainId;
 
 const benzonetRpc = env.VITE_BENZONET_RPC_URL ?? env.VITE_RPC_URL ?? BENZONET_LOCAL_RPC_URL;
 const fujiRpc = env.VITE_FUJI_RPC_URL ?? env.VITE_RPC_URL ?? fuji.rpcUrls.default.http[0];
+const avalancheRpc = env.VITE_AVALANCHE_RPC_URL ?? env.VITE_RPC_URL ?? avalanche.rpcUrls.default.http[0];
 
-export const RPC_URL = NETWORK === "benzonet" ? benzonetRpc : fujiRpc;
+const activeChain = NETWORK === "benzonet" ? benzonet : NETWORK === "avalanche" ? avalanche : fuji;
 
-export const ACTIVE_CHAIN: Chain =
-  NETWORK === "benzonet"
-    ? {
-        ...benzonet,
-        rpcUrls: { default: { http: [RPC_URL] } },
-      }
-    : {
-        ...fuji,
-        rpcUrls: { default: { http: [RPC_URL] } },
-      };
+export const RPC_URL = NETWORK === "benzonet" ? benzonetRpc : NETWORK === "avalanche" ? avalancheRpc : fujiRpc;
+
+export const ACTIVE_CHAIN: Chain = {
+  ...activeChain,
+  rpcUrls: { default: { http: [RPC_URL] } },
+};
 
 export const NETWORK_LABEL = ACTIVE_CHAIN.name;
 export const EXPLORER_BASE_URL =
