@@ -64,12 +64,15 @@ export function createViemClients(account: BenzoAccount) {
 }
 
 // Account-independent read client shared by on-chain reads (e.g. @handle
-// resolution) that don't need a signer. Memoized so we reuse a single Fuji RPC
-// transport rather than spinning one up per lookup.
+// resolution) that don't need a signer. Memoized per active chain so we reuse a
+// single RPC transport, but rebuilt when the user switches networks (ACTIVE_CHAIN
+// is a live binding, so a changed chain id invalidates the cache).
 let sharedPublicClient: PublicClient | null = null;
+let sharedPublicClientChainId: number | null = null;
 export function getPublicClient(): PublicClient {
-  if (!sharedPublicClient) {
+  if (!sharedPublicClient || sharedPublicClientChainId !== ACTIVE_CHAIN.id) {
     sharedPublicClient = createPublicClient({ chain: ACTIVE_CHAIN, transport: http(RPC_URL) });
+    sharedPublicClientChainId = ACTIVE_CHAIN.id;
   }
   return sharedPublicClient;
 }

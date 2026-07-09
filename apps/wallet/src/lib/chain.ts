@@ -1,5 +1,5 @@
 import { createPublicClient, http } from "viem";
-import { ACTIVE_CHAIN, ENCRYPTED_ERC_ADDRESS, RPC_URL } from "./network";
+import { ACTIVE_CHAIN, ENCRYPTED_ERC_ADDRESS, RPC_URL, subscribeNetwork } from "./network";
 
 export { ENCRYPTED_ERC_ADDRESS, RPC_URL };
 
@@ -9,13 +9,19 @@ export interface ChainStatus {
   closedAt?: number;
 }
 
-export const publicClient = createPublicClient({
-  chain: ACTIVE_CHAIN,
-  transport: http(RPC_URL),
+function buildClient() {
+  return createPublicClient({ chain: ACTIVE_CHAIN, transport: http(RPC_URL) });
+}
+
+// The read client is rebuilt whenever the active network changes so the ledger
+// the Profile shows (and any direct chain read) tracks the selected environment.
+let client = buildClient();
+subscribeNetwork(() => {
+  client = buildClient();
 });
 
 export async function getChainStatus(_signal?: AbortSignal): Promise<ChainStatus> {
-  const block = await publicClient.getBlock();
+  const block = await client.getBlock();
   return {
     sequence: Number(block.number),
     protocolVersion: ACTIVE_CHAIN.id,

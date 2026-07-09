@@ -4,21 +4,22 @@
  * settings dump.
  */
 import { useEffect, useState } from "react";
-import { Activity, BadgeCheck, Check, ChevronRight, Copy, Eye, EyeOff, KeyRound, Lock, ShieldCheck, Sparkles, Trash2, Users } from "lucide-react";
+import { Activity, BadgeCheck, Check, ChevronRight, Copy, Eye, EyeOff, Globe, KeyRound, Lock, ShieldCheck, Sparkles, Trash2, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "../lib/store";
 import { api, notifyAuthRequired } from "../lib/api";
 import { getChainStatus } from "../lib/chain";
-import { NETWORK_LABEL } from "../lib/network";
+import { useNetwork } from "../lib/networkContext";
 import { getLockSettings, setLockSettings, lockCapable, requireUnlock } from "../lib/lock";
 import { tierInfo, sendCapUsd } from "../lib/tiers";
-import { Screen, Stagger } from "../ui/motion";
+import { motion, Screen, spring, Stagger } from "../ui/motion";
 import { Avatar, Button, Card, useToast } from "../ui/primitives";
 import { exportWallet, getLocalAccountSummary, getLocalRecoveryStatus, markWalletBackupConfirmed } from "../lib/localWallet";
 
 export function Profile() {
   const nav = useNavigate();
   const { session, balance, publicBalance, hidden, toggleHidden } = useWallet();
+  const { network, setNetwork, theme, options } = useNetwork();
   const toast = useToast();
   const live = session?.live;
   const summary = getLocalAccountSummary();
@@ -53,7 +54,10 @@ export function Profile() {
     setLock(next);
     setLockSettings(next);
   }
+  // Re-syncs whenever the active network changes: clear the ledger back to
+  // "Connecting…" and read the newly selected chain's head, so the switch is felt.
   useEffect(() => {
+    setLedger(null);
     const ac = new AbortController();
     const tick = () => getChainStatus(ac.signal).then((s) => setLedger(s.sequence)).catch(() => {});
     tick();
@@ -64,7 +68,7 @@ export function Profile() {
       ac.abort();
       clearInterval(iv);
     };
-  }, []);
+  }, [network]);
 
   async function deleteAccount() {
     setDeleting(true);
@@ -200,7 +204,7 @@ export function Profile() {
             <Row
               icon={<Sparkles size={18} />}
               label="Mode"
-              right={<span className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${live ? "bg-pos/12 text-pos" : "bg-amber/12 text-[#9a6b12]"}`} data-testid="profile-mode">{live ? `Live · ${NETWORK_LABEL || "Mainnet"}` : "Chain unavailable"}</span>}
+              right={<span className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${live ? "bg-pos/12 text-pos" : "bg-amber/12 text-[#9a6b12]"}`} data-testid="profile-mode">{live ? `Live · ${theme.label}` : "Chain unavailable"}</span>}
             />
             <Row
               icon={<ShieldCheck size={18} />}
@@ -284,8 +288,54 @@ export function Profile() {
           </Card>
         </Stagger.Item>
 
-        {/* Security Lock (C4) */}
+        {/* Network switcher (Fuji · BenzoNet · mainnet). Selecting one re-points
+            every client-side read, re-syncs the ledger above, and retints the
+            whole shell — the environment change is felt, not just a label swap. */}
         <Stagger.Item index={5}>
+          <Card className="p-4" data-testid="network-switcher">
+            <div className="mb-3 flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent"><Globe size={18} /></div>
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-medium">Network</div>
+                <div className="text-[12.5px] text-muted" data-testid="network-tagline">
+                  {network === "avalanche"
+                    ? "Live C-Chain · real funds"
+                    : network === "benzonet"
+                      ? "Permissioned L1 · test funds"
+                      : "Fuji testnet · test funds"}
+                </div>
+              </div>
+            </div>
+            <div className="relative flex rounded-full bg-ink/[0.05] p-1" role="tablist" aria-label="Active network">
+              {options.map((opt) => {
+                const on = opt.network === network;
+                return (
+                  <button
+                    key={opt.network}
+                    type="button"
+                    role="tab"
+                    aria-selected={on}
+                    onClick={() => setNetwork(opt.network)}
+                    data-testid={`network-option-${opt.network}`}
+                    className={`relative z-10 flex-1 rounded-full py-2 text-[13px] font-semibold transition outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${on ? "text-white" : "text-muted hover:text-ink"}`}
+                  >
+                    {on ? (
+                      <motion.span
+                        layoutId="network-pill"
+                        className="absolute inset-0 -z-10 rounded-full bg-accent shadow-[var(--shadow-glow)]"
+                        transition={spring}
+                      />
+                    ) : null}
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </Card>
+        </Stagger.Item>
+
+        {/* Security Lock (C4) */}
+        <Stagger.Item index={6}>
           <Card className="px-4" data-testid="security-lock-card">
             <div className="flex items-center gap-3 py-3.5">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas text-ink"><Lock size={18} /></div>
@@ -303,7 +353,7 @@ export function Profile() {
           </Card>
         </Stagger.Item>
 
-        <Stagger.Item index={6}>
+        <Stagger.Item index={7}>
           <Card className="space-y-3 p-4" data-testid="account-freedom-card">
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-canvas text-ink"><KeyRound size={18} /></div>
@@ -339,7 +389,7 @@ export function Profile() {
           </Card>
         </Stagger.Item>
 
-        <Stagger.Item index={7}>
+        <Stagger.Item index={8}>
           <p className="px-2 text-center text-[12px] leading-relaxed text-muted">
             Your balance and payments are private by default. Only you can see them, and you choose what to prove.
           </p>
