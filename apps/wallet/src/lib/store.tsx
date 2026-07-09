@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, type ActivityHint, type ActivityRow, type Balance, type Contact, type Session } from "./api";
+import { api, AUTH_CHANGED_EVENT, type ActivityHint, type ActivityRow, type Balance, type Contact, type Session } from "./api";
 import { readShieldedBalanceClientSide, readPublicBalanceClientSide } from "./benzoClient";
 import { getLocalAccount, isWalletUnlocked, getLocalAccountSummary } from "./localWallet";
 import { listLocalHistory } from "./history";
@@ -132,19 +132,21 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         return false;
       }
+      // The "session" is derived locally from the device account — no backend
+      // round-trip, no fabricated hosted profile. It never claims a KYC tier the
+      // user hasn't earned; the prover genuinely runs on-device. A backend index,
+      // if ever needed, is authenticated lazily per-request (see lib/api).
       const summary = getLocalAccountSummary();
       if (summary && summary.address) {
         const addr = summary.address;
-        const fallbackSession: Session = {
-          profile: { handle: addr, name: `${addr.slice(0, 6)}...${addr.slice(-4)}` },
+        setSession({
+          profile: { handle: addr, name: `${addr.slice(0, 6)}…${addr.slice(-4)}` },
           handle: addr,
           live: true,
           mode: "live",
           missing: [],
           prover: { available: ["local"], mode: "local", location: "local" },
-          kycTier: 2,
-        };
-        setSession(await api.session().catch(() => fallbackSession));
+        });
       }
       await refreshBalance();
       const remoteContacts = await api.contacts().catch(() => []);
@@ -183,8 +185,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onAuthChanged = () => setAuthenticated(isWalletUnlocked());
-    window.addEventListener("benzo:auth-changed", onAuthChanged);
-    return () => window.removeEventListener("benzo:auth-changed", onAuthChanged);
+    window.addEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
+    return () => window.removeEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
   }, []);
 
   // Switching networks re-points every client-side read at a different chain +

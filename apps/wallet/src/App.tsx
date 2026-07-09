@@ -9,7 +9,6 @@ import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { VideoBackground } from "./ui/VideoBackground";
 import { StageVideo } from "./ui/StageVideo";
 import { LockGate } from "./ui/LockGate";
-import { shouldLockOnOpen } from "./lib/lock";
 import { spring } from "./ui/motion";
 import { Component, lazy, Suspense, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { useNetwork } from "./lib/networkContext";
@@ -29,9 +28,7 @@ const ShareProof = lazy(() => import("./screens/ShareProof").then((m) => ({ defa
 const InviteExternal = lazy(() => import("./screens/InviteExternal").then((m) => ({ default: m.InviteExternal })));
 const Claim = lazy(() => import("./screens/Claim").then((m) => ({ default: m.Claim })));
 import { Onboarding } from "./screens/Onboarding";
-import { AUTH_CHANGED_EVENT, AUTH_REQUIRED_EVENT, credentialLooksWellFormed } from "./lib/api";
-import { walletExists, isWalletUnlocked, reauthenticateSession } from "./lib/localWallet";
-import { backendAuthLossEjectsWallet } from "./lib/backendSession";
+import { walletExists, isWalletUnlocked } from "./lib/localWallet";
 
 const TABS = [
   { to: "/", label: "Home", icon: HomeIcon },
@@ -137,52 +134,18 @@ export function App() {
   const [onboarded, setOnboarded] = useState(false);
   const [locked, setLocked] = useState(true);
   const [checking, setChecking] = useState(true);
-  const [backendSignedOut, setBackendSignedOut] = useState(false);
 
   useEffect(() => {
     async function checkWallet() {
       const exists = await walletExists();
       setOnboarded(exists);
+      // Keys live only in the sealed keychain — never in web storage — so a
+      // reload starts LOCKED and re-unlocks through the keychain (a quick passkey
+      // tap, or the passcode). The in-memory session never survives a refresh.
       setLocked(!isWalletUnlocked());
       setChecking(false);
     }
     checkWallet();
-
-    // A backend 401 (expired/absent SIWE session) must NOT tear down a valid
-    // device-local wallet — keys, balance, and private send are local/on-chain.
-    // Only fall back to Onboarding when there is genuinely no wallet on this
-    // device; otherwise keep the user in and re-auth the backend in the
-    // background, surfacing only a subtle offline indicator.
-    const onAuthRequired = async () => {
-      // If the local keychain check itself fails, fail safe toward KEEPING the
-      // wallet available rather than ejecting — a backend 401 must never be able
-      // to tear down a self-custodial wallet, even on a transient IndexedDB error.
-      let hasLocalWallet = true;
-      try {
-        hasLocalWallet = await walletExists();
-      } catch (error) {
-        console.warn(
-          "Could not verify the local wallet during a backend auth loss; keeping the wallet available.",
-          error,
-        );
-      }
-      if (backendAuthLossEjectsWallet(hasLocalWallet)) {
-        setLocked(true);
-        setOnboarded(false);
-        return;
-      }
-      setBackendSignedOut(true);
-      void reauthenticateSession();
-    };
-    const onAuthChanged = () => {
-      if (credentialLooksWellFormed()) setBackendSignedOut(false);
-    };
-    window.addEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
-    window.addEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
-    return () => {
-      window.removeEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
-      window.removeEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
-    };
   }, []);
 
   function finishOnboarding() {
@@ -229,13 +192,6 @@ export function App() {
           <AnimatePresence>{!onboarded ? <Onboarding onDone={finishOnboarding} /> : null}</AnimatePresence>
           {showShell ? (
           <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
-            {backendSignedOut ? (
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center pt-1">
-                <span className="rounded-full bg-black/55 px-2.5 py-0.5 text-[10px] font-medium text-white/90 backdrop-blur">
-                  Offline · your wallet still works
-                </span>
-              </div>
-            ) : null}
             <main className="no-scrollbar flex-1 overflow-y-auto">
               <RouteErrorBoundary>
               <Suspense

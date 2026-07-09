@@ -20,7 +20,6 @@ vi.mock("@benzo/wallet", async (importOriginal) => {
 const passkeyMocks = vi.hoisted(() => {
   const secret = new Uint8Array(32).fill(7);
   return {
-    createDeviceAuthProof: vi.fn(),
     derivePasskeySecret: vi.fn(async () => secret),
     hasPasskey: vi.fn(() => true),
     registerPasskey: vi.fn(async () => undefined),
@@ -35,7 +34,6 @@ const activationMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("./passkey", () => ({
-  createDeviceAuthProof: passkeyMocks.createDeviceAuthProof,
   derivePasskeySecret: passkeyMocks.derivePasskeySecret,
   hasPasskey: passkeyMocks.hasPasskey,
   registerPasskey: passkeyMocks.registerPasskey,
@@ -59,6 +57,7 @@ import {
   getLocalRecoveryStatus,
   lockWallet,
   markWalletBackupConfirmed,
+  unlockWalletWithPasskey,
 } from "./localWallet";
 
 describe("local wallet recovery", () => {
@@ -92,7 +91,9 @@ describe("local wallet recovery", () => {
     expect(account.address).toBe(expectedAccount.address);
     expect(account.spendSk).toBe(expectedAccount.spendSk);
     expect(passkeyMocks.registerPasskey).toHaveBeenCalledWith({ userName: "alex", displayName: "alex" });
-    expect(fetchMock).toHaveBeenCalled();
+    // One-tap create must NOT authenticate to any backend — a self-custody wallet
+    // exists purely on-device (no forced SIWE in the lifecycle).
+    expect(fetchMock).not.toHaveBeenCalled();
 
     const backup = JSON.parse(await exportWallet()) as {
       evmPrivateKey: string;
@@ -232,5 +233,40 @@ describe("local wallet recovery", () => {
     });
     expect(activationMocks.isRegisteredOnEerc).toHaveBeenCalledWith(account.address);
     expect(activationMocks.registerEercAccount).not.toHaveBeenCalled();
+  });
+
+  it("unlocks without any backend SIWE call", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error("backend must not be called");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const created = await createWalletWithPasskey("alex");
+    lockWallet();
+    const unlocked = await unlockWalletWithPasskey();
+
+    expect(unlocked.address).toBe(created.address);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not persist any wallet secret to web storage", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new Error("backend unplugged");
+    }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await createWalletWithPasskey("alex");
+
+    // No plaintext keys anywhere in session/local storage — the sealed keychain
+    // (IndexedDB) is the only place secrets live, so XSS can't lift a raw key.
+    const expected = accountFromSignedMessage(passkeyMocks.secret);
+    for (const store of [sessionStorage, localStorage]) {
+      for (let i = 0; i < store.length; i++) {
+        const value = store.getItem(store.key(i) as string) ?? "";
+        expect(value).not.toContain(expected.evmPrivateKey);
+        expect(value).not.toContain(expected.eercDecryptionKey);
+      }
+    }
+    expect(sessionStorage.getItem("benzo.softSession.v1")).toBeNull();
   });
 });

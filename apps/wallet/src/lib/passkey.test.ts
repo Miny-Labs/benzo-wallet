@@ -4,10 +4,8 @@ import {
   loginWithPasskey,
   hasPasskey,
   clearPasskey,
-  createDeviceAuthProof,
   isWebAuthnAvailable,
 } from "./passkey.js";
-import { verifyEvmSignature } from "@benzo/core";
 
 // ---- a deterministic, PRF-capable mock authenticator ----------------------
 function b64url(b: Uint8Array): string {
@@ -120,20 +118,6 @@ describe("passkey on-device signing (PRF)", () => {
     await registerPasskey({ userName: "alex" });
     await loginWithPasskey();
     for (const s of spies) expect(s).not.toHaveBeenCalled();
-  });
-
-  it("creates a signed device-auth proof from the derived account", async () => {
-    (globalThis as any).location = { hostname: "localhost", origin: "http://localhost:5175" };
-    installAuthenticator(true);
-    await registerPasskey({ userName: "alex" });
-    const account = await loginWithPasskey();
-
-    const proof = await createDeviceAuthProof(account, { origin: "http://localhost:5175", ttlSeconds: 3600 });
-
-    expect(proof.address).toBe(account.address);
-    expect(proof.message).toContain(`address=${account.address}`);
-    expect(proof.signature).toMatch(/^0x[0-9a-f]+$/i);
-    await expect(verifyEvmSignature(proof.address, proof.message, proof.signature as `0x${string}`)).resolves.toBe(true);
   });
 });
 

@@ -110,7 +110,6 @@ const IDEMPOTENCY_PREFIX = "benzo.idempotency.wallet.v1:";
 const SIWE_ADDRESS_KEY = "benzo.siweAddress";
 const READ_TIMEOUT_MS = 15_000;
 
-export const AUTH_REQUIRED_EVENT = "benzo:auth-required";
 export const AUTH_CHANGED_EVENT = "benzo:auth-changed";
 
 export function apiHref(path: string): string {
@@ -118,38 +117,31 @@ export function apiHref(path: string): string {
   return `${API_BASE_URL}${normalized}`;
 }
 
-export function clearHostedAuthState(): void {
-  localStorage.removeItem(SIWE_ADDRESS_KEY);
-  localStorage.removeItem("benzo.onboarded");
-  window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
-}
-
-export function notifyAuthRequired(): void {
-  clearHostedAuthState();
-  window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
-}
-
 export function authHeaders(): Record<string, string> {
   return {};
 }
 
-export function currentGoogleCredential(): string | null {
+// The backend session, when one is ever established, is a plain SIWE sign-in
+// keyed by the wallet's own EVM address (never a hosted/Google login). It is
+// OPTIONAL: reads run client-side against the chain, so an absent SIWE address
+// only means "no backend augmentation", never "wallet locked".
+export function currentSiweAddress(): string | null {
   return localStorage.getItem(SIWE_ADDRESS_KEY);
 }
 
-export function storeGoogleCredential(address: string): void {
+export function storeSiweAddress(address: string): void {
   if (isAddress(address, { strict: false })) {
     localStorage.setItem(SIWE_ADDRESS_KEY, getAddress(address).toLowerCase());
     window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
   }
 }
 
-export function clearGoogleCredential(): void {
+export function clearSiweAddress(): void {
   localStorage.removeItem(SIWE_ADDRESS_KEY);
   window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
 }
 
-export function credentialLooksWellFormed(credential = currentGoogleCredential()): boolean {
+export function siweAddressLooksWellFormed(credential = currentSiweAddress()): boolean {
   return !!credential && isAddress(credential, { strict: false });
 }
 
@@ -197,7 +189,7 @@ export function prepareApiRequest(path: string, init?: RequestInit): {
     url: apiHref(path),
     init: { ...init, credentials: "include", headers },
     clearIdempotency: idem?.clear,
-    authToken: currentGoogleCredential(),
+    authToken: currentSiweAddress(),
   };
 }
 
@@ -222,12 +214,13 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
         /* ignore */
       }
       if (res.status === 401) {
-        // Log only the method, never the path — any path segment can carry a
-        // secret (e.g. an invite/claim token) that must not leak into logs.
+        // A backend 401 is a non-event for a self-custody wallet: keys, balance,
+        // and private send are local/on-chain, so we just log and move on. No
+        // auth bus, no eject — the wallet never authenticates to a backend to
+        // exist. (Log only the method; a path segment can carry a secret token.)
         console.warn(
-          `Benzo API session expired (${method}); the device wallet stays usable offline.`,
+          `Benzo API returned 401 (${method}); ignoring — the device wallet works offline.`,
         );
-        notifyAuthRequired();
       }
       throw new Error(detail);
     }
@@ -309,12 +302,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ message, signature }),
     });
-    storeGoogleCredential(normalized);
+    storeSiweAddress(normalized);
     return result;
   },
   logout: async () => {
     const result = await http<{ ok: boolean }>("/auth/logout", { method: "POST", body: "{}" });
-    clearGoogleCredential();
+    clearSiweAddress();
     return result;
   },
   session: async () => {

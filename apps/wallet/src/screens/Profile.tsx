@@ -7,14 +7,13 @@ import { useEffect, useState } from "react";
 import { Activity, BadgeCheck, Check, ChevronRight, Copy, Eye, EyeOff, Globe, KeyRound, Lock, ShieldCheck, Sparkles, Trash2, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "../lib/store";
-import { api, notifyAuthRequired } from "../lib/api";
 import { getChainStatus } from "../lib/chain";
 import { useNetwork } from "../lib/networkContext";
 import { getLockSettings, setLockSettings, lockCapable, requireUnlock } from "../lib/lock";
 import { tierInfo, sendCapUsd } from "../lib/tiers";
 import { motion, Screen, spring, Stagger } from "../ui/motion";
 import { Avatar, Button, Card, useToast } from "../ui/primitives";
-import { exportWallet, getLocalAccountSummary, getLocalRecoveryStatus, markWalletBackupConfirmed } from "../lib/localWallet";
+import { deleteWallet, exportWallet, getLocalAccountSummary, getLocalRecoveryStatus, markWalletBackupConfirmed } from "../lib/localWallet";
 
 export function Profile() {
   const nav = useNavigate();
@@ -74,8 +73,11 @@ export function Profile() {
     setDeleting(true);
     setDeleteErr(null);
     try {
-      await api.deleteAccount();
-      notifyAuthRequired();
+      // Self-custody: the only data that exists is on THIS device. Wipe the local
+      // keychain + recovery state and reload back into a fresh onboarding — there
+      // is no hosted account to sign out of.
+      await deleteWallet();
+      window.location.reload();
     } catch (e) {
       setDeleteErr((e as Error).message || "Account could not be deleted yet.");
     } finally {

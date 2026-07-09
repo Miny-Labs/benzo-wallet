@@ -83,13 +83,6 @@ vi.mock("../lib/store", () => ({
   useWallet: () => walletState,
 }));
 
-vi.mock("../lib/api", () => ({
-  api: {
-    deleteAccount: vi.fn(async () => ({ deleted: true })),
-  },
-  notifyAuthRequired: vi.fn(),
-}));
-
 vi.mock("../lib/chain", () => ({
   getChainStatus: vi.fn(async () => ({ sequence: 12345 })),
 }));
@@ -97,6 +90,7 @@ vi.mock("../lib/chain", () => ({
 vi.mock("../lib/lock", () => lockMocks);
 
 vi.mock("../lib/localWallet", () => ({
+  deleteWallet: vi.fn(async () => undefined),
   exportWallet: localMocks.exportWallet,
   getLocalAccountSummary: localMocks.getLocalAccountSummary,
   getLocalRecoveryStatus: localMocks.getLocalRecoveryStatus,

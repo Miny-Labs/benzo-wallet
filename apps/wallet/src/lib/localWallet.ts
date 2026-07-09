@@ -1,10 +1,10 @@
 import { accountFromSignedMessage, createAccount, type BenzoAccount } from "@benzo/core";
 import { IndexedDbKVStore, Keychain, newSalt, passphraseWrappingKey, prfWrappingKey } from "@benzo/wallet";
 import type { Hex } from "viem";
-import { api } from "./api";
+import { AUTH_CHANGED_EVENT } from "./api";
 import { registerEercAccount } from "./eerc";
 import { isRegisteredOnEerc } from "./handleRegistry";
-import { createDeviceAuthProof, derivePasskeySecret, hasPasskey, registerPasskey } from "./passkey";
+import { derivePasskeySecret, hasPasskey, registerPasskey } from "./passkey";
 
 export interface WalletSecrets {
   evmPrivateKey: Hex;
@@ -208,6 +208,14 @@ export function getLocalRecoveryStatus(): LocalRecoveryStatus {
   };
 }
 
+function notifyWalletChanged(): void {
+  if (typeof window !== "undefined") {
+    // The channel the store listens on to (re)load balances/history when the
+    // wallet unlocks or locks. No backend round-trip involved.
+    window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+  }
+}
+
 export async function getStore(): Promise<IndexedDbKVStore> {
   return IndexedDbKVStore.open("benzo-wallet", "keychain");
 }
@@ -254,35 +262,6 @@ export async function activatePrivateBalance(): Promise<PrivateBalanceActivation
   return eercRegistrationInFlight;
 }
 
-async function loginSiweSession(): Promise<void> {
-  const account = getLocalAccount();
-  if (!account || !activeKeychain) return;
-  try {
-    const signer = activeKeychain.signer();
-    await api.signInWithSiwe(account.address, (message) => signer.signMessage(message));
-    window.dispatchEvent(new Event("benzo:auth-changed"));
-  } catch (e) {
-    console.error("Failed to authenticate local wallet with Benzo API:", e);
-  }
-}
-
-let reauthInFlight: Promise<void> | null = null;
-
-/**
- * Best-effort background SIWE re-auth. No-ops when the wallet is locked, and
- * swallows/logs errors, so a 401 can silently refresh the backend session
- * without ever tearing down the device-local wallet. Single-flighted: a burst
- * of concurrent 401s triggers only ONE SIWE sign-in, not a thundering herd of
- * redundant logins (and only one signature prompt).
- */
-export async function reauthenticateSession(): Promise<void> {
-  if (reauthInFlight) return reauthInFlight;
-  reauthInFlight = loginSiweSession().finally(() => {
-    reauthInFlight = null;
-  });
-  return reauthInFlight;
-}
-
 export async function createWallet(passphrase: string): Promise<BenzoAccount> {
   const kv = await getStore();
   const salt = newSalt();
@@ -303,7 +282,7 @@ export async function createWallet(passphrase: string): Promise<BenzoAccount> {
     binding: "manual-backup",
     createdAt: Date.now(),
   });
-  await loginSiweSession();
+  notifyWalletChanged();
   return account;
 }
 
@@ -326,7 +305,7 @@ export async function createWalletWithPasskey(userName: string): Promise<BenzoAc
     binding: "passkey-prf",
     createdAt: Date.now(),
   });
-  await loginSiweSession();
+  notifyWalletChanged();
   return account;
 }
 
@@ -342,7 +321,7 @@ export async function unlockWallet(passphrase: string): Promise<BenzoAccount> {
   activeKeychain = kc;
   activeAccount = account;
   localStorage.setItem(WALLET_TYPE_KEY, "passphrase");
-  await loginSiweSession();
+  notifyWalletChanged();
   return account;
 }
 
@@ -357,7 +336,7 @@ export async function unlockWalletWithPasskey(): Promise<BenzoAccount> {
   activeKeychain = kc;
   activeAccount = account;
   localStorage.setItem(WALLET_TYPE_KEY, "passkey");
-  await loginSiweSession();
+  notifyWalletChanged();
   return account;
 }
 
@@ -369,7 +348,7 @@ export function lockWallet(): void {
   // different) account can never inherit the prior session's result.
   eercRegistrationInFlight = null;
   eercRegistrationConfirmed = false;
-  void api.logout().catch(() => {});
+  notifyWalletChanged();
 }
 
 export async function exportWallet(): Promise<string> {
@@ -416,7 +395,7 @@ export async function importWallet(importedText: string, passphrase?: string): P
   }
 
   activeAccount = accountFromSecrets(secrets);
-  await loginSiweSession();
+  notifyWalletChanged();
   return activeAccount;
 }
 
@@ -442,9 +421,4 @@ export function getLocalAccountSummary() {
     spendPub: activeAccount.spendPub.toString(),
     mvkPub: toHex(activeAccount.mvkPub),
   };
-}
-
-export function getLocalDeviceAuthProof() {
-  if (!activeAccount) return null;
-  return createDeviceAuthProof(activeAccount);
 }

@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, Eye, EyeOff, Fingerprint, Key, KeyRound, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Eye, Fingerprint, Key, KeyRound, ShieldAlert, ShieldCheck } from "lucide-react";
 import { LogoMark } from "../ui/Logo";
 import { Button, Input, useToast } from "../ui/primitives";
 import { fadeUp, stagger, EASE } from "../ui/motion";
 import { useWallet } from "../lib/store";
 import { isWebAuthnAvailable } from "../lib/passkey";
-import { activatePrivateBalance, createWallet, createWalletWithPasskey, importWallet, exportWallet, markWalletBackupConfirmed } from "../lib/localWallet";
+import { activatePrivateBalance, createWallet, createWalletWithPasskey, importWallet } from "../lib/localWallet";
 
-type Step = "welcome" | "create_lock" | "import" | "backup" | "activating";
+type Step = "welcome" | "create_passcode" | "import" | "activating";
 
 const POINTS = [
   { icon: <ShieldCheck size={18} />, title: "Local custody", body: "Secrets are kept on your device, locked by passkey or passcode." },
@@ -21,9 +21,6 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   const [passphrase, setPassphrase] = useState("");
   const [confirmPassphrase, setConfirmPassphrase] = useState("");
   const [importedText, setImportedText] = useState("");
-  const [backupText, setBackupText] = useState("");
-  const [hasBackedUp, setHasBackedUp] = useState(false);
-  const [showBackup, setShowBackup] = useState(false);
   const [lockMethod, setLockMethod] = useState<"passkey" | "passphrase">("passkey");
   const [busy, setBusy] = useState<boolean>(false);
   const [err, setErr] = useState<string | null>(null);
@@ -38,22 +35,47 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
     }
   }, [isPasskeyCapable]);
 
-  async function handleCreateWithPasskey() {
+  // Activation seals the shielded balance on-chain (register-on-first-use). It is
+  // the ONLY thing between "wallet created" and Home — there is no backup gate.
+  async function runActivation() {
     setBusy(true);
     setErr(null);
     try {
-      await createWalletWithPasskey("benzo-local-user");
-      const backup = await exportWallet();
-      setBackupText(backup);
-      setStep("backup");
+      const activation = await activatePrivateBalance();
+      if (!activation) throw new Error("Wallet is locked. Unlock it and try again.");
+      await refresh();
+      onDone();
     } catch (e) {
-      setErr((e as Error).message.includes("cancel") ? "Passkey cancelled." : "Could not create passkey wallet. Please try again.");
+      setErr((e as Error).message);
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleCreateWithPassphrase() {
+  // One tap: silently generate the seed + passkey and go straight to activation →
+  // Home. Backup is a later, non-blocking step in Profile — never a gate here.
+  // Devices without WebAuthn can't derive a passkey secret, so they fall back to
+  // a passcode-encrypted keychain — creation always has a path.
+  async function handleCreate() {
+    if (!isPasskeyCapable) {
+      setErr(null);
+      setStep("create_passcode");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      await createWalletWithPasskey("benzo-local-user");
+    } catch (e) {
+      setErr((e as Error).message.includes("cancel") ? "Passkey cancelled." : "Could not create wallet. Please try again.");
+      setBusy(false);
+      return;
+    }
+    setStep("activating");
+    await runActivation();
+  }
+
+  async function handleCreateWithPasscode() {
     if (passphrase.length < 4) {
       setErr("Passcode must be at least 4 characters.");
       return;
@@ -66,14 +88,13 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
     setErr(null);
     try {
       await createWallet(passphrase);
-      const backup = await exportWallet();
-      setBackupText(backup);
-      setStep("backup");
     } catch (e) {
       setErr((e as Error).message);
-    } finally {
       setBusy(false);
+      return;
     }
+    setStep("activating");
+    await runActivation();
   }
 
   async function handleImport() {
@@ -93,37 +114,15 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
       } else {
         await importWallet(importedText);
       }
-      toast({ title: "Wallet imported successfully!", tone: "success" });
-      const backup = await exportWallet();
-      setBackupText(backup);
-      setStep("backup");
     } catch (e) {
       setErr((e as Error).message);
-    } finally {
       setBusy(false);
+      return;
     }
-  }
-
-  function handleCopyBackup() {
-    navigator.clipboard.writeText(backupText);
-    toast({ title: "Backup copied to clipboard!", tone: "success" });
-  }
-
-  async function handleFinish() {
-    setBusy(true);
-    setErr(null);
-    try {
-      markWalletBackupConfirmed();
-      setStep("activating");
-      const activation = await activatePrivateBalance();
-      if (!activation) throw new Error("Wallet is locked. Unlock it and try again.");
-      await refresh();
-      onDone();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
+    // They already hold their backup — never show the backup screen on import.
+    toast({ title: "Wallet imported successfully!", tone: "success" });
+    setStep("activating");
+    await runActivation();
   }
 
   return (
@@ -161,46 +160,32 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
                 ))}
               </motion.div>
             </div>
+            {err ? <p className="mt-4 text-center text-[13px] text-danger" data-testid="onboarding-error">{err}</p> : null}
             <div className="mt-6 space-y-3">
-              <Button full size="lg" onClick={() => setStep("create_lock")} data-testid="onboarding-create">
-                Create new wallet
+              <Button full size="lg" loading={busy} onClick={handleCreate} data-testid="onboarding-create">
+                {isPasskeyCapable ? <Fingerprint size={18} /> : null} Create new wallet
               </Button>
-              <Button full variant="secondary" size="lg" onClick={() => { setStep("import"); setErr(null); }} data-testid="onboarding-import">
+              <Button full variant="secondary" size="lg" disabled={busy} onClick={() => { setStep("import"); setErr(null); }} data-testid="onboarding-import">
                 Import existing wallet
               </Button>
             </div>
           </Pane>
         )}
 
-        {step === "create_lock" && (
-          <Pane key="create_lock" onBack={() => { setStep("welcome"); setErr(null); }}>
+        {step === "create_passcode" && (
+          <Pane key="create_passcode" onBack={() => { setStep("welcome"); setErr(null); }}>
             <div className="my-auto flex flex-col w-full pb-6">
               <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-full bg-accent/10 text-accent">
                 <Key size={30} />
               </div>
-              <h1 className="font-display mt-5 text-center text-[24px] leading-tight sm:text-[26px]">Secure your wallet</h1>
+              <h1 className="font-display mt-5 text-center text-[24px] leading-tight">Set a passcode</h1>
               <p className="mt-2 text-center text-[14px] text-muted max-w-[290px] mx-auto">
-                Select how you want to encrypt and unlock your local wallet keys.
+                This device has no passkey, so your wallet keys are encrypted with a passcode you choose.
               </p>
 
               {err ? <p className="mt-4 text-center text-[13px] text-danger" data-testid="onboarding-error">{err}</p> : null}
 
-              {isPasskeyCapable && (
-                <div className="mt-6 flex flex-col gap-4">
-                  <div className="flex justify-center">
-                    <Button full size="lg" onClick={handleCreateWithPasskey} loading={busy} data-testid="create-passkey">
-                      <Fingerprint size={18} /> Continue with Passkey
-                    </Button>
-                  </div>
-                  <div className="relative flex py-2 items-center">
-                    <div className="flex-grow border-t border-hair"></div>
-                    <span className="flex-shrink mx-4 text-muted text-xs">or protect with passcode</span>
-                    <div className="flex-grow border-t border-hair"></div>
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-4 space-y-4">
+              <div className="mt-6 space-y-4">
                 <Input
                   type="password"
                   label="Choose a passcode"
@@ -217,8 +202,8 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
                   placeholder="Repeat passcode"
                   data-testid="confirm-passcode-input"
                 />
-                <Button full size="lg" variant="secondary" onClick={handleCreateWithPassphrase} loading={busy} data-testid="create-passcode">
-                  Set Passcode
+                <Button full size="lg" onClick={handleCreateWithPasscode} loading={busy} data-testid="create-passcode">
+                  Set passcode & create
                 </Button>
               </div>
             </div>
@@ -281,61 +266,6 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           </Pane>
         )}
 
-        {step === "backup" && (
-          <Pane key="backup">
-            <div className="my-auto flex flex-col w-full pb-6">
-              <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-full bg-amber-500/10 text-amber-600">
-                <ShieldAlert size={30} />
-              </div>
-              <h1 className="font-display mt-5 text-center text-[24px] leading-tight">Backup your wallet</h1>
-              <p className="mt-2 text-center text-[14px] text-muted max-w-[290px] mx-auto">
-                Your keys are stored only in this browser. If you clear your browser data or lose this device, your funds will be lost forever.
-              </p>
-
-              <div className="mt-6 p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20 text-[13px] text-amber-700 leading-relaxed">
-                Save your backup JSON securely. You can use it to restore your wallet on any other device.
-              </div>
-
-              <div className="mt-4 flex flex-col gap-2">
-                <Button full variant="secondary" size="md" onClick={() => setShowBackup(!showBackup)}>
-                  {showBackup ? <EyeOff size={16} /> : <Eye size={16} />} {showBackup ? "Hide Backup" : "Reveal Backup Data"}
-                </Button>
-
-                {showBackup && (
-                  <div className="relative mt-2">
-                    <pre className="p-3 text-[11px] rounded-xl bg-card border border-hair overflow-x-auto max-h-[150px] text-muted select-all">
-                      {backupText}
-                    </pre>
-                    <button
-                      onClick={handleCopyBackup}
-                      className="mt-2 text-xs font-semibold text-accent hover:underline focus:outline-none"
-                    >
-                      Copy Backup Data
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <label className="mt-6 flex items-start gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={hasBackedUp}
-                  onChange={(e) => setHasBackedUp(e.target.checked)}
-                  data-testid="backup-confirm"
-                  className="mt-1 rounded border-hair text-accent focus:ring-accent"
-                />
-                <span className="text-[13px] text-muted leading-tight">
-                  I have saved my backup data securely and understand that Benzo cannot recover it for me.
-                </span>
-              </label>
-            </div>
-
-            <Button full size="lg" disabled={!hasBackedUp} loading={busy} onClick={handleFinish} data-testid="backup-finish">
-              Enter Wallet
-            </Button>
-          </Pane>
-        )}
-
         {step === "activating" && (
           <Pane key="activating">
             <div className="my-auto flex w-full flex-col items-center pb-6 text-center">
@@ -355,7 +285,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
             </div>
 
             {err ? (
-              <Button full size="lg" loading={busy} onClick={handleFinish} data-testid="activation-retry">
+              <Button full size="lg" loading={busy} onClick={runActivation} data-testid="activation-retry">
                 Try again
               </Button>
             ) : null}

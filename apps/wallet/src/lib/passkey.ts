@@ -18,7 +18,6 @@
 import {
   loginWithSigner,
   NOTE_KEY_MESSAGE,
-  signWithEvmPrivateKey,
   type BenzoAccount,
   type SignMessage,
 } from "@benzo/core";
@@ -224,33 +223,4 @@ export const passkeySignMessage: SignMessage = (message) => derivePasskeySecret(
 /** Unlock (or first-derive) the Benzo shielded account from the device passkey. */
 export async function loginWithPasskey(label = "wallet"): Promise<BenzoAccount> {
   return loginWithSigner(passkeySignMessage, label);
-}
-
-export interface DeviceAuthProof {
-  address: string;
-  message: string;
-  signature: string;
-  ttlSeconds?: number;
-}
-
-export function deviceAuthMessage(address: string, origin = window.location.origin): string {
-  const nonce = crypto.randomUUID?.() ?? toB64url(crypto.getRandomValues(new Uint8Array(16)));
-  return [
-    "BENZO-DEVICE-AUTH-v1",
-    `origin=${origin}`,
-    `address=${address}`,
-    `issuedAt=${Date.now()}`,
-    `nonce=${nonce}`,
-  ].join("\n");
-}
-
-export async function createDeviceAuthProof(account: BenzoAccount, opts: { ttlSeconds?: number; origin?: string } = {}): Promise<DeviceAuthProof> {
-  if (!account.address || !account.evmPrivateKey) throw new Error("Device account has no EVM signer.");
-  const message = deviceAuthMessage(account.address, opts.origin);
-  return {
-    address: account.address,
-    message,
-    signature: await signWithEvmPrivateKey(account.evmPrivateKey, message),
-    ttlSeconds: opts.ttlSeconds,
-  };
 }
