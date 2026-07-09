@@ -18,8 +18,8 @@ function parseBaseUnits(value?: string | null): bigint {
   }
 }
 
-// A gift/invite escrows PUBLIC USDC on-chain, so this validates against the
-// public balance and points an under-funded user at the public top-up flow.
+// Gift links escrow edge USDC on-chain. Keep that funding detail out of the UI;
+// callers surface a plain "not enough USDC" message.
 export function validateFundedInviteAmount(amount: string, publicBalanceBaseUnits?: string | null): {
   amountOk: boolean;
   amountBaseUnits: string;

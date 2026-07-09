@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { AlertTriangle, AtSign, Globe, Send as SendIcon, ShieldCheck, Smartphone, UserPlus } from "lucide-react";
-import type { ProverKind, SettleResult } from "../lib/api";
+import { AlertTriangle, AtSign, Send as SendIcon, ShieldCheck, Smartphone, UserPlus } from "lucide-react";
+import type { ProverKind } from "../lib/api";
 import { proverPlan } from "../lib/proverPolicy";
 import { useSendStream } from "../lib/useSendStream";
 import { shouldLockOnSend, requireUnlock } from "../lib/lock";
@@ -11,15 +11,12 @@ import { useWallet } from "../lib/store";
 import { fmtUsd, USDC_BASE_UNITS, usdcToBaseUnits } from "../lib/format";
 import { isValidEvmAddress, shortAddress } from "../lib/address";
 import { classifyRecipientInput, looksLikeEvmAddressInput, type RecipientKind } from "../lib/recipient";
-import { sendPublicClientSide } from "../lib/benzoClient";
 import { Screen, motion } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
 import { AmountField, Avatar, Button, Input } from "../ui/primitives";
 import { PrivateChip } from "../ui/privacy";
-import { OnChainDetails } from "../ui/OnChainDetails";
 import { SendCeremony, type SendReceipt } from "../ui/send/SendCeremony";
-import { saveLocalHistory } from "../lib/history";
-import { INSUFFICIENT_PRIVATE_USDC_ERROR, mapError } from "../lib/errors";
+import { INSUFFICIENT_PRIVATE_USDC_ERROR } from "../lib/errors";
 
 type Step = "form" | "confirm";
 type Kind = RecipientKind;
@@ -45,7 +42,7 @@ function parsePositiveAmount(amount: string): { valid: boolean; value: bigint; b
 export function Send() {
   const nav = useNavigate();
   const [params] = useSearchParams();
-  const { contacts: bffContacts, session, balance, publicBalance, refresh, refreshBalance } = useWallet();
+  const { contacts: bffContacts, session, balance, refresh, refreshBalance } = useWallet();
   const contacts = useMemo(() => mergeContacts(bffContacts), [bffContacts]);
   const { state, receipt, run, reset } = useSendStream();
   const [to, setTo] = useState(() => params.get("to") ?? "");
@@ -55,9 +52,6 @@ export function Send() {
   const [step, setStep] = useState<Step>("form");
   const [stepUp, setStepUp] = useState(false);
   const [firing, setFiring] = useState(false);
-  const [pubPhase, setPubPhase] = useState<"idle" | "busy" | "done">("idle");
-  const [pubResult, setPubResult] = useState<SettleResult | null>(null);
-  const [pubErr, setPubErr] = useState<string | null>(null);
   const parsedAmount = useMemo(() => parsePositiveAmount(amount), [amount]);
   const amountBaseUnits = parsedAmount.baseUnits;
   const amountUsd = parsedAmount.valid ? Number(parsedAmount.value) / Number(USDC_BASE_UNITS) : 0;
@@ -81,18 +75,15 @@ export function Send() {
   }, [known, recipient]);
 
   const privateBaseUnits = BigInt(balance?.baseUnits ?? "0");
-  const publicBaseUnits = BigInt(publicBalance?.baseUnits ?? "0");
   const wantBaseUnits = parsedAmount.value;
-  const checkingPrivateBalance = kind === "private" && wantBaseUnits > 0n && balance == null;
-  const checkingPublicBalance = kind === "address" && wantBaseUnits > 0n && publicBalance == null;
-  const lowPrivate = kind === "private" && wantBaseUnits > 0n && balance != null && wantBaseUnits > privateBaseUnits;
-  const lowPublic = kind === "address" && wantBaseUnits > 0n && publicBalance != null && wantBaseUnits > publicBaseUnits;
+  const privateRecipient = kind === "private" || kind === "address";
+  const checkingPrivateBalance = privateRecipient && wantBaseUnits > 0n && balance == null;
+  const lowPrivate = privateRecipient && wantBaseUnits > 0n && balance != null && wantBaseUnits > privateBaseUnits;
   const recipientReady = recipient.length > 0 && parsedAmount.valid && kind !== "invite" && !badAddress;
   const canOpenStepUp = overCap && recipientReady;
-  const valid = recipientReady && !checkingPrivateBalance && !checkingPublicBalance && !lowPrivate && !(kind === "address" && lowPublic);
+  const valid = recipientReady && !checkingPrivateBalance && !lowPrivate;
 
   const inFlight = state.phase !== "idle";
-  const pubInFlight = pubPhase !== "idle";
 
   const view: SendReceipt = {
     amount: receipt?.amount ?? amountBaseUnits,
@@ -105,42 +96,10 @@ export function Send() {
   };
 
   async function fire() {
-    if (firing || inFlight || pubInFlight) return;
+    if (firing || inFlight) return;
     setFiring(true);
     try {
       if (shouldLockOnSend() && !(await requireUnlock())) return;
-      if (kind === "address") {
-        setPubErr(null);
-        if (!parsedAmount.valid) {
-          setPubErr(parsedAmount.error ?? INVALID_AMOUNT);
-          return;
-        }
-        setPubPhase("busy");
-        try {
-          const r = await sendPublicClientSide(recipient, amountBaseUnits);
-          if (!r?.txHash) throw new Error("Local wallet did not return a transaction hash.");
-
-          saveLocalHistory({
-            id: r.txHash,
-            type: "publicSend",
-            name: recipient.length > 24 ? `${recipient.slice(0, 8)}...${recipient.slice(-8)}` : recipient,
-            note: memo || "",
-            amount: amountBaseUnits,
-            direction: "out",
-            status: "settled",
-            timestamp: Math.floor(Date.now() / 1000),
-            txHash: r.txHash,
-          });
-
-          setPubResult({ status: "settled", txHash: r.txHash, onChain: true, amount: amountBaseUnits, prover: "local" });
-          setPubPhase("done");
-          void refresh();
-        } catch (e) {
-          setPubErr(mapError(e, "Couldn't send right now. Your money is safe - please try again."));
-          setPubPhase("idle");
-        }
-        return;
-      }
       await run(recipient, amount, memo || undefined, plan.kind, false, requestId);
       void refresh();
     } finally {
@@ -150,8 +109,6 @@ export function Send() {
 
   function done() {
     reset();
-    setPubPhase("idle");
-    setPubResult(null);
     nav("/");
   }
 
@@ -206,24 +163,6 @@ export function Send() {
               {parsedAmount.error ? (
                 <div className="mx-auto mt-2 max-w-[300px] text-center text-[12px] font-medium text-danger" data-testid="send-amount-error">
                   {parsedAmount.error}
-                </div>
-              ) : null}
-              {lowPublic && !canOpenStepUp ? (
-                <div className="mx-auto mt-2 flex max-w-[300px] flex-col items-center gap-1.5 text-center text-[12px] text-[#9a6b12]" data-testid="send-low-public">
-                  <span>Not enough public USDC - Make public first.</span>
-                  <button
-                    type="button"
-                    onClick={() => nav(`/convert?mode=public&amount=${encodeURIComponent(amount)}`)}
-                    data-testid="send-make-public"
-                    className="inline-flex items-center gap-1 rounded-full bg-[#fbf1dd] px-3 py-1 font-semibold text-[#9a6b12] outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-                  >
-                    <Globe size={12} /> Make public
-                  </button>
-                </div>
-              ) : null}
-              {checkingPublicBalance ? (
-                <div className="mx-auto mt-2 max-w-[300px] text-center text-[12px] text-muted" data-testid="send-public-balance-checking">
-                  Checking public balance...
                 </div>
               ) : null}
               {lowPrivate && !canOpenStepUp ? (
@@ -283,9 +222,8 @@ export function Send() {
             amount={amountBaseUnits}
             memo={memo}
             plan={plan}
-            isNewRecipient={!known && kind === "private"}
-            firing={firing || pubPhase === "busy"}
-            pubErr={kind === "address" ? pubErr : null}
+            isNewRecipient={!known && privateRecipient}
+            firing={firing}
             onBack={() => setStep("form")}
             onSend={fire}
           />
@@ -293,34 +231,8 @@ export function Send() {
       </div>
 
       {inFlight ? <SendCeremony state={state} receipt={view} onDone={done} onRetry={() => { reset(); setStep("confirm"); }} /> : null}
-      {pubPhase === "done" ? <PublicSendDone display={display} address={recipient} amount={pubResult?.amount ?? amountBaseUnits} result={pubResult} onDone={done} /> : null}
       {stepUp ? <StepUpSheet message={stepUpMessage(amountUsd, session?.kycTier)} onClose={() => setStepUp(false)} /> : null}
     </Screen>
-  );
-}
-
-function PublicSendDone({ display, address, amount, result, onDone }: { display: string; address: string; amount: string; result: SettleResult | null; onDone: () => void }) {
-  const onChain = !!result?.onChain;
-  return (
-    <motion.div
-      className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-canvas px-8 text-center"
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} data-testid="send-public-overlay"
-    >
-      <motion.div initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 240, damping: 16 }}
-        className="flex h-16 w-16 items-center justify-center rounded-full bg-pos/12 text-pos">
-        <Globe size={28} />
-      </motion.div>
-      <div>
-        <div className="font-display text-2xl" data-testid="send-public-title">Sent to a wallet</div>
-        <div className="mt-1 text-[15px] text-muted">{fmtUsd(amount)}{onChain ? "" : " · not verified on-chain"}</div>
-        <div className="mt-1 text-[13px] text-muted">to {shortAddress(address)}</div>
-      </div>
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fbf1dd] px-3 py-1 text-xs font-semibold text-[#9a6b12]">
-        <Globe size={13} /> This one is public, not private.
-      </span>
-      <div className="w-full max-w-[320px]"><OnChainDetails txHash={result?.txHash} onChain={onChain} kind="public" /></div>
-      <Button className="mt-1" onClick={onDone} data-testid="send-public-done">Done</Button>
-    </motion.div>
   );
 }
 
@@ -355,7 +267,7 @@ function StepUpSheet({ message, onClose }: { message: string; onClose: () => voi
 function KindChip({ kind }: { kind: Kind }) {
   const map = {
     private: { icon: <AtSign size={12} />, text: "Send privately. Only you two see it", cls: "bg-accent/10 text-accent" },
-    address: { icon: <Globe size={12} />, text: "Send to a wallet. This one is public, not private", cls: "bg-[#fbf1dd] text-[#9a6b12]" },
+    address: { icon: <ShieldCheck size={12} />, text: "Private send to this wallet address", cls: "bg-accent/10 text-accent" },
     invite: { icon: <UserPlus size={12} />, text: "Not on Benzo yet. Invite them", cls: "bg-ink/[0.05] text-muted" },
   }[kind];
   return (
@@ -381,7 +293,6 @@ function ConfirmStep({
   plan,
   isNewRecipient,
   firing,
-  pubErr,
   onBack,
   onSend,
 }: {
@@ -393,7 +304,6 @@ function ConfirmStep({
   plan: { onDevice: boolean; kind: ProverKind; reason: string };
   isNewRecipient: boolean;
   firing: boolean;
-  pubErr?: string | null;
   onBack: () => void;
   onSend: () => void;
 }) {
@@ -404,7 +314,7 @@ function ConfirmStep({
           <div className="font-display tnum text-4xl text-ink">{fmtUsd(amount)}</div>
           {kind === "address" && address ? (
             <div className="mx-auto mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-canvas px-3 py-1 font-mono text-[13px] text-ink" data-testid="confirm-address">
-              <Globe size={12} className="flex-none text-[#9a6b12]" /> {shortAddress(address)}
+              <ShieldCheck size={12} className="flex-none text-accent" /> {shortAddress(address)}
             </div>
           ) : (
             <div className="mx-auto mt-1 max-w-full truncate px-4 text-sm text-muted">to {display}</div>
@@ -412,24 +322,11 @@ function ConfirmStep({
         </div>
         {memo ? <div className="mt-3 rounded-xl bg-canvas/70 px-3 py-2 text-center text-sm text-ink">"{memo}"</div> : null}
         <div className="mt-4 flex justify-center">
-          {kind === "address" ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fbf1dd] px-3 py-1 text-xs font-semibold text-[#9a6b12]">
-              <Globe size={13} /> Public payout. This one isn't private.
-            </span>
-          ) : (
-            <PrivateChip label={`Only you and ${display} can see this`} />
-          )}
+          <PrivateChip label={`Only you and ${display} can see this`} />
         </div>
       </div>
 
-      {kind === "address" ? (
-        <div className="mt-3 flex items-start gap-2 rounded-2xl bg-[#fbf1dd] px-3.5 py-2.5 text-sm text-[#9a6b12]" data-testid="send-address-warning">
-          <AlertTriangle size={15} className="mt-0.5 flex-none" />
-          <span>
-            <b>Public address payout.</b> This sends normal USDC to an EVM wallet address. Sends are instant and final, so double-check it.
-          </span>
-        </div>
-      ) : isNewRecipient ? (
+      {isNewRecipient ? (
         <div className="mt-3 flex items-start gap-2 rounded-2xl bg-[#fbf1dd] px-3.5 py-2.5 text-sm text-[#9a6b12]" data-testid="send-new-recipient">
           <AlertTriangle size={15} className="mt-0.5 flex-none" />
           <span>
@@ -442,27 +339,18 @@ function ConfirmStep({
         </div>
       )}
 
-      {kind === "address" ? (
-        <div className="mt-5 flex items-center gap-2 rounded-2xl border border-hair bg-card px-3.5 py-2.5 text-xs text-muted" data-testid="send-public-note">
-          <Globe size={15} className="flex-none text-[#9a6b12]" />
-          <span>Paid from your Public balance - a normal USDC payment any wallet can receive.</span>
-        </div>
-      ) : (
-        <div className="mt-5 flex items-center gap-2 rounded-2xl border border-hair bg-card px-3.5 py-2.5 text-xs text-muted" data-testid="send-prover-plan">
-          {plan.onDevice ? <Smartphone size={15} className="flex-none text-accent" /> : <ShieldCheck size={15} className="flex-none text-accent" />}
-          <span>{plan.reason}</span>
-        </div>
-      )}
-
-      {pubErr ? <div className="mt-3 text-center text-sm text-danger" data-testid="send-public-error">{pubErr}</div> : null}
+      <div className="mt-5 flex items-center gap-2 rounded-2xl border border-hair bg-card px-3.5 py-2.5 text-xs text-muted" data-testid="send-prover-plan">
+        {plan.onDevice ? <Smartphone size={15} className="flex-none text-accent" /> : <ShieldCheck size={15} className="flex-none text-accent" />}
+        <span>{plan.reason}</span>
+      </div>
 
       <div className="mt-6 flex gap-3">
         <Button variant="secondary" size="lg" onClick={onBack} disabled={firing} data-testid="send-back">
           Back
         </Button>
         <Button full size="lg" loading={firing} disabled={firing} onClick={onSend} data-testid="send-confirm">
-          {kind === "address" ? <Globe size={17} className="flex-none" /> : <SendIcon size={17} className="flex-none" />}
-          <span className="truncate">{kind === "address" ? "Send to wallet" : "Send"} {fmtUsd(amount)}</span>
+          <SendIcon size={17} className="flex-none" />
+          <span className="truncate">Send {fmtUsd(amount)}</span>
         </Button>
       </div>
     </div>

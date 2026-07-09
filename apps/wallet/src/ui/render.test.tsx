@@ -60,10 +60,15 @@ describe("ActivityItem", () => {
     expect(screen.getByText("Ravi Mehta")).toBeInTheDocument();
     expect(screen.getByText("+$200.00")).toBeInTheDocument();
   });
-  it("shows an in-flight status pill for cash-out", () => {
-    render(<MemoryRouter><ActivityItem row={{ ...base, type: "cashOut", name: "Cash out", direction: "out", status: "arriving" }} /></MemoryRouter>);
+  it("shows an in-flight status pill for transfer-out rows", () => {
+    render(<MemoryRouter><ActivityItem row={{ ...base, type: "unshield", name: "Transfer out", direction: "out", status: "arriving" }} /></MemoryRouter>);
     expect(screen.getByText(/Arriving/)).toBeInTheDocument();
     expect(screen.getByText("−$200.00")).toBeInTheDocument();
+  });
+  it("redacts row amounts when balances are hidden", () => {
+    render(<MemoryRouter><ActivityItem row={base} hidden /></MemoryRouter>);
+    expect(screen.getByLabelText("Amount hidden")).toBeInTheDocument();
+    expect(screen.queryByText("+$200.00")).not.toBeInTheDocument();
   });
   it("shows failed outgoing attempts without a debit sign", () => {
     render(<MemoryRouter><ActivityItem row={{ ...base, type: "send", name: "Alex", direction: "out", status: "failed" }} /></MemoryRouter>);

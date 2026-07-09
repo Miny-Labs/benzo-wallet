@@ -44,8 +44,8 @@ function lineFor(row: ActivityRow): { title: string; body: string; kind: Notif["
     if (row.direction === "in") return { title: `${row.name} did not settle`, body: `${amt} failed`, kind: "info" };
     return { title: `Couldn't pay ${row.name}`, body: `${amt} was not settled`, kind: "info" };
   }
-  if (row.type === "cashOut") {
-    return { title: "Cash out", body: row.status === "settled" ? `${amt} returned to the testnet reserve` : `${amt} returning to the testnet reserve`, kind: "out" };
+  if (row.type === "cashOut" || row.type === "unshield") {
+    return { title: "Transfer out", body: row.status === "settled" ? `${amt} settled` : `${amt} pending`, kind: "out" };
   }
   if (row.direction === "in") {
     return { title: `${row.name} paid you`, body: row.status === "settled" ? `+${amt}` : `+${amt} · ${row.status}`, kind: "in" };

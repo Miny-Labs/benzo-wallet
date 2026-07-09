@@ -8,26 +8,12 @@ const walletState = vi.hoisted(() => ({
   session: { profile: { handle: "tester", name: "Tester" }, handle: "tester" },
 }));
 
-const claimStatus = vi.hoisted(() => vi.fn());
-const claim = vi.hoisted(() => vi.fn());
 const giftClaimStatusClientSide = vi.hoisted(() => vi.fn());
 const claimLinkClientSide = vi.hoisted(() => vi.fn());
 
 vi.mock("../lib/store", () => ({
   useWallet: () => walletState,
 }));
-
-vi.mock("../lib/api", async () => {
-  const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
-  return {
-    ...actual,
-    api: {
-      ...actual.api,
-      claimStatus,
-      claim,
-    },
-  };
-});
 
 vi.mock("../lib/benzoClient", () => ({
   giftClaimStatusClientSide,
@@ -43,8 +29,6 @@ function claimRoute(link: string): string {
 
 describe("Claim", () => {
   beforeEach(() => {
-    claimStatus.mockReset();
-    claim.mockReset();
     giftClaimStatusClientSide.mockReset();
     claimLinkClientSide.mockReset();
   });
@@ -60,43 +44,26 @@ describe("Claim", () => {
 
     expect(await screen.findByTestId("claim-unavailable")).toHaveTextContent("This link expired");
     expect(screen.getByText("No money moved. Ask the sender to send a fresh link.")).toBeInTheDocument();
-    expect(claimStatus).not.toHaveBeenCalled();
-    expect(claim).not.toHaveBeenCalled();
+    expect(giftClaimStatusClientSide).not.toHaveBeenCalled();
+    expect(claimLinkClientSide).not.toHaveBeenCalled();
   });
 
-  it("shows already claimed links as unavailable before attempting settlement", async () => {
-    claimStatus.mockResolvedValue({ status: "claimed", amount: "10000000", expiresAt: 4_000_000_000, onChain: true });
-    const used = "benzo://claim?amount=10000000&app=consumer&exp=4000000000#secret_used";
+  it("rejects legacy backend claim tokens instead of calling claim redemption", async () => {
+    const legacy = "benzo://claim?amount=10000000&app=consumer&exp=4000000000#secret_used";
 
     render(
-      <MemoryRouter initialEntries={[claimRoute(used)]}>
+      <MemoryRouter initialEntries={[claimRoute(legacy)]}>
         <Claim />
       </MemoryRouter>,
     );
 
-    expect(await screen.findByTestId("claim-unavailable")).toHaveTextContent("This link was already claimed");
-    expect(screen.getByText("No money moved. Ask the sender for a fresh link if needed.")).toBeInTheDocument();
-    expect(claimStatus).toHaveBeenCalledWith("secret_used", "10000000", "4000000000");
-    expect(claim).not.toHaveBeenCalled();
+    expect(await screen.findByTestId("claim-unavailable")).toHaveTextContent("This claim link is no longer supported");
+    expect(screen.getByText("Ask the sender to share a new Benzo gift link.")).toBeInTheDocument();
+    expect(giftClaimStatusClientSide).not.toHaveBeenCalled();
+    expect(claimLinkClientSide).not.toHaveBeenCalled();
   });
 
-  it("shows refunded links as unavailable before attempting settlement", async () => {
-    claimStatus.mockResolvedValue({ status: "refunded", amount: "10000000", expiresAt: 4_000_000_000, onChain: true });
-    const refunded = "benzo://claim?amount=10000000&app=consumer&exp=4000000000#secret_refunded";
-
-    render(
-      <MemoryRouter initialEntries={[claimRoute(refunded)]}>
-        <Claim />
-      </MemoryRouter>,
-    );
-
-    expect(await screen.findByTestId("claim-unavailable")).toHaveTextContent("This link was refunded");
-    expect(screen.getByText("No money moved. Ask the sender to send a fresh link.")).toBeInTheDocument();
-    expect(claimStatus).toHaveBeenCalledWith("secret_refunded", "10000000", "4000000000");
-    expect(claim).not.toHaveBeenCalled();
-  });
-
-  it("checks an on-chain gift against the escrow, not the backend", async () => {
+  it("checks an on-chain gift against the escrow", async () => {
     giftClaimStatusClientSide.mockResolvedValue({ status: "open", amount: "10000000", expiresAt: 4_000_000_000 });
     const gift = `benzo://claim?amount=10000000&app=consumer&exp=4000000000#${GIFT_SECRET}`;
 
@@ -106,10 +73,8 @@ describe("Claim", () => {
       </MemoryRouter>,
     );
 
-    // An open gift surfaces the claim CTA; the backend claimStatus is never consulted.
     expect(await screen.findByTestId("claim-accept")).toBeInTheDocument();
     expect(giftClaimStatusClientSide).toHaveBeenCalledWith(GIFT_SECRET);
-    expect(claimStatus).not.toHaveBeenCalled();
   });
 
   it("shows an already-claimed on-chain gift as unavailable from the escrow read", async () => {
@@ -124,7 +89,6 @@ describe("Claim", () => {
 
     expect(await screen.findByTestId("claim-unavailable")).toHaveTextContent("This link was already claimed");
     expect(giftClaimStatusClientSide).toHaveBeenCalledWith(GIFT_SECRET);
-    expect(claimStatus).not.toHaveBeenCalled();
-    expect(claim).not.toHaveBeenCalled();
+    expect(claimLinkClientSide).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 import { encodeBenzoLink } from "@benzo/links";
-import { getAddress, isAddress, type Address, type Hex } from "viem";
+import { getAddress, type Address, type Hex } from "viem";
 import type { BenzoRecipient } from "@benzo/core";
 import {
   createEerc,
@@ -7,7 +7,6 @@ import {
   readPublicUsdcBalance,
   shieldPublicUsdc,
   transferPrivateUsdc,
-  transferPublicUsdc,
   unshieldPrivateUsdc,
 } from "./eerc";
 import {
@@ -63,17 +62,6 @@ export async function claimHandleClientSide(
   const account = getLocalAccount();
   if (!account) return null;
   return claimHandleOnChain(account, handle);
-}
-
-export async function sendPublicClientSide(
-  to: string,
-  amountBaseUnits: string,
-): Promise<{ txHash?: string; prover: "local" } | null> {
-  const account = getLocalAccount();
-  if (!account) return null;
-  if (!isAddress(to, { strict: false })) throw new Error("Enter a valid Avalanche wallet address.");
-  const result = await transferPublicUsdc(account, getAddress(to), BigInt(amountBaseUnits));
-  return { txHash: result.txHash, prover: "local" };
 }
 
 export async function shieldPublicUsdcClientSide(

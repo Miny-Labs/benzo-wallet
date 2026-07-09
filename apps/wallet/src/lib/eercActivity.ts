@@ -542,8 +542,8 @@ function withdrawRow(
   return {
     id,
     type: "unshield",
-    name: "Made public",
-    note: "Moved to Public balance",
+    name: "Transfer out",
+    note: "Private eERC withdrawal proved locally.",
     amount: amount.toString(),
     direction: "out",
     status: "settled",

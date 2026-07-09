@@ -16,7 +16,7 @@ import type { ActivityRow } from "./api.js";
 const rows: ActivityRow[] = [
   { id: "r1", type: "receive", name: "Ravi", note: "", amount: "200000000", direction: "in", status: "settled", timestamp: 100 },
   { id: "r2", type: "send", name: "Alex", note: "", amount: "50000000", direction: "out", status: "settled", timestamp: 300 },
-  { id: "r3", type: "cashOut", name: "Cash out", note: "", amount: "100000000", direction: "out", status: "arriving", timestamp: 200 },
+  { id: "r3", type: "unshield", name: "Transfer out", note: "", amount: "100000000", direction: "out", status: "arriving", timestamp: 200 },
 ];
 
 describe("notifications (C8 - client-side, derived from history)", () => {
@@ -28,7 +28,7 @@ describe("notifications (C8 - client-side, derived from history)", () => {
     expect(ns[2].title).toBe("Ravi paid you");
     expect(ns[2].body).toBe("+$200.00");
     expect(ns[0].title).toBe("You paid Alex");
-    expect(ns.find((n) => n.id === "r3")?.body).toBe("$100.00 returning to the testnet reserve");
+    expect(ns.find((n) => n.id === "r3")?.body).toBe("$100.00 pending");
   });
 
   it("counts all as unread initially, then clears on markAllRead", () => {

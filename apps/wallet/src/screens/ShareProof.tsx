@@ -7,9 +7,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ShieldCheck, Smartphone } from "lucide-react";
-import { api } from "../lib/api";
-import { apiProverKind, proverPlan } from "../lib/proverPolicy";
-import { verifyBalanceProofOnChain } from "../lib/chain";
+import { proverPlan } from "../lib/proverPolicy";
 import { proveBalanceClientSide } from "../lib/benzoClient";
 import { fmtUsd, usdcToBaseUnits } from "../lib/format";
 import { Screen } from "../ui/motion";
@@ -37,30 +35,14 @@ export function ShareProof() {
     setSelfVerified(false);
     setOnDevice(false);
     try {
-      // CAPABLE DESKTOPS ONLY: generate the proof on THIS DEVICE (WasmProver).
-      // The witness/notes never leave the browser and the proof is verified
-      // on-chain locally.
-      if (plan.onDevice) {
-        const cs = await proveBalanceClientSide(usdcToBaseUnits(min).toString());
-        if (cs) {
-          setOnChain(cs.onChain);
-          setSelfVerified(cs.onChain);
-          setOnDevice(true);
-          setPhase("done");
-          return;
-        }
-      }
-      const r = await api.shareProof(min, apiProverKind(plan.kind));
-      setOnChain(r.onChain);
+      // Generate the proof on THIS DEVICE. The witness/notes never leave the
+      // browser; no API fallback is allowed for balance proofs.
+      const cs = await proveBalanceClientSide(usdcToBaseUnits(min).toString());
+      if (!cs) throw new Error("proof_of_balance_unavailable");
+      setOnChain(cs.onChain);
+      setSelfVerified(cs.onChain);
+      setOnDevice(true);
       setPhase("done");
-      // Trustless step: this device re-verifies the BFF-made proof on-chain itself.
-      if (r.onChain && r.publics?.length) {
-        try {
-          setSelfVerified(await verifyBalanceProofOnChain(JSON.parse(r.proof), r.publics));
-        } catch {
-          /* leave selfVerified false; the server verdict still stands */
-        }
-      }
     } catch (e) {
       const msg = (e as Error).message ?? "";
       setErr(/proof_of_balance/i.test(msg)

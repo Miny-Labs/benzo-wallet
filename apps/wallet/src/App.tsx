@@ -4,7 +4,7 @@
  * route transitions, and a tab bar with a sliding active indicator + center FAB.
  */
 import { AnimatePresence, motion } from "framer-motion";
-import { Clock, Home as HomeIcon, Landmark, ArrowUpRight, User } from "lucide-react";
+import { Clock, Home as HomeIcon, QrCode, ArrowUpRight, User } from "lucide-react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { VideoBackground } from "./ui/VideoBackground";
 import { StageVideo } from "./ui/StageVideo";
@@ -20,8 +20,6 @@ const Send = lazy(() => import("./screens/Send").then((m) => ({ default: m.Send 
 const Request = lazy(() => import("./screens/Request").then((m) => ({ default: m.Request })));
 const Activity = lazy(() => import("./screens/Activity").then((m) => ({ default: m.Activity })));
 const TxDetail = lazy(() => import("./screens/TxDetail").then((m) => ({ default: m.TxDetail })));
-const Cash = lazy(() => import("./screens/Cash").then((m) => ({ default: m.Cash })));
-const Convert = lazy(() => import("./screens/Convert").then((m) => ({ default: m.Convert })));
 const Deposit = lazy(() => import("./screens/Deposit").then((m) => ({ default: m.Deposit })));
 const Profile = lazy(() => import("./screens/Profile").then((m) => ({ default: m.Profile })));
 const Notifications = lazy(() => import("./screens/Notifications").then((m) => ({ default: m.Notifications })));
@@ -29,7 +27,6 @@ const Contacts = lazy(() => import("./screens/Contacts").then((m) => ({ default:
 const ShareProof = lazy(() => import("./screens/ShareProof").then((m) => ({ default: m.ShareProof })));
 const InviteExternal = lazy(() => import("./screens/InviteExternal").then((m) => ({ default: m.InviteExternal })));
 const Claim = lazy(() => import("./screens/Claim").then((m) => ({ default: m.Claim })));
-const Work = lazy(() => import("./screens/Work").then((m) => ({ default: m.Work })));
 import { Onboarding } from "./screens/Onboarding";
 import { AUTH_CHANGED_EVENT, AUTH_REQUIRED_EVENT, credentialLooksWellFormed } from "./lib/api";
 import { walletExists, isWalletUnlocked, reauthenticateSession } from "./lib/localWallet";
@@ -38,7 +35,7 @@ import { backendAuthLossEjectsWallet } from "./lib/backendSession";
 const TABS = [
   { to: "/", label: "Home", icon: HomeIcon },
   { to: "/activity", label: "Activity", icon: Clock },
-  { to: "/cash", label: "Cash", icon: Landmark },
+  { to: "/deposit", label: "Receive", icon: QrCode },
   { to: "/profile", label: "Profile", icon: User },
 ] as const;
 
@@ -242,8 +239,6 @@ export function App() {
                 <Route path="/request" element={<Request />} />
                 <Route path="/activity" element={<Activity />} />
                 <Route path="/activity/:id" element={<TxDetail />} />
-                <Route path="/cash" element={<Cash />} />
-                <Route path="/convert" element={<Convert />} />
                 <Route path="/deposit" element={<Deposit />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/notifications" element={<Notifications />} />
@@ -251,7 +246,6 @@ export function App() {
                 <Route path="/share-proof" element={<ShareProof />} />
                 <Route path="/invite" element={<InviteExternal />} />
                 <Route path="/claim" element={<Claim />} />
-                <Route path="/work" element={<Work />} />
                 <Route path="*" element={<Home />} />
               </Routes>
               </Suspense>

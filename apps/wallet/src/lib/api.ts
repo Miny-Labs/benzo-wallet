@@ -2,9 +2,6 @@ import { createSiweMessage } from "viem/siwe";
 import { getAddress, isAddress, type Address, type Hex } from "viem";
 import { CHAIN_ID } from "./network";
 import { handleAvailableOnChain, normalizeHandle } from "./handleRegistry";
-import { usdcToBaseUnits } from "./format";
-import { saveLocalHistory } from "./history";
-import { INVALID_USDC_AMOUNT_ERROR } from "./errors";
 
 export type ProverKind = "local";
 
@@ -97,33 +94,8 @@ export interface InviteSummary {
   expiresAt: number;
   status: "pending" | "claimed" | "refunded" | "expired";
 }
-export interface ClaimStatus {
-  status: "open" | "claimed" | "refunded" | "expired";
-  amount?: string;
-  expiresAt?: number;
-  onChain: boolean;
-}
-export interface ProofReceipt {
-  id: string;
-  action: string;
-  vkId: string;
-  prover?: ProverKind;
-  verified: boolean;
-  publicInputs?: unknown;
-  txHash?: string;
-  verifier?: string;
-  createdAt: number;
-}
-
 export interface DeleteAccountResult {
   deleted: boolean;
-}
-
-export interface DeviceAuthProof {
-  address: string;
-  message: string;
-  signature: string;
-  ttlSeconds?: number;
 }
 
 type ApiUser = {
@@ -284,126 +256,6 @@ function sessionFromUser(user: ApiUser): Session {
   };
 }
 
-function unsupportedWorkflow(_amount = "0"): SettleResult {
-  throw new Error("This workflow is waiting for the Avalanche/eERC flow issue.");
-}
-
-function nowMs(): number {
-  return typeof performance !== "undefined" ? performance.now() : Date.now();
-}
-
-function parseDisplayAmount(amount: string): bigint {
-  try {
-    return usdcToBaseUnits(amount);
-  } catch (e) {
-    const message = (e as Error).message;
-    throw new Error(message.startsWith("USDC has at most") ? message : INVALID_USDC_AMOUNT_ERROR);
-  }
-}
-
-function makeLocalSettleResult(args: {
-  amount: bigint;
-  onChain: boolean;
-  prover: ProverKind;
-  provingMs?: number;
-  status?: SettleResult["status"];
-  txHash?: string;
-}): SettleResult {
-  return {
-    amount: args.amount.toString(),
-    onChain: args.onChain,
-    prover: args.prover,
-    provingMs: args.provingMs,
-    status: args.status ?? "settled",
-    txHash: args.txHash,
-  };
-}
-
-async function localPublicBalance(): Promise<string> {
-  const { readPublicBalanceClientSide } = await import("./benzoClient");
-  return (await readPublicBalanceClientSide()) ?? "0";
-}
-
-async function localWalletAddress(): Promise<Address | null> {
-  const { getLocalAccountSummary } = await import("./localWallet");
-  return (getLocalAccountSummary()?.address ?? null) as Address | null;
-}
-
-async function shieldAmountFromInput(amount: string): Promise<bigint> {
-  const requested = parseDisplayAmount(amount);
-  if (requested < 0n) throw new Error(INVALID_USDC_AMOUNT_ERROR);
-  if (requested > 0n) return requested;
-  const available = BigInt(await localPublicBalance());
-  if (available > 0n) return available;
-  throw new Error("No public USDC is available to make private.");
-}
-
-async function shieldClientSide(amount: string, _prover: ProverKind = "local"): Promise<SettleResult> {
-  const amountBaseUnits = await shieldAmountFromInput(amount);
-  const { shieldPublicUsdcClientSide } = await import("./benzoClient");
-  const startedAt = nowMs();
-  const result = await shieldPublicUsdcClientSide(
-    amountBaseUnits.toString(),
-    "Benzo make-private: public deposit amount is visible; resulting eERC balance is encrypted.",
-  );
-  if (!result?.txHash) throw new Error("Local eERC deposit did not return a transaction hash.");
-  const settled = makeLocalSettleResult({
-    amount: amountBaseUnits,
-    onChain: true,
-    prover: "local",
-    provingMs: Math.round(nowMs() - startedAt),
-    txHash: result.txHash,
-  });
-  saveLocalHistory({
-    id: result.txHash,
-    type: "shield",
-    name: "Made private",
-    note: "Public deposit amount is visible; resulting eERC balance is encrypted.",
-    amount: amountBaseUnits.toString(),
-    direction: "in",
-    status: "settled",
-    timestamp: Math.floor(Date.now() / 1000),
-    txHash: result.txHash,
-  });
-  return settled;
-}
-
-async function unshieldClientSide(amount: string, _prover: ProverKind = "local"): Promise<SettleResult> {
-  const amountBaseUnits = parseDisplayAmount(amount);
-  if (amountBaseUnits <= 0n) throw new Error("Enter an amount greater than zero.");
-  const { unshieldPrivateUsdcClientSide } = await import("./benzoClient");
-  const startedAt = nowMs();
-  const result = await unshieldPrivateUsdcClientSide(
-    amountBaseUnits.toString(),
-    "Benzo make-public: withdraw proof was generated locally.",
-  );
-  if (!result?.txHash) throw new Error("Local eERC withdraw did not return a transaction hash.");
-  const settled = makeLocalSettleResult({
-    amount: amountBaseUnits,
-    onChain: true,
-    prover: "local",
-    provingMs: Math.round(nowMs() - startedAt),
-    txHash: result.txHash,
-  });
-  saveLocalHistory({
-    id: result.txHash,
-    type: "unshield",
-    name: "Made public",
-    note: "Moved to Public balance",
-    amount: amountBaseUnits.toString(),
-    direction: "out",
-    status: "settled",
-    timestamp: Math.floor(Date.now() / 1000),
-    txHash: result.txHash,
-  });
-  return settled;
-}
-
-function tokenClaimLink(token: string): string {
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  return `${origin}/claim?token=${encodeURIComponent(token)}`;
-}
-
 function mapActivityHint(row: Record<string, unknown>): ActivityHint | null {
   const txHash = typeof row.txHash === "string" && /^0x[0-9a-fA-F]{64}$/.test(row.txHash)
     ? (row.txHash as Hex)
@@ -465,18 +317,6 @@ export const api = {
     clearGoogleCredential();
     return result;
   },
-  authConfig: async () => ({ googleClientId: null, google: false }),
-  localVerificationAuth: async (_subject?: string) => {
-    throw new Error("Local token auth was replaced by SIWE.");
-  },
-  deviceAuth: async (_proof: DeviceAuthProof) => {
-    throw new Error("Device token auth was replaced by SIWE.");
-  },
-  googleVerify: async (_credential: string, _nonce?: string) => ({
-    verified: false,
-    configured: false,
-    error: "Google auth was replaced by SIWE.",
-  }),
   session: async () => {
     const { user } = await http<{ user: ApiUser }>("/auth/me");
     return sessionFromUser(user);
@@ -485,25 +325,6 @@ export const api = {
     await api.logout();
     return { deleted: true };
   },
-  balance: async () => ({ baseUnits: "0", live: false, source: "chain" as const }),
-  rampReserve: async () => ({ reserve: null, live: false }),
-  depositInfo: async () => {
-    const [address, liquid] = await Promise.all([localWalletAddress(), localPublicBalance()]);
-    return { address, liquid, asset: "USDC", issuer: "", live: !!address };
-  },
-  importDeposit: async (amount = "0", prover: ProverKind = "local") => shieldClientSide(amount, prover),
-  publicBalance: async () => {
-    const [address, baseUnits] = await Promise.all([localWalletAddress(), localPublicBalance()]);
-    return { baseUnits, address: address ?? "", asset: "USDC", issuer: "", live: !!address };
-  },
-  makePublic: async (amount: string, prover: ProverKind = "local") => unshieldClientSide(amount, prover),
-  sendPublic: async (_to: string, amount: string) => ({
-    txHash: undefined,
-    onChain: false,
-    amount,
-    status: "failed" as const,
-    prover: "local" as const,
-  }),
   activityHints: async () => {
     const result = await http<{ activity: Array<Record<string, unknown>>; nextCursor: string | null }>("/activity");
     return result.activity.flatMap((row) => {
@@ -511,8 +332,6 @@ export const api = {
       return hint ? [hint] : [];
     });
   },
-  history: async () => [] as ActivityRow[],
-  proofReceipts: async () => [] as ProofReceipt[],
   contacts: async () => {
     const result = await http<{
       contacts: Array<{ address: string; alias: string | null; favorite: boolean; handle: string | null }>;
@@ -521,15 +340,6 @@ export const api = {
       handle: row.handle ? `@${row.handle}` : row.address,
       name: row.alias ?? row.handle ?? `${row.address.slice(0, 6)}…${row.address.slice(-4)}`,
     }));
-  },
-  send: async (_to: string, amount: string, _memo?: string, _prover: ProverKind = "local", _requestId?: string) =>
-    unsupportedWorkflow(amount),
-  sendStream: async (
-    args: { to: string; amount: string; memo?: string; prover?: ProverKind; requestId?: string },
-    onPhase: (e: SendPhaseEvent) => void,
-  ): Promise<SettleResult> => {
-    onPhase({ phase: "failed", error: "Private sends are handled by the local eERC client." });
-    return unsupportedWorkflow(args.amount);
   },
   // OPTIONAL fast-path / display-metadata cache only. HandleRegistry on Fuji is
   // the source of truth (see lib/handleRegistry.ts); never gate a send on this.
@@ -548,50 +358,4 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ handle: normalizeHandle(handle) }),
     }).then((result) => ({ handle: `@${result.handle}`, txHash: undefined, onChain: result.registeredOnEerc })),
-  request: async (_amount?: string, _memo?: string) => ({ link: "", id: "" }),
-  requestStatus: async (id: string) => ({ id, status: "missing" as const, onChain: false }),
-  reconcileRequest: async (id: string) => ({ id, status: "missing" as const, onChain: false, reconciled: false }),
-  cancelRequest: async (id: string) => ({ id, status: "cancelled" as const, onChain: false }),
-  invite: async (amount: string, note?: string): Promise<InviteResult> => {
-    const result = await http<{
-      invite: { expiresAt: string; id: string; kind: "invite" | "gift"; note: string | null; status: string };
-      token: string;
-    }>("/invites", {
-      method: "POST",
-      body: JSON.stringify({ giftAmount: amount, kind: "gift", note: note ?? null }),
-    });
-    const expiresAt = Date.parse(result.invite.expiresAt);
-    return {
-      amount,
-      claimAccountPub: "",
-      expiresAt,
-      link: tokenClaimLink(result.token),
-      localId: result.invite.id,
-      onChain: false,
-    };
-  },
-  invites: async () => [] as InviteSummary[],
-  refundInvite: async (localId: string) => ({ amount: "0", onChain: false, txHash: localId }),
-  claimStatus: async (secret: string, _amount?: string, _expiresAt?: string) => {
-    const result = await http<{ invite: { expiresAt: string; status: string } }>(`/invites/${encodeURIComponent(secret)}`);
-    const status = result.invite.status === "created" ? "open" : result.invite.status;
-    return {
-      status: status as ClaimStatus["status"],
-      expiresAt: Date.parse(result.invite.expiresAt),
-      onChain: false,
-    };
-  },
-  claim: async (secret: string, _localId?: string, amount = "0") => {
-    await http(`/invites/${encodeURIComponent(secret)}/claim`, { method: "POST", body: "{}" });
-    return { amount, onChain: false };
-  },
-  cashOut: async (amount: string, prover: ProverKind = "local") => unshieldClientSide(amount, prover),
-  addMoney: async (amount: string, prover: ProverKind = "local") => shieldClientSide(amount, prover),
-  shareProof: async (_min: string, _prover: ProverKind = "local") => ({
-    holds: false,
-    proof: "",
-    publics: [],
-    onChain: false,
-    prover: "local" as const,
-  }),
 };

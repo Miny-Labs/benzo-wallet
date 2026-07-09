@@ -1,23 +1,20 @@
 /**
- * Claim (P0-3) - redeem money sent to "no account". The link is parsed and its
- * app-scope is checked FIRST: a business invite opened here shows the Mismatch
- * screen (the two products never cross - enforced in the UI here AND in key
- * derivation). A valid consumer claim link shows the amount and claims it.
- *
- * The link is provided via `?link=<benzo url>` (the in-app deep-link path); the
- * claim secret lives in the link fragment and is sent to the local BFF to settle.
+ * Claim - redeem an on-chain gift link into this private wallet. Legacy backend
+ * claim tokens are intentionally not settled here; gift claims use the escrow
+ * directly over RPC.
  */
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, Briefcase, Building2, Check, Gift, X } from "lucide-react";
-import { parseBenzoLink, assertAppScope, WrongAppError, type BenzoLink, type OrgInviteLink } from "@benzo/links";
-import { api } from "../lib/api";
-import { orgApi } from "../lib/orgApi";
+import { ArrowRight, Building2, Gift, X } from "lucide-react";
+import { parseBenzoLink, assertAppScope, WrongAppError, type BenzoLink } from "@benzo/links";
+import { claimLinkClientSide, giftClaimStatusClientSide } from "../lib/benzoClient";
 import { friendlyError } from "../lib/errors";
+import { fmtUsd, USDC_BASE_UNITS } from "../lib/format";
+import { decodeGiftClaimSecret } from "../lib/giftEscrow";
+import { listLocalHistory } from "../lib/history";
+import type { RequestStatus } from "../lib/requests";
 import { useWallet } from "../lib/store";
-import { fmtUsd } from "../lib/format";
-import { findRequest, type RequestStatus } from "../lib/requests";
 import { Screen } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
 import { Button, SuccessCheck } from "../ui/primitives";
@@ -47,9 +44,6 @@ function linkFromHash(hash: string): string | null {
   }
 }
 
-import { claimLinkClientSide, giftClaimStatusClientSide } from "../lib/benzoClient";
-import { decodeGiftClaimSecret } from "../lib/giftEscrow";
-
 export function Claim() {
   const [params] = useSearchParams();
   const loc = useLocation();
@@ -61,7 +55,7 @@ export function Claim() {
   const [amount, setAmount] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [checkingClaim, setCheckingClaim] = useState(false);
-  const [claimUnavailable, setClaimUnavailable] = useState<"claimed" | "refunded" | "expired" | null>(null);
+  const [claimUnavailable, setClaimUnavailable] = useState<"claimed" | "refunded" | "expired" | "unsupported" | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,13 +73,14 @@ export function Claim() {
       return () => { cancelled = true; };
     }
     setCheckingClaim(true);
-    // An on-chain gift is checked against the escrow over RPC (source of truth);
-    // a legacy backend-token link falls back to the optional /invites metadata.
     const decoded = decodeGiftClaimSecret(link.secret);
-    const statusPromise = decoded
-      ? giftClaimStatusClientSide(link.secret)
-      : api.claimStatus(link.secret, link.amount, link.expiresAt);
-    statusPromise
+    if (!decoded) {
+      setClaimUnavailable("unsupported");
+      setCheckingClaim(false);
+      return () => { cancelled = true; };
+    }
+    // An on-chain gift is checked against the escrow over RPC (source of truth).
+    giftClaimStatusClientSide(link.secret)
       .then((status) => {
         if (cancelled) return;
         const value = status?.status ?? "open";
@@ -111,8 +106,7 @@ export function Claim() {
   }
 
   const link = parsed.link;
-  // A consumer-scoped org invite = a contractor/customer onboarding into the wallet.
-  if (link.type === "org") return <ContractorInvite link={link} />;
+  if (link.type === "org") return <Mismatch scope="business" />;
   // A money request (C7) - the payer accepts / pays a different amount / declines.
   if (link.type === "request") return <PayRequest link={link} />;
   const claimAmount = link.type === "claim" ? link.amount : undefined;
@@ -132,6 +126,7 @@ export function Claim() {
       claimed: { title: "This link was already claimed", hint: "No money moved. Ask the sender for a fresh link if needed." },
       refunded: { title: "This link was refunded", hint: "No money moved. Ask the sender to send a fresh link." },
       expired: { title: "This link expired", hint: "No money moved. Ask the sender to send a fresh link." },
+      unsupported: { title: "This claim link is no longer supported", hint: "Ask the sender to share a new Benzo gift link." },
     }[claimUnavailable];
     return (
       <Screen>
@@ -146,11 +141,9 @@ export function Claim() {
     setErr(null);
     try {
       // Mirror the precheck's routing: an on-chain gift secret settles over RPC
-      // against the escrow; a legacy backend claim token settles through the BFF
-      // (claimLinkClientSide only understands gift secrets and would reject it).
-      const r = decodeGiftClaimSecret(secret)
-        ? await claimLinkClientSide(secret)
-        : await api.claim(secret, undefined, claimAmount ?? "0");
+      // against the escrow; legacy backend claim tokens are not settled here.
+      if (!decodeGiftClaimSecret(secret)) throw new Error("This claim link isn't an on-chain gift.");
+      const r = await claimLinkClientSide(secret);
       if (!r) throw new Error("Could not claim link.");
       setAmount(r.amount);
       setPhase("done");
@@ -203,9 +196,6 @@ export function Claim() {
 
 /** Payer side of a money request (C7). Accept / pay-a-different-amount / decline.
  *  Settlement reuses the existing ZK transfer (Send); no new money path. */
-import { listLocalHistory } from "../lib/history";
-import { USDC_BASE_UNITS } from "../lib/format";
-
 function PayRequest({ link }: { link: Extract<BenzoLink, { type: "request" }> }) {
   const nav = useNavigate();
   const [declined, setDeclined] = useState(false);
@@ -224,18 +214,17 @@ function PayRequest({ link }: { link: Extract<BenzoLink, { type: "request" }> })
   };
 
   useEffect(() => {
-    let cancelled = false;
     if (!requestId) {
       setUnavailable("missing");
       setChecking(false);
-      return () => { cancelled = true; };
+      return;
     }
     const now = Math.floor(Date.now() / 1000);
     const expiry = Number(link.expiry ?? 0);
     if (expiry && now >= expiry) {
       setUnavailable("expired");
       setChecking(false);
-      return () => { cancelled = true; };
+      return;
     }
     
     // Check if we've already paid this request locally
@@ -253,7 +242,6 @@ function PayRequest({ link }: { link: Extract<BenzoLink, { type: "request" }> })
       setUnavailable(null);
     }
     setChecking(false);
-    return () => { cancelled = true; };
   }, [link.expiry, link.memo, requestId]);
 
   if (declined) {
@@ -330,65 +318,6 @@ function PayRequest({ link }: { link: Extract<BenzoLink, { type: "request" }> })
         <p className="mt-5 max-w-[290px] text-[12px] leading-relaxed text-muted">
           Only pay a request from someone you recognize. Benzo will never ask you to pay through a link you didn't expect.
         </p>
-      </div>
-    </Screen>
-  );
-}
-
-/** A contractor/customer accepting a business invite - onboards in THIS wallet. */
-function realWalletHandle(handle?: string): string | undefined {
-  const normalized = handle?.trim();
-  if (!normalized) return undefined;
-  const bare = normalized.replace(/^@/, "").toLowerCase();
-  if (!bare || bare === "you") return undefined;
-  return normalized.startsWith("@") ? normalized : `@${normalized}`;
-}
-
-import { getLocalAccountSummary } from "../lib/localWallet";
-
-function ContractorInvite({ link }: { link: OrgInviteLink }) {
-  const nav = useNavigate();
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const org = link.orgName ?? "A company";
-
-  async function accept() {
-    setBusy(true);
-    setErr(null);
-    try {
-      const summary = getLocalAccountSummary();
-      const handle = summary?.address;
-      if (!handle) throw new Error("Initialize your wallet before accepting this invite.");
-      const r = await orgApi.acceptInvite({
-        token: link.token,
-        handle,
-        counterpartyId: link.counterpartyId,
-        kind: link.kind,
-        orgId: link.orgId,
-        name: link.inviteeName,
-      });
-      nav(`/work?cp=${encodeURIComponent(r.counterpartyId ?? "")}&org=${encodeURIComponent(r.orgName ?? org)}&token=${encodeURIComponent(link.token)}`);
-    } catch (e) {
-      setErr(friendlyError(e, "Couldn't accept the invite. The link may have expired - ask the company to resend it."));
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Screen>
-      <ScreenHeader title="Invite" />
-      <div className="flex flex-1 flex-col items-center justify-center px-7 pb-12 text-center" data-testid="contractor-invite">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-accent/10 text-accent">
-          <Briefcase size={34} />
-        </div>
-        <div className="font-display mt-4 text-2xl">{org} invited you</div>
-        <p className="mt-2 max-w-[300px] text-[14px] text-muted">
-          Bill them as a {link.kind}. You get paid privately to this wallet, and your account stays entirely yours.
-        </p>
-        {err ? <p className="mt-3 max-w-[280px] text-[13px] text-danger" data-testid="contractor-error">{err}</p> : null}
-        <Button full size="lg" className="mt-6" loading={busy} onClick={accept} data-testid="contractor-accept">
-          Accept & start billing <ArrowRight size={16} />
-        </Button>
       </div>
     </Screen>
   );

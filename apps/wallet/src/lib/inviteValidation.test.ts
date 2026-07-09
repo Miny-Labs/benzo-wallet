@@ -8,16 +8,16 @@ describe("funded invite amount validation", () => {
     expect(validateFundedInviteAmount("abc", "1000000")).toMatchObject({ amountOk: false, insufficient: false, message: "Enter an amount above $0." });
   });
 
-  it("rejects amounts above the public balance", () => {
+  it("rejects amounts above the gift-link funding balance", () => {
     expect(validateFundedInviteAmount("5", "1000000")).toMatchObject({
       amountOk: true,
       amountBaseUnits: "5000000",
       insufficient: true,
-      message: "Not enough public USDC. Unshield some funds or use a smaller amount.",
+      message: "Not enough USDC available for a gift link. Receive money or use a smaller amount.",
     });
   });
 
-  it("accepts amounts within the public balance", () => {
+  it("accepts amounts within the gift-link funding balance", () => {
     expect(inviteAmountToBaseUnits("1.25")).toBe("1250000");
     expect(validateFundedInviteAmount("1.25", "1250000")).toMatchObject({
       amountOk: true,
