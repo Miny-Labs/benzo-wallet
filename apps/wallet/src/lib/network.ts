@@ -48,6 +48,18 @@ export const USDC_TOKEN_ADDRESS = (env.VITE_USDC_TOKEN_ADDRESS ??
 export const HANDLE_REGISTRY_ADDRESS = (env.VITE_HANDLE_REGISTRY_ADDRESS ??
   (DEPLOYMENT.contracts as { HandleRegistry?: Address }).HandleRegistry) as Address | undefined;
 
+// On-chain gift escrow (PrivateGiftEscrow.sol). Wired from env, falling back to
+// the @benzo/config deployment. The zero placeholder is the "not deployed yet"
+// default — the WL7 deploy step writes the real Fuji address here (or via
+// VITE_PRIVATE_GIFT_ESCROW_ADDRESS), and requireGiftEscrowAddress() throws a
+// clear error until then, so gift ops fail loudly rather than sending to 0x0.
+const PRIVATE_GIFT_ESCROW_PLACEHOLDER = "0x0000000000000000000000000000000000000000";
+export const PRIVATE_GIFT_ESCROW_ADDRESS = (env.VITE_PRIVATE_GIFT_ESCROW_ADDRESS ??
+  // TODO(@benzo/config): drop this cast once the config package's contracts type
+  // includes PrivateGiftEscrow (added by the WL7 Fuji deploy).
+  (DEPLOYMENT.contracts as { PrivateGiftEscrow?: Address }).PrivateGiftEscrow ??
+  PRIVATE_GIFT_ESCROW_PLACEHOLDER) as Address;
+
 export const EERC_CONVERTER_MODE = (env.VITE_EERC_CONVERTER_MODE ?? "true") !== "false";
 export const USDC_DECIMALS = Number(env.VITE_USDC_DECIMALS ?? "6");
 export const EERC_USDC_TOKEN_ID = BigInt(env.VITE_EERC_USDC_TOKEN_ID ?? "1");

@@ -10,6 +10,8 @@ const walletState = vi.hoisted(() => ({
 
 const claimStatus = vi.hoisted(() => vi.fn());
 const claim = vi.hoisted(() => vi.fn());
+const giftClaimStatusClientSide = vi.hoisted(() => vi.fn());
+const claimLinkClientSide = vi.hoisted(() => vi.fn());
 
 vi.mock("../lib/store", () => ({
   useWallet: () => walletState,
@@ -27,6 +29,14 @@ vi.mock("../lib/api", async () => {
   };
 });
 
+vi.mock("../lib/benzoClient", () => ({
+  giftClaimStatusClientSide,
+  claimLinkClientSide,
+}));
+
+// A well-formed on-chain gift claim secret (giftId + 64-hex ephemeral key).
+const GIFT_SECRET = `g5.${"a".repeat(64)}`;
+
 function claimRoute(link: string): string {
   return `/claim#${encodeURIComponent(link)}`;
 }
@@ -35,6 +45,8 @@ describe("Claim", () => {
   beforeEach(() => {
     claimStatus.mockReset();
     claim.mockReset();
+    giftClaimStatusClientSide.mockReset();
+    claimLinkClientSide.mockReset();
   });
 
   it("blocks expired claim links before attempting settlement", async () => {
@@ -81,6 +93,38 @@ describe("Claim", () => {
     expect(await screen.findByTestId("claim-unavailable")).toHaveTextContent("This link was refunded");
     expect(screen.getByText("No money moved. Ask the sender to send a fresh link.")).toBeInTheDocument();
     expect(claimStatus).toHaveBeenCalledWith("secret_refunded", "10000000", "4000000000");
+    expect(claim).not.toHaveBeenCalled();
+  });
+
+  it("checks an on-chain gift against the escrow, not the backend", async () => {
+    giftClaimStatusClientSide.mockResolvedValue({ status: "open", amount: "10000000", expiresAt: 4_000_000_000 });
+    const gift = `benzo://claim?amount=10000000&app=consumer&exp=4000000000#${GIFT_SECRET}`;
+
+    render(
+      <MemoryRouter initialEntries={[claimRoute(gift)]}>
+        <Claim />
+      </MemoryRouter>,
+    );
+
+    // An open gift surfaces the claim CTA; the backend claimStatus is never consulted.
+    expect(await screen.findByTestId("claim-accept")).toBeInTheDocument();
+    expect(giftClaimStatusClientSide).toHaveBeenCalledWith(GIFT_SECRET);
+    expect(claimStatus).not.toHaveBeenCalled();
+  });
+
+  it("shows an already-claimed on-chain gift as unavailable from the escrow read", async () => {
+    giftClaimStatusClientSide.mockResolvedValue({ status: "claimed", amount: "10000000", expiresAt: 4_000_000_000 });
+    const gift = `benzo://claim?amount=10000000&app=consumer&exp=4000000000#${GIFT_SECRET}`;
+
+    render(
+      <MemoryRouter initialEntries={[claimRoute(gift)]}>
+        <Claim />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByTestId("claim-unavailable")).toHaveTextContent("This link was already claimed");
+    expect(giftClaimStatusClientSide).toHaveBeenCalledWith(GIFT_SECRET);
+    expect(claimStatus).not.toHaveBeenCalled();
     expect(claim).not.toHaveBeenCalled();
   });
 });
