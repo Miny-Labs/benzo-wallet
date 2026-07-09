@@ -35,10 +35,13 @@ export function BalanceHero({
   baseUnits,
   hidden,
   loading,
+  arrived,
 }: {
   baseUnits: string | bigint;
   hidden: boolean;
   loading?: boolean;
+  /** Just landed from a send: play the count-up as an arrival (a coin drops in). */
+  arrived?: boolean;
 }) {
   // Count up over the integer-dollar value; render the live string from it.
   const targetDollars = Number(BigInt(baseUnits || 0) / USDC_BASE_UNITS);
@@ -62,11 +65,30 @@ export function BalanceHero({
     );
   }
   return (
-    <div className="font-display tnum text-hero mt-1.5 flex items-baseline tracking-tight" aria-label={fmtUsd(baseUnits)}>
-      <span className="text-hero-sub font-semibold">$</span>
-      <span>{dollars.replace(/^\$/, "")}</span>
-      <span className="text-hero-sub text-muted">.{cents}</span>
+    <div className="relative">
+      {arrived ? <ArrivingCoin /> : null}
+      <div className="font-display tnum text-hero mt-1.5 flex items-baseline tracking-tight" aria-label={fmtUsd(baseUnits)}>
+        <span className="text-hero-sub font-semibold">$</span>
+        <span>{dollars.replace(/^\$/, "")}</span>
+        <span className="text-hero-sub text-muted">.{cents}</span>
+      </div>
     </div>
+  );
+}
+
+/** The coin from the send ceremony landing into the hero as the balance counts up.
+ *  The metaphor continues from `ui/send/SendCeremony.tsx` (same gradient + glow). */
+function ArrivingCoin() {
+  const reduce = useReducedMotion();
+  if (reduce) return null;
+  return (
+    <motion.div
+      aria-hidden
+      className="pointer-events-none absolute -top-3 left-2 h-9 w-9 rounded-full bg-gradient-to-br from-accent to-[#9a6bff] shadow-[var(--shadow-glow)]"
+      initial={{ y: -120, scale: 1, opacity: 0 }}
+      animate={{ y: 6, scale: 0.35, opacity: [0, 1, 1, 0] }}
+      transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1], times: [0, 0.35, 0.7, 1] }}
+    />
   );
 }
 

@@ -37,8 +37,16 @@ const streamMocks = vi.hoisted(() => ({
   reset: vi.fn(),
 }));
 
+const registryMocks = vi.hoisted(() => ({
+  isRegisteredOnEerc: vi.fn(),
+}));
+
 vi.mock("../lib/store", () => ({
   useWallet: () => walletState,
+}));
+
+vi.mock("../lib/handleRegistry", () => ({
+  isRegisteredOnEerc: registryMocks.isRegisteredOnEerc,
 }));
 
 vi.mock("../lib/lock", () => ({
@@ -61,6 +69,7 @@ describe("Send", () => {
     walletState.balance = { baseUnits: "1001000000", live: true };
     walletState.refresh.mockResolvedValue(true);
     walletState.refreshBalance.mockResolvedValue(undefined);
+    registryMocks.isRegisteredOnEerc.mockResolvedValue(true);
     streamMocks.run.mockResolvedValue({
       status: "settled",
       txHash: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -116,15 +125,37 @@ describe("Send", () => {
     fireEvent.click(screen.getByTestId("send-submit"));
     fireEvent.click(await screen.findByTestId("send-confirm"));
 
-    expect(streamMocks.run).toHaveBeenCalledWith(
-      "0x1111111111111111111111111111111111111111",
-      "2.5",
-      "rent",
-      "local",
-      false,
-      undefined,
+    await waitFor(() =>
+      expect(streamMocks.run).toHaveBeenCalledWith(
+        "0x1111111111111111111111111111111111111111",
+        "2.5",
+        "rent",
+        "local",
+        false,
+        undefined,
+      ),
     );
+    expect(registryMocks.isRegisteredOnEerc).toHaveBeenCalledWith("0x1111111111111111111111111111111111111111");
     await waitFor(() => expect(walletState.refresh).toHaveBeenCalled());
+  });
+
+  it("blocks a private send to an address that hasn't set up private payments", async () => {
+    registryMocks.isRegisteredOnEerc.mockResolvedValue(false);
+
+    render(
+      <MemoryRouter initialEntries={["/send"]}>
+        <Send />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByTestId("send-handle"), { target: { value: "0x1111111111111111111111111111111111111111" } });
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "2.5" } });
+    fireEvent.click(screen.getByTestId("send-submit"));
+    fireEvent.click(await screen.findByTestId("send-confirm"));
+
+    expect(await screen.findByTestId("send-unregistered")).toBeInTheDocument();
+    expect(screen.getByText("Not set up for private payments")).toBeInTheDocument();
+    expect(streamMocks.run).not.toHaveBeenCalled();
   });
 
   it("rejects an invalid amount without starting a send", () => {

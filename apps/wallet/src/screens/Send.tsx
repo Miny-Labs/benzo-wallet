@@ -10,6 +10,7 @@ import { needsStepUp, stepUpMessage, sendCapUsd } from "../lib/tiers";
 import { useWallet } from "../lib/store";
 import { fmtUsd, USDC_BASE_UNITS, usdcToBaseUnits } from "../lib/format";
 import { isValidEvmAddress, shortAddress } from "../lib/address";
+import { isRegisteredOnEerc } from "../lib/handleRegistry";
 import { classifyRecipientInput, looksLikeEvmAddressInput, type RecipientKind } from "../lib/recipient";
 import { Screen, motion } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
@@ -51,6 +52,7 @@ export function Send() {
   const requestId = params.get("requestId") ?? undefined;
   const [step, setStep] = useState<Step>("form");
   const [stepUp, setStepUp] = useState(false);
+  const [unregistered, setUnregistered] = useState(false);
   const [firing, setFiring] = useState(false);
   const parsedAmount = useMemo(() => parsePositiveAmount(amount), [amount]);
   const amountBaseUnits = parsedAmount.baseUnits;
@@ -100,6 +102,16 @@ export function Send() {
     setFiring(true);
     try {
       if (shouldLockOnSend() && !(await requireUnlock())) return;
+      // Recipient eERC-registration pre-check. A private send to a raw address
+      // that never set up private payments would otherwise revert deep inside the
+      // ceremony as an opaque failure. Catch it up front and show a clear state.
+      if (kind === "address") {
+        const ready = await isRegisteredOnEerc(recipient as `0x${string}`);
+        if (!ready) {
+          setUnregistered(true);
+          return;
+        }
+      }
       await run(recipient, amount, memo || undefined, plan.kind, false, requestId);
       void refresh();
     } finally {
@@ -109,7 +121,9 @@ export function Send() {
 
   function done() {
     reset();
-    nav("/");
+    // Hand the destination a flag so the balance count-up plays as an arrival —
+    // the coin the ceremony flew lands in the BalanceHero.
+    nav("/", { state: { justSent: true } });
   }
 
   return (
@@ -232,6 +246,13 @@ export function Send() {
 
       {inFlight ? <SendCeremony state={state} receipt={view} onDone={done} onRetry={() => { reset(); setStep("confirm"); }} /> : null}
       {stepUp ? <StepUpSheet message={stepUpMessage(amountUsd, session?.kycTier)} onClose={() => setStepUp(false)} /> : null}
+      {unregistered ? (
+        <UnregisteredSheet
+          display={display}
+          onClose={() => setUnregistered(false)}
+          onInvite={() => nav(`/invite?to=${encodeURIComponent(recipient)}&amount=${encodeURIComponent(amount)}`)}
+        />
+      ) : null}
     </Screen>
   );
 }
@@ -259,6 +280,45 @@ function StepUpSheet({ message, onClose }: { message: string; onClose: () => voi
         <p className="text-[13.5px] leading-relaxed text-muted">{message}</p>
         <Button full size="lg" className="mt-5" onClick={onClose} data-testid="stepup-verify">Verify identity</Button>
         <button onClick={onClose} className="mt-3 w-full rounded-lg py-1 text-center text-[14px] font-semibold text-muted outline-none focus-visible:ring-2 focus-visible:ring-accent/40" data-testid="stepup-later">Maybe later</button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function UnregisteredSheet({ display, onClose, onInvite }: { display: string; onClose: () => void; onInvite: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="absolute inset-0 z-50 flex flex-col justify-end bg-ink/30 backdrop-blur-sm"
+      data-testid="send-unregistered"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: 40 }}
+        animate={{ y: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="rounded-t-[28px] bg-card px-6 pb-8 pt-6"
+      >
+        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-ink/15" />
+        <div className="mb-1 flex items-center gap-2">
+          <AlertTriangle size={18} className="text-[#9a6b12]" />
+          <h2 className="font-display text-lg">Not set up for private payments</h2>
+        </div>
+        <p className="text-[13.5px] leading-relaxed text-muted">
+          <b className="text-ink">{display}</b> hasn't set up private payments yet, so this address can't receive a
+          private send. Nothing left your wallet. Invite them to Benzo, or double-check the address.
+        </p>
+        <Button full size="lg" className="mt-5" onClick={onInvite} data-testid="unregistered-invite">
+          <UserPlus size={17} className="flex-none" /> Invite them
+        </Button>
+        <button
+          onClick={onClose}
+          className="mt-3 w-full rounded-lg py-1 text-center text-[14px] font-semibold text-muted outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+          data-testid="unregistered-back"
+        >
+          Back
+        </button>
       </motion.div>
     </motion.div>
   );

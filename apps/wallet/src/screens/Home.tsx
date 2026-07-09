@@ -5,7 +5,7 @@
  * wallet". A blocking banner appears only when the BFF isn't live.
  */
 import { ArrowDownLeft, ArrowUpRight, Clock, Smartphone } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useWallet } from "../lib/store";
 import { Screen, Stagger } from "../ui/motion";
@@ -46,6 +46,8 @@ function ActionPill({
 
 export function Home() {
   const nav = useNavigate();
+  const location = useLocation();
+  const justSent = Boolean((location.state as { justSent?: boolean } | null)?.justSent);
   const { balance, history, loading, hidden, toggleHidden, session, deviceVerified } = useWallet();
 
   return (
@@ -63,7 +65,7 @@ export function Home() {
         <Stagger.Item index={0}>
           <Card className="relative overflow-hidden p-6">
             <div className="text-[13px] font-medium text-muted">Balance</div>
-            <BalanceHero baseUnits={balance?.baseUnits ?? "0"} hidden={hidden} loading={loading} />
+            <BalanceHero baseUnits={balance?.baseUnits ?? "0"} hidden={hidden} loading={loading} arrived={justSent} />
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <PrivateChip label="Only you can see this" />
               {deviceVerified ? (
