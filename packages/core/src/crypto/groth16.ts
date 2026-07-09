@@ -1,9 +1,9 @@
 /**
- * snarkjs Groth16 artifacts -> Soroban byte encodings.
+ * snarkjs Groth16 artifacts -> on-chain verifier byte encodings.
  *
  *   Fr / Fq : 32-byte big-endian
  *   G1      : x || y                        (64 bytes)
- *   G2      : x.c1 || x.c0 || y.c1 || y.c0  (128 bytes; Soroban's c1||c0,
+ *   G2      : x.c1 || x.c0 || y.c1 || y.c0  (128 bytes; verifier c1||c0,
  *             while snarkjs JSON stores [c0, c1])
  */
 
@@ -48,8 +48,8 @@ export interface SnarkjsProof {
   pi_c: string[];
 }
 
-/** VerificationKeyBytes argument for BenzoVerifier.set_vk (CLI JSON form). */
-export function vkToSoroban(vk: SnarkjsVk) {
+/** VerificationKeyBytes argument for BenzoVerifier.set_vk (JSON form). */
+export function vkToChain(vk: SnarkjsVk) {
   for (const f of ["vk_alpha_1", "vk_beta_2", "vk_gamma_2", "vk_delta_2", "IC"] as const) {
     if (!vk?.[f]) throw new Error(`verification_key.json missing ${f}`);
   }
@@ -64,7 +64,7 @@ export function vkToSoroban(vk: SnarkjsVk) {
 }
 
 /** Groth16Proof argument (CLI JSON form). */
-export function proofToSoroban(proof: SnarkjsProof) {
+export function proofToChain(proof: SnarkjsProof) {
   for (const f of ["pi_a", "pi_b", "pi_c"] as const) {
     if (!proof?.[f]) throw new Error(`proof missing ${f}`);
   }
@@ -76,6 +76,6 @@ export function proofToSoroban(proof: SnarkjsProof) {
 }
 
 /** Public inputs as decimal U256 strings (Bn254Fr CLI form). */
-export function publicsToSoroban(publics: (string | bigint)[]): string[] {
+export function publicsToChain(publics: (string | bigint)[]): string[] {
   return publics.map((p) => BigInt(p).toString());
 }

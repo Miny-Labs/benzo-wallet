@@ -189,7 +189,7 @@ export function TxDetail() {
             <Avatar name={row.name} tone={row.tone} size={56} />
           )}
           <div className="mt-3" data-testid="txdetail-amount">
-            <AmountText stroops={hidden ? "0" : row.amount} direction={amountDirection} className="text-[40px]" />
+            <AmountText baseUnits={hidden ? "0" : row.amount} direction={amountDirection} className="text-[40px]" />
           </div>
           <div className="mt-1 max-w-full px-4 text-[14px] text-muted">
             {counterpartyPrefix} <span className="font-semibold text-ink">{row.name}</span>

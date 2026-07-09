@@ -8,8 +8,8 @@ import { USDC_DECIMALS } from "./network";
 
 export const USDC_BASE_UNITS = 10n ** BigInt(USDC_DECIMALS);
 
-/** "12405000000" -> "1,240.50" (grouped, ≥2 decimals, trailing zeros trimmed past cents). */
-export function usdFromStroops(minor: string | bigint, decimals = USDC_DECIMALS): string {
+/** "1240500000" -> "1,240.50" (grouped, >=2 decimals, trailing zeros trimmed past cents). */
+export function usdFromBaseUnits(minor: string | bigint, decimals = USDC_DECIMALS): string {
   let n: bigint;
   try {
     n = typeof minor === "bigint" ? minor : BigInt(minor || "0");
@@ -27,18 +27,18 @@ export function usdFromStroops(minor: string | bigint, decimals = USDC_DECIMALS)
 
 /** "$1,240.50" - the headline form. */
 export function fmtUsd(minor: string | bigint): string {
-  const s = usdFromStroops(minor);
+  const s = usdFromBaseUnits(minor);
   return s.startsWith("-") ? `-$${s.slice(1)}` : `$${s}`;
 }
 
 /** Signed, with explicit + for credits: "+$200.00" / "−$50.00" (true minus glyph). */
 export function fmtSigned(minor: string | bigint, direction: "in" | "out"): string {
-  const s = usdFromStroops(typeof minor === "bigint" ? (minor < 0n ? -minor : minor) : minor.replace(/^-/, ""));
+  const s = usdFromBaseUnits(typeof minor === "bigint" ? (minor < 0n ? -minor : minor) : minor.replace(/^-/, ""));
   return direction === "in" ? `+$${s}` : `−$${s}`;
 }
 
 /** Parse a typed human amount ("25", "25.50") into USDC base units. */
-export function usdcToStroops(amount: string): bigint {
+export function usdcToBaseUnits(amount: string): bigint {
   const clean = amount.trim().replace(/[$,]/g, "");
   const neg = clean.startsWith("-");
   const [whole, frac = ""] = clean.replace(/^[-+]/, "").split(".");
@@ -49,7 +49,7 @@ export function usdcToStroops(amount: string): bigint {
 
 /** Split a money string into [bigPart, centsPart] so the hero can size them differently. */
 export function splitAmount(minor: string | bigint): { dollars: string; cents: string } {
-  const s = usdFromStroops(minor);
+  const s = usdFromBaseUnits(minor);
   const [d, c = "00"] = s.split(".");
   return { dollars: d, cents: c.slice(0, 2) };
 }

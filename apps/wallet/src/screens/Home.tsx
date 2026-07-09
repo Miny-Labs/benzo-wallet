@@ -66,14 +66,14 @@ function MiniAction({ label, icon, onClick, testid }: { label: string; icon: Rea
  * money, not the privacy-first default. Numbers stay tabular for clean alignment.
  */
 function PublicBalanceCard({
-  stroops,
+  baseUnits,
   hidden,
   loading,
   onSend,
   onReceive,
   onMakePrivate,
 }: {
-  stroops: string;
+  baseUnits: string;
   hidden: boolean;
   loading?: boolean;
   onSend: () => void;
@@ -92,7 +92,7 @@ function PublicBalanceCard({
           ) : hidden ? (
             <div className="mt-0.5 font-display text-2xl tracking-tight text-ink/70" aria-label="Public balance hidden">••••</div>
           ) : (
-            <div className="font-display tnum mt-0.5 text-2xl text-ink" data-testid="public-balance-amount">{fmtUsd(stroops)}</div>
+            <div className="font-display tnum mt-0.5 text-2xl text-ink" data-testid="public-balance-amount">{fmtUsd(baseUnits)}</div>
           )}
         </div>
         <span className="inline-flex items-center gap-1 rounded-full bg-[#fbf1dd] px-2 py-1 text-[10.5px] font-semibold text-[#9a6b12]">
@@ -125,7 +125,7 @@ export function Home() {
       ) : null}
 
       <Stagger className="px-5">
-        {/* Balance hero - the focal card; canvas particles drift behind it */}
+        {/* Balance hero - the focal card. */}
         <Stagger.Item index={0}>
           <Card className="relative overflow-hidden p-6">
             <button
@@ -136,7 +136,7 @@ export function Home() {
               <Plus size={14} /> Add money
             </button>
             <div className="text-[13px] font-medium text-muted">Private balance</div>
-            <BalanceHero stroops={balance?.stroops ?? "0"} hidden={hidden} loading={loading} />
+            <BalanceHero baseUnits={balance?.baseUnits ?? "0"} hidden={hidden} loading={loading} />
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <PrivateChip label="Only you can see this" />
               {deviceVerified ? (
@@ -180,7 +180,7 @@ export function Home() {
 
         {/* Public balance - plain liquid USDC for the outside world */}
         <Stagger.Item index={2}>
-          <PublicBalanceCard stroops={publicBalance?.stroops ?? "0"} hidden={hidden} loading={loading} onSend={() => nav("/send")} onReceive={() => nav("/deposit")} onMakePrivate={() => nav("/convert?mode=private")} />
+          <PublicBalanceCard baseUnits={publicBalance?.baseUnits ?? "0"} hidden={hidden} loading={loading} onSend={() => nav("/send")} onReceive={() => nav("/deposit")} onMakePrivate={() => nav("/convert?mode=private")} />
         </Stagger.Item>
 
         {/* Activity preview */}

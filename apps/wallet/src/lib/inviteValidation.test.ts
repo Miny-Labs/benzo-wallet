@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inviteAmountToStroops, validateFundedInviteAmount } from "./inviteValidation";
+import { inviteAmountToBaseUnits, validateFundedInviteAmount } from "./inviteValidation";
 
 describe("funded invite amount validation", () => {
   it("rejects empty, zero, and invalid amounts", () => {
@@ -11,17 +11,17 @@ describe("funded invite amount validation", () => {
   it("rejects amounts above the public balance", () => {
     expect(validateFundedInviteAmount("5", "1000000")).toMatchObject({
       amountOk: true,
-      amountStroops: "5000000",
+      amountBaseUnits: "5000000",
       insufficient: true,
       message: "Not enough public USDC. Unshield some funds or use a smaller amount.",
     });
   });
 
   it("accepts amounts within the public balance", () => {
-    expect(inviteAmountToStroops("1.25")).toBe("1250000");
+    expect(inviteAmountToBaseUnits("1.25")).toBe("1250000");
     expect(validateFundedInviteAmount("1.25", "1250000")).toMatchObject({
       amountOk: true,
-      amountStroops: "1250000",
+      amountBaseUnits: "1250000",
       insufficient: false,
       message: null,
     });

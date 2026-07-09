@@ -6,7 +6,7 @@ import { copyTextToClipboard } from "../lib/clipboard";
 import { friendlyError } from "../lib/errors";
 import { useWallet } from "../lib/store";
 import { fmtUsd } from "../lib/format";
-import { inviteAmountToStroops, validateFundedInviteAmount } from "../lib/inviteValidation";
+import { inviteAmountToBaseUnits, validateFundedInviteAmount } from "../lib/inviteValidation";
 import { Screen } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
 import { AmountField, Button, Card, Input, Skeleton, useToast } from "../ui/primitives";
@@ -37,7 +37,7 @@ export function InviteExternal() {
     void load();
   }, []);
 
-  const amountState = validateFundedInviteAmount(amount, publicBalance?.stroops);
+  const amountState = validateFundedInviteAmount(amount, publicBalance?.baseUnits);
   const canCreate = amountState.amountOk && !amountState.insufficient;
 
   async function create() {
@@ -47,19 +47,19 @@ export function InviteExternal() {
     }
     setCreating(true);
     try {
-      const stroops = inviteAmountToStroops(amount);
-      const res = await createInviteClientSide(stroops);
+      const baseUnits = inviteAmountToBaseUnits(amount);
+      const res = await createInviteClientSide(baseUnits);
       if (!res) throw new Error("Could not create claim link.");
       addLocalInvite({
         localId: res.claimSecretHex,
-        amount: stroops,
+        amount: baseUnits,
         note: note || undefined,
         claimSecretHex: res.claimSecretHex,
         link: res.link,
       });
       setCreated({
         link: res.link,
-        amount: stroops,
+        amount: baseUnits,
         expiresAt: Math.floor(Date.now() / 1000) + 30 * 24 * 3600,
         localId: res.claimSecretHex,
         claimAccountPub: "",
@@ -109,7 +109,7 @@ export function InviteExternal() {
             <Input className="mt-5" label="Note (optional)" placeholder="What's it for?" value={note} onChange={(e) => setNote(e.target.value)} data-testid="invite-note" />
 
             <Button full size="lg" className="mt-6" loading={creating} disabled={!canCreate} onClick={create} data-testid="invite-create">
-              {amountState.amountOk ? `Create link · ${fmtUsd(inviteAmountToStroops(amount))}` : "Create link"}
+              {amountState.amountOk ? `Create link · ${fmtUsd(inviteAmountToBaseUnits(amount))}` : "Create link"}
             </Button>
           </>
         ) : (

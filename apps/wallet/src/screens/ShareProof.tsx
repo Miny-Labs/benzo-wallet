@@ -11,7 +11,7 @@ import { api } from "../lib/api";
 import { apiProverKind, proverPlan } from "../lib/proverPolicy";
 import { verifyBalanceProofOnChain } from "../lib/chain";
 import { proveBalanceClientSide } from "../lib/benzoClient";
-import { fmtUsd, usdcToStroops } from "../lib/format";
+import { fmtUsd, usdcToBaseUnits } from "../lib/format";
 import { Screen } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
 import { AmountField, Button, SuccessCheck } from "../ui/primitives";
@@ -41,7 +41,7 @@ export function ShareProof() {
       // The witness/notes never leave the browser and the proof is verified
       // on-chain locally.
       if (plan.onDevice) {
-        const cs = await proveBalanceClientSide(usdcToStroops(min).toString());
+        const cs = await proveBalanceClientSide(usdcToBaseUnits(min).toString());
         if (cs) {
           setOnChain(cs.onChain);
           setSelfVerified(cs.onChain);
@@ -105,7 +105,7 @@ export function ShareProof() {
           >
             <SuccessCheck />
             <ProvableChip label={onChain ? "Verified on-chain" : "Provable"} />
-            <div className="font-display text-xl" data-testid="proof-success">You can prove you hold at least {fmtUsd(usdcToStroops(min).toString())}</div>
+            <div className="font-display text-xl" data-testid="proof-success">You can prove you hold at least {fmtUsd(usdcToBaseUnits(min).toString())}</div>
             <div className="max-w-[280px] text-sm text-muted">
               {onDevice
                 ? "Your device generated this proof and the network confirmed it - no server ever saw your balance or your notes."

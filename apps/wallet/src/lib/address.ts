@@ -4,8 +4,6 @@ export function isValidEvmAddress(addr: string): boolean {
   return isAddress(addr.trim(), { strict: false });
 }
 
-export const isValidStellarAddress = isValidEvmAddress;
-
 export function normalizeEvmAddress(addr: string): string {
   return getAddress(addr.trim());
 }

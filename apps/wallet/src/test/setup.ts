@@ -1,7 +1,7 @@
 /**
  * Vitest (jsdom) setup. jest-dom matchers + the browser APIs the wallet touches
  * that jsdom doesn't implement: matchMedia (framer-motion + reduced-motion guard),
- * ResizeObserver + canvas 2d context (CanvasBackground), and clipboard.
+ * ResizeObserver, and requestAnimationFrame.
  */
 import "@testing-library/jest-dom/vitest";
 import { vi } from "vitest";
@@ -25,11 +25,6 @@ class RO {
   disconnect() {}
 }
 globalThis.ResizeObserver = globalThis.ResizeObserver ?? (RO as unknown as typeof ResizeObserver);
-
-if (!HTMLCanvasElement.prototype.getContext) {
-  // CanvasBackground bails out gracefully if getContext returns null.
-  HTMLCanvasElement.prototype.getContext = (() => null) as unknown as HTMLCanvasElement["getContext"];
-}
 
 if (!globalThis.requestAnimationFrame) {
   globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => setTimeout(() => cb(Date.now()), 0) as unknown as number;

@@ -6,7 +6,7 @@
  * the org just gets an invoice tied to the contractor's @handle. Defaults to the
  * local console-api; override with VITE_CONSOLE_ORIGIN.
  */
-import { usdcToStroops } from "./format";
+import { usdcToBaseUnits } from "./format";
 
 function defaultOrgBase(): string {
   if (typeof window === "undefined") return "http://localhost:8790";
@@ -91,9 +91,9 @@ export interface OrgInvoice {
   lineItems: Array<{ description: string; quantity: number; unitAmount: string }>;
 }
 
-function toStroops(amount: string): string {
+function toBaseUnits(amount: string): string {
   try {
-    const value = usdcToStroops(amount);
+    const value = usdcToBaseUnits(amount);
     return value > 0n ? value.toString() : "0";
   } catch {
     return "0";
@@ -110,7 +110,7 @@ export const orgApi = {
       body: JSON.stringify({
         counterpartyId,
         inviteToken,
-        lineItems: [{ description, quantity: 1, unitAmount: toStroops(amount) }],
+        lineItems: [{ description, quantity: 1, unitAmount: toBaseUnits(amount) }],
         assetCode: "USDC",
       }),
     }),

@@ -2,7 +2,7 @@ import { createSiweMessage } from "viem/siwe";
 import { getAddress, isAddress, type Address, type Hex } from "viem";
 import { CHAIN_ID } from "./network";
 import { handleAvailableOnChain, normalizeHandle } from "./handleRegistry";
-import { usdcToStroops } from "./format";
+import { usdcToBaseUnits } from "./format";
 import { saveLocalHistory } from "./history";
 import { INVALID_USDC_AMOUNT_ERROR } from "./errors";
 
@@ -18,7 +18,7 @@ export interface Session {
   prover: { available: ProverKind[]; mode: "local"; location: "local" };
 }
 export interface Balance {
-  stroops: string;
+  baseUnits: string;
   live: boolean;
   source?: "chain" | "ledger";
   syncing?: boolean;
@@ -65,7 +65,7 @@ export interface SettleResult {
   prover: ProverKind;
   amount: string;
   onChain: boolean;
-  sorobanPublics?: string[];
+  proofPublics?: string[];
   nullifier?: string;
   requestId?: string;
   error?: string;
@@ -86,7 +86,7 @@ export interface InviteResult {
   amount: string;
   expiresAt: number;
   onChain: boolean;
-  sorobanPublics?: string[];
+  proofPublics?: string[];
 }
 export interface InviteSummary {
   localId: string;
@@ -294,7 +294,7 @@ function nowMs(): number {
 
 function parseDisplayAmount(amount: string): bigint {
   try {
-    return usdcToStroops(amount);
+    return usdcToBaseUnits(amount);
   } catch (e) {
     const message = (e as Error).message;
     throw new Error(message.startsWith("USDC has at most") ? message : INVALID_USDC_AMOUNT_ERROR);
@@ -485,7 +485,7 @@ export const api = {
     await api.logout();
     return { deleted: true };
   },
-  balance: async () => ({ stroops: "0", live: false, source: "chain" as const }),
+  balance: async () => ({ baseUnits: "0", live: false, source: "chain" as const }),
   rampReserve: async () => ({ reserve: null, live: false }),
   depositInfo: async () => {
     const [address, liquid] = await Promise.all([localWalletAddress(), localPublicBalance()]);
@@ -493,8 +493,8 @@ export const api = {
   },
   importDeposit: async (amount = "0", prover: ProverKind = "local") => shieldClientSide(amount, prover),
   publicBalance: async () => {
-    const [address, stroops] = await Promise.all([localWalletAddress(), localPublicBalance()]);
-    return { stroops, address: address ?? "", asset: "USDC", issuer: "", live: !!address };
+    const [address, baseUnits] = await Promise.all([localWalletAddress(), localPublicBalance()]);
+    return { baseUnits, address: address ?? "", asset: "USDC", issuer: "", live: !!address };
   },
   makePublic: async (amount: string, prover: ProverKind = "local") => unshieldClientSide(amount, prover),
   sendPublic: async (_to: string, amount: string) => ({

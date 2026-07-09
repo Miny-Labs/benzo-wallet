@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bell, Check, Copy, Inbox, Link2, X } from "lucide-react";
 import { copyTextToClipboard } from "../lib/clipboard";
-import { friendlyError } from "../lib/errors"; // friendlyError is imported from format/errors? Wait, in the original it was from "../lib/errors". Let's check imports.
-import { fmtUsd, usdcToStroops } from "../lib/format";
+import { friendlyError } from "../lib/errors";
+import { fmtUsd, usdcToBaseUnits } from "../lib/format";
 import { addRequest, listRequests, cancelRequest, markReminded, remindedToday, updateRequestStatus, type MoneyRequest } from "../lib/requests";
 import { Screen } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
@@ -69,16 +69,16 @@ export function Request() {
         mvkScalar: account.mvkScalar,
       });
       const reqId = Math.random().toString(36).substring(2, 10);
-      const stroops = amount ? usdcToStroops(amount).toString() : undefined;
+      const baseUnits = amount ? usdcToBaseUnits(amount).toString() : undefined;
       const requestLink = encodeBenzoLink({
         type: "request",
         to,
-        amount: stroops,
+        amount: baseUnits,
         memo: memo || undefined,
         id: reqId,
         app: "consumer",
       }, "web");
-      addRequest({ id: reqId, link: requestLink, amount: stroops, memo: memo || undefined });
+      addRequest({ id: reqId, link: requestLink, amount: baseUnits, memo: memo || undefined });
       setLink(requestLink);
       bump((n) => n + 1);
     } catch (e) {
@@ -121,7 +121,7 @@ export function Request() {
       <div className="px-5 pt-2">
         <div className="mt-4">
           <AmountField value={amount} onChange={setAmount} autoFocus />
-          <div className="text-center text-[13px] text-muted">{amount ? `Request ${fmtUsd(usdcToStroops(amount).toString())}` : "Any amount"}</div>
+          <div className="text-center text-[13px] text-muted">{amount ? `Request ${fmtUsd(usdcToBaseUnits(amount).toString())}` : "Any amount"}</div>
         </div>
         <Input className="mt-5" label="Note (optional)" placeholder="What's it for?" value={memo} onChange={(e) => setMemo(e.target.value)} data-testid="request-memo" />
 

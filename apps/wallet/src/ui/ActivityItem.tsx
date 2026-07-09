@@ -53,7 +53,7 @@ export function ActivityItem({ row, last }: { row: ActivityRow; last?: boolean }
       </div>
       <div className="flex items-center gap-1">
         <div className="flex flex-col items-end">
-          <AmountText stroops={row.amount} direction={amountDirection} className="text-base" />
+          <AmountText baseUnits={row.amount} direction={amountDirection} className="text-base" />
           <span className="mt-0.5 text-xs text-muted">{relativeTime(row.timestamp)}</span>
         </div>
         <ChevronRight size={15} className="flex-none text-hair transition group-hover:text-muted" />

@@ -140,6 +140,6 @@ describe("useSendStream", () => {
     });
 
     expect(r).toBeNull();
-    expect(result.current.state.error).toBe("RPC timeout");
+    expect(result.current.state.error).toBe("Couldn't reach Avalanche right now. Please try again.");
   });
 });

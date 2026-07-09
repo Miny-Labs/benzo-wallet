@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isValidEvmAddress, isValidStellarAddress, normalizeEvmAddress, shortAddress } from "./strkey";
+import { isValidEvmAddress, normalizeEvmAddress, shortAddress } from "./address";
 
 const REAL = [
   "0x00f6B82Ea91E429FDD6Dfed8f273190092dd14D6",
@@ -9,10 +9,6 @@ const REAL = [
 describe("EVM address helpers", () => {
   it("accepts real Avalanche-style EVM addresses", () => {
     for (const a of REAL) expect(isValidEvmAddress(a)).toBe(true);
-  });
-
-  it("keeps the old Stellar-named alias pointed at EVM validation during the port", () => {
-    expect(isValidStellarAddress(REAL[0])).toBe(true);
   });
 
   it("rejects wrong-shape inputs", () => {

@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { dayBucket, fmtSigned, fmtUsd, initials, relativeTime, splitAmount, usdFromStroops, usdcToStroops } from "./format";
+import { dayBucket, fmtSigned, fmtUsd, initials, relativeTime, splitAmount, usdFromBaseUnits, usdcToBaseUnits } from "./format";
 
 describe("money formatting (USDC base units ⇄ dollars)", () => {
   it("formats USDC base units to grouped dollars with ≥2 decimals", () => {
-    expect(usdFromStroops("1240500000")).toBe("1,240.50");
-    expect(usdFromStroops("1950000")).toBe("1.95");
-    expect(usdFromStroops("0")).toBe("0.00");
-    expect(usdFromStroops("10000000000")).toBe("10,000.00");
+    expect(usdFromBaseUnits("1240500000")).toBe("1,240.50");
+    expect(usdFromBaseUnits("1950000")).toBe("1.95");
+    expect(usdFromBaseUnits("0")).toBe("0.00");
+    expect(usdFromBaseUnits("10000000000")).toBe("10,000.00");
   });
 
   it("trims trailing precision past cents but keeps real precision", () => {
-    expect(usdFromStroops("1234567")).toBe("1.234567");
-    expect(usdFromStroops("1000000")).toBe("1.00");
+    expect(usdFromBaseUnits("1234567")).toBe("1.234567");
+    expect(usdFromBaseUnits("1000000")).toBe("1.00");
   });
 
   it("fmtUsd adds the $ and handles negatives", () => {
@@ -24,11 +24,11 @@ describe("money formatting (USDC base units ⇄ dollars)", () => {
     expect(fmtSigned("50000", "out")).toBe("−$0.05");
   });
 
-  it("usdcToStroops round-trips and rejects precision beyond USDC decimals", () => {
-    expect(usdcToStroops("1240.50")).toBe(1240500000n);
-    expect(usdcToStroops("$1,240.50")).toBe(1240500000n);
-    expect(usdcToStroops("0.000001")).toBe(1n);
-    expect(() => usdcToStroops("1.0000001")).toThrow();
+  it("usdcToBaseUnits round-trips and rejects precision beyond USDC decimals", () => {
+    expect(usdcToBaseUnits("1240.50")).toBe(1240500000n);
+    expect(usdcToBaseUnits("$1,240.50")).toBe(1240500000n);
+    expect(usdcToBaseUnits("0.000001")).toBe(1n);
+    expect(() => usdcToBaseUnits("1.0000001")).toThrow();
   });
 
   it("splitAmount separates dollars and cents", () => {

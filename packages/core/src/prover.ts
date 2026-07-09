@@ -3,10 +3,10 @@
  *
  * Wraps snarkjs `groth16.fullProve` over the compiled circuit artifacts
  * (witness-generator WASM + proving zkey) and returns both the snarkjs JSON
- * and the Soroban-encoded forms.
+ * and the on-chain verifier forms.
  */
 
-import { proofToSoroban, publicsToSoroban, type SnarkjsProof } from "./crypto/groth16.js";
+import { proofToChain, publicsToChain, type SnarkjsProof } from "./crypto/groth16.js";
 
 // snarkjs has no bundled types and pulls in a multi-MB WASM runtime, so it is
 // lazy-loaded via dynamic import — kept out of the initial JS bundle and only
@@ -54,8 +54,11 @@ export interface CircuitArtifacts {
 export interface ProveResult {
   proof: SnarkjsProof;
   publicSignals: string[];
-  sorobanProof: { a: string; b: string; c: string };
-  sorobanPublics: string[];
+  // Renamed from soroban{Proof,Publics} (Stellar-era). NOTE: the legacy
+  // packages/core/src/{client,pool}.ts still reference the old names; they are
+  // excluded from the live build and must be updated/removed before recompiling.
+  chainProof: { a: string; b: string; c: string };
+  chainPublicInputs: string[];
 }
 
 type WitnessValue = string | WitnessValue[];
@@ -86,8 +89,8 @@ export async function prove(
   return {
     proof,
     publicSignals,
-    sorobanProof: proofToSoroban(proof),
-    sorobanPublics: publicsToSoroban(publicSignals),
+    chainProof: proofToChain(proof),
+    chainPublicInputs: publicsToChain(publicSignals),
   };
 }
 
@@ -146,8 +149,8 @@ export class WasmProver implements ProverPort {
     return {
       proof,
       publicSignals,
-      sorobanProof: proofToSoroban(proof),
-      sorobanPublics: publicsToSoroban(publicSignals),
+      chainProof: proofToChain(proof),
+      chainPublicInputs: publicsToChain(publicSignals),
     };
   }
 }
