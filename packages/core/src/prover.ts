@@ -54,6 +54,9 @@ export interface CircuitArtifacts {
 export interface ProveResult {
   proof: SnarkjsProof;
   publicSignals: string[];
+  // Renamed from soroban{Proof,Publics} (Stellar-era). NOTE: the legacy
+  // packages/core/src/{client,pool}.ts still reference the old names; they are
+  // excluded from the live build and must be updated/removed before recompiling.
   chainProof: { a: string; b: string; c: string };
   chainPublicInputs: string[];
 }
