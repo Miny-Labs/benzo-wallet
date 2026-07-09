@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Check, Eye, EyeOff, Fingerprint, Key, KeyRound, Loader2, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { ArrowLeft, Eye, EyeOff, Fingerprint, Key, KeyRound, ShieldAlert, ShieldCheck } from "lucide-react";
 import { LogoMark } from "../ui/Logo";
 import { Button, Input, useToast } from "../ui/primitives";
 import { fadeUp, stagger, EASE } from "../ui/motion";
 import { useWallet } from "../lib/store";
 import { isWebAuthnAvailable } from "../lib/passkey";
-import { createWallet, createWalletWithPasskey, importWallet, exportWallet, markWalletBackupConfirmed } from "../lib/localWallet";
+import { activatePrivateBalance, createWallet, createWalletWithPasskey, importWallet, exportWallet, markWalletBackupConfirmed } from "../lib/localWallet";
 
-type Step = "welcome" | "create_lock" | "import" | "backup";
+type Step = "welcome" | "create_lock" | "import" | "backup" | "activating";
 
 const POINTS = [
   { icon: <ShieldCheck size={18} />, title: "Local custody", body: "Secrets are kept on your device, locked by passkey or passcode." },
@@ -111,8 +111,12 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
 
   async function handleFinish() {
     setBusy(true);
+    setErr(null);
     try {
       markWalletBackupConfirmed();
+      setStep("activating");
+      const activation = await activatePrivateBalance();
+      if (!activation) throw new Error("Wallet is locked. Unlock it and try again.");
       await refresh();
       onDone();
     } catch (e) {
@@ -331,8 +335,65 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
             </Button>
           </Pane>
         )}
+
+        {step === "activating" && (
+          <Pane key="activating">
+            <div className="my-auto flex w-full flex-col items-center pb-6 text-center">
+              <ActivationSeal failed={!!err} />
+              <h1 className="font-display mt-6 text-[24px] leading-tight">Activating your private balance</h1>
+              <p className="mt-2 max-w-[290px] text-[14px] text-muted">
+                Sealing your shielded balance on Avalanche so private sends can settle.
+              </p>
+
+              {err ? (
+                <p className="mt-4 text-[13px] text-danger" data-testid="activation-error">{err}</p>
+              ) : (
+                <div className="mt-6 inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent" aria-live="polite">
+                  <ShieldCheck size={13} /> Sealing now
+                </div>
+              )}
+            </div>
+
+            {err ? (
+              <Button full size="lg" loading={busy} onClick={handleFinish} data-testid="activation-retry">
+                Try again
+              </Button>
+            ) : null}
+          </Pane>
+        )}
       </AnimatePresence>
     </motion.div>
+  );
+}
+
+function ActivationSeal({ failed }: { failed: boolean }) {
+  const reduce = useReducedMotion() ?? false;
+  return (
+    <div className="relative mx-auto flex h-28 w-28 items-center justify-center">
+      {!reduce && !failed ? (
+        <>
+          <motion.div
+            className="absolute h-28 w-28 rounded-full border border-accent/20"
+            animate={{ opacity: [0.3, 0.75, 0.3], scale: [0.92, 1.12, 0.92] }}
+            transition={{ duration: 2.2, ease: EASE, repeat: Infinity }}
+          />
+          <motion.div
+            className="absolute h-20 w-20 rounded-full border-2 border-accent/25"
+            animate={{ opacity: [0.55, 1, 0.55], scale: [1.08, 0.88, 1.08] }}
+            transition={{ duration: 2.2, ease: EASE, repeat: Infinity }}
+          />
+        </>
+      ) : (
+        <div className={`absolute h-24 w-24 rounded-full border-2 ${failed ? "border-danger/25" : "border-accent/25"}`} />
+      )}
+      <motion.div
+        className={`relative flex h-20 w-20 items-center justify-center rounded-full shadow-[var(--shadow-card)] ${failed ? "bg-danger/10 text-danger" : "bg-accent/10 text-accent"}`}
+        animate={reduce || failed ? {} : { scale: [1, 1.04, 1] }}
+        transition={{ duration: 2.2, ease: EASE, repeat: Infinity }}
+      >
+        {failed ? <ShieldAlert size={34} /> : <ShieldCheck size={34} />}
+      </motion.div>
+    </div>
   );
 }
 

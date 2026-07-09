@@ -17,6 +17,7 @@ const eercMocks = vi.hoisted(() => {
   const register = vi.fn();
   const deposit = vi.fn();
   const withdraw = vi.fn();
+  const transfer = vi.fn();
   const calculateTotalBalance = vi.fn();
 
   class MockEERC {
@@ -26,6 +27,7 @@ const eercMocks = vi.hoisted(() => {
     register = register;
     deposit = deposit;
     withdraw = withdraw;
+    transfer = transfer;
     calculateTotalBalance = calculateTotalBalance;
   }
 
@@ -36,6 +38,7 @@ const eercMocks = vi.hoisted(() => {
     fetchPublicKey,
     publicClient,
     register,
+    transfer,
     walletClient,
     withdraw,
   };
@@ -60,7 +63,7 @@ vi.mock("viem/accounts", () => ({
 }));
 
 import { INSUFFICIENT_PRIVATE_USDC_ERROR } from "./errors";
-import { shieldPublicUsdc, unshieldPrivateUsdc } from "./eerc";
+import { shieldPublicUsdc, transferPrivateUsdc, unshieldPrivateUsdc } from "./eerc";
 import { USDC_TOKEN_ADDRESS } from "./network";
 
 const account: BenzoAccount = {
@@ -90,6 +93,7 @@ describe("eERC client-side shield/unshield", () => {
     eercMocks.register.mockResolvedValue({ transactionHash: TX_HASH });
     eercMocks.deposit.mockResolvedValue({ transactionHash: TX_HASH });
     eercMocks.withdraw.mockResolvedValue({ transactionHash: TX_HASH });
+    eercMocks.transfer.mockResolvedValue({ transactionHash: TX_HASH });
     eercMocks.calculateTotalBalance.mockReturnValue(1_000_000n);
     eercMocks.publicClient.waitForTransactionReceipt.mockResolvedValue({});
     eercMocks.publicClient.simulateContract.mockResolvedValue({ request: {} });
@@ -133,5 +137,26 @@ describe("eERC client-side shield/unshield", () => {
     expect(eercMocks.publicClient.readContract).not.toHaveBeenCalledWith(expect.objectContaining({
       functionName: "auditorPublicKey",
     }));
+  });
+
+  it("registers once before the first private send when the account has no eERC public key", async () => {
+    eercMocks.fetchPublicKey.mockResolvedValueOnce([0n, 0n]);
+    const to = "0x1111111111111111111111111111111111111111";
+
+    await expect(transferPrivateUsdc(account, to, 250_000n, "memo")).resolves.toEqual({
+      txHash: TX_HASH,
+    });
+
+    expect(eercMocks.register).toHaveBeenCalledTimes(1);
+    expect(eercMocks.publicClient.waitForTransactionReceipt).toHaveBeenCalledWith({ hash: TX_HASH });
+    expect(eercMocks.transfer).toHaveBeenCalledWith(
+      to,
+      250_000n,
+      [1n, 2n, 3n, 4n],
+      1_000_000n,
+      [5n, 6n],
+      USDC_TOKEN_ADDRESS,
+      "memo",
+    );
   });
 });

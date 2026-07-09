@@ -2,6 +2,8 @@ import { accountFromSignedMessage, createAccount, type BenzoAccount } from "@ben
 import { IndexedDbKVStore, Keychain, newSalt, passphraseWrappingKey, prfWrappingKey } from "@benzo/wallet";
 import type { Hex } from "viem";
 import { api } from "./api";
+import { registerEercAccount } from "./eerc";
+import { isRegisteredOnEerc } from "./handleRegistry";
 import { createDeviceAuthProof, derivePasskeySecret, hasPasskey, registerPasskey } from "./passkey";
 
 export interface WalletSecrets {
@@ -39,6 +41,11 @@ export interface LocalRecoveryStatus {
   createdAt?: number;
   lastExportedAt?: number;
   backupConfirmedAt?: number;
+}
+
+export interface PrivateBalanceActivation {
+  alreadyRegistered: boolean;
+  txHash?: Hex;
 }
 
 function toHex(b: Uint8Array): string {
@@ -218,6 +225,35 @@ export function isWalletUnlocked(): boolean {
   return activeAccount !== null;
 }
 
+let eercRegistrationInFlight: Promise<PrivateBalanceActivation | null> | null = null;
+// Once registration is confirmed for the ACTIVE session, later sends skip the
+// redundant Registrar read (transferPrivateUsdc re-checks internally anyway).
+// Reset on lock so a different account re-verifies against the chain.
+let eercRegistrationConfirmed = false;
+
+export async function activatePrivateBalance(): Promise<PrivateBalanceActivation | null> {
+  const account = getLocalAccount();
+  if (!account) return null;
+  if (eercRegistrationConfirmed) return { alreadyRegistered: true };
+  if (!eercRegistrationInFlight) {
+    eercRegistrationInFlight = (async () => {
+      if (await isRegisteredOnEerc(account.address)) {
+        return { alreadyRegistered: true };
+      }
+      const txHash = await registerEercAccount(account);
+      return { alreadyRegistered: !txHash, txHash };
+    })()
+      .then((result) => {
+        eercRegistrationConfirmed = true;
+        return result;
+      })
+      .finally(() => {
+        eercRegistrationInFlight = null;
+      });
+  }
+  return eercRegistrationInFlight;
+}
+
 async function loginSiweSession(): Promise<void> {
   const account = getLocalAccount();
   if (!account || !activeKeychain) return;
@@ -329,6 +365,10 @@ export function lockWallet(): void {
   activeKeychain?.lock();
   activeKeychain = null;
   activeAccount = null;
+  // Drop any in-flight/confirmed registration so a re-unlocked (possibly
+  // different) account can never inherit the prior session's result.
+  eercRegistrationInFlight = null;
+  eercRegistrationConfirmed = false;
   void api.logout().catch(() => {});
 }
 

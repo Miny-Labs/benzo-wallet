@@ -21,7 +21,7 @@ import {
   type GiftClaimStatus,
 } from "./giftEscrow";
 import { claimHandleOnChain } from "./handleRegistry";
-import { getLocalAccount } from "./localWallet";
+import { activatePrivateBalance, getLocalAccount } from "./localWallet";
 import { USDC_TOKEN_ADDRESS } from "./network";
 
 // Gift links escrow the sender's public USDC on-chain for 30 days; unclaimed
@@ -42,8 +42,13 @@ export async function sendClientSide(
   if (!account) return null;
   const address = typeof to === "string" ? to : to.address;
   if (!address) return null;
+  await activatePrivateBalance();
   const result = await transferPrivateUsdc(account, address, BigInt(amountBaseUnits), memo);
   return { txHash: result.txHash, prover: "local" };
+}
+
+export async function activatePrivateBalanceClientSide(): Promise<{ txHash?: string; alreadyRegistered: boolean } | null> {
+  return activatePrivateBalance();
 }
 
 /**

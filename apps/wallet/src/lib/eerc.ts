@@ -162,6 +162,12 @@ export async function readEercPrivateBalance(account: BenzoAccount): Promise<str
   return eerc.calculateTotalBalance(eGCT as never, amountPCTs, balancePCT).toString();
 }
 
+export async function registerEercAccount(account: BenzoAccount): Promise<Hex | undefined> {
+  const eerc = await createEerc(account);
+  if (!eerc) throw new Error("eERC contracts are not configured.");
+  return ensureEercRegistered(eerc, account.address);
+}
+
 export async function transferPrivateUsdc(
   account: BenzoAccount,
   to: Address,
@@ -171,6 +177,7 @@ export async function transferPrivateUsdc(
   if (!USDC_TOKEN_ADDRESS) throw new Error("USDC token is not configured.");
   const eerc = await createEerc(account);
   if (!eerc) throw new Error("eERC contracts are not configured.");
+  await ensureEercRegistered(eerc, account.address);
   const balance = await readEercBalanceParts(eerc, account.address, USDC_TOKEN_ADDRESS);
   const auditor = await eercPublicClient(eerc).readContract({
     address: ENCRYPTED_ERC_ADDRESS!,
