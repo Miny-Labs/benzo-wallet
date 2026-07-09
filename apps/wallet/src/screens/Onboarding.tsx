@@ -391,7 +391,7 @@ function ActivationSeal({ failed }: { failed: boolean }) {
         animate={reduce || failed ? {} : { scale: [1, 1.04, 1] }}
         transition={{ duration: 2.2, ease: EASE, repeat: Infinity }}
       >
-        <ShieldCheck size={34} />
+        {failed ? <ShieldAlert size={34} /> : <ShieldCheck size={34} />}
       </motion.div>
     </div>
   );

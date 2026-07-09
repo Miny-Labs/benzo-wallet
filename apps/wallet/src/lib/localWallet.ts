@@ -226,10 +226,15 @@ export function isWalletUnlocked(): boolean {
 }
 
 let eercRegistrationInFlight: Promise<PrivateBalanceActivation | null> | null = null;
+// Once registration is confirmed for the ACTIVE session, later sends skip the
+// redundant Registrar read (transferPrivateUsdc re-checks internally anyway).
+// Reset on lock so a different account re-verifies against the chain.
+let eercRegistrationConfirmed = false;
 
 export async function activatePrivateBalance(): Promise<PrivateBalanceActivation | null> {
   const account = getLocalAccount();
   if (!account) return null;
+  if (eercRegistrationConfirmed) return { alreadyRegistered: true };
   if (!eercRegistrationInFlight) {
     eercRegistrationInFlight = (async () => {
       if (await isRegisteredOnEerc(account.address)) {
@@ -237,9 +242,14 @@ export async function activatePrivateBalance(): Promise<PrivateBalanceActivation
       }
       const txHash = await registerEercAccount(account);
       return { alreadyRegistered: !txHash, txHash };
-    })().finally(() => {
-      eercRegistrationInFlight = null;
-    });
+    })()
+      .then((result) => {
+        eercRegistrationConfirmed = true;
+        return result;
+      })
+      .finally(() => {
+        eercRegistrationInFlight = null;
+      });
   }
   return eercRegistrationInFlight;
 }
@@ -355,6 +365,10 @@ export function lockWallet(): void {
   activeKeychain?.lock();
   activeKeychain = null;
   activeAccount = null;
+  // Drop any in-flight/confirmed registration so a re-unlocked (possibly
+  // different) account can never inherit the prior session's result.
+  eercRegistrationInFlight = null;
+  eercRegistrationConfirmed = false;
   void api.logout().catch(() => {});
 }
 
