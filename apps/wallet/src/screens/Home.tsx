@@ -4,11 +4,10 @@
  * action), and a plain-English activity preview. No tx hashes, gas, or "connect
  * wallet". A blocking banner appears only when the BFF isn't live.
  */
-import { ArrowDownLeft, ArrowUpRight, Eye, Globe, Landmark, Lock, Plus, QrCode, Send as SendIcon, Smartphone } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Clock, Smartphone } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useWallet } from "../lib/store";
-import { fmtUsd } from "../lib/format";
 import { Screen, Stagger } from "../ui/motion";
 import { TopBar } from "../ui/chrome";
 import { BalanceHero } from "../ui/money";
@@ -45,74 +44,9 @@ function ActionPill({
   );
 }
 
-/** A smaller pill action for the Public card (less weight than the focal row). */
-function MiniAction({ label, icon, onClick, testid }: { label: string; icon: React.ReactNode; onClick: () => void; testid: string }) {
-  return (
-    <motion.button
-      whileTap={{ scale: 0.96 }}
-      onClick={onClick}
-      data-testid={testid}
-      className="flex flex-1 flex-col items-center gap-1.5 rounded-2xl bg-canvas py-2.5 text-[11.5px] font-semibold text-ink transition outline-none hover:bg-canvas/70 focus-visible:ring-2 focus-visible:ring-accent/40"
-    >
-      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-card text-ink/80">{icon}</span>
-      <span className="text-center leading-tight">{label}</span>
-    </motion.button>
-  );
-}
-
-/**
- * The "Public" balance - plain liquid USDC anyone can pay to / you can send out.
- * Deliberately quieter than the Private hero: it's the everyday "outside world"
- * money, not the privacy-first default. Numbers stay tabular for clean alignment.
- */
-function PublicBalanceCard({
-  baseUnits,
-  hidden,
-  loading,
-  onSend,
-  onReceive,
-  onMakePrivate,
-}: {
-  baseUnits: string;
-  hidden: boolean;
-  loading?: boolean;
-  onSend: () => void;
-  onReceive: () => void;
-  onMakePrivate: () => void;
-}) {
-  return (
-    <Card className="mt-4 p-4" data-testid="public-balance-card">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-1.5 text-[13px] font-medium text-muted">
-            <Globe size={13} className="text-[#9a6b12]" /> Public balance
-          </div>
-          {loading ? (
-            <div className="skeleton mt-1.5 h-7 w-24 rounded-lg" aria-label="Loading public balance" />
-          ) : hidden ? (
-            <div className="mt-0.5 font-display text-2xl tracking-tight text-ink/70" aria-label="Public balance hidden">••••</div>
-          ) : (
-            <div className="font-display tnum mt-0.5 text-2xl text-ink" data-testid="public-balance-amount">{fmtUsd(baseUnits)}</div>
-          )}
-        </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-[#fbf1dd] px-2 py-1 text-[10.5px] font-semibold text-[#9a6b12]">
-          <Eye size={11} /> Visible
-        </span>
-      </div>
-      <p className="mt-1 text-[12px] leading-snug text-muted">Normal USDC. Send to or receive from any wallet.</p>
-
-      <div className="mt-3 flex gap-2">
-        <MiniAction label="Send to a wallet" testid="public-send" icon={<SendIcon size={15} />} onClick={onSend} />
-        <MiniAction label="Receive" testid="public-receive" icon={<QrCode size={15} />} onClick={onReceive} />
-        <MiniAction label="Make private" testid="public-make-private" icon={<Lock size={15} />} onClick={onMakePrivate} />
-      </div>
-    </Card>
-  );
-}
-
 export function Home() {
   const nav = useNavigate();
-  const { balance, publicBalance, history, loading, hidden, toggleHidden, session, deviceVerified } = useWallet();
+  const { balance, history, loading, hidden, toggleHidden, session, deviceVerified } = useWallet();
 
   return (
     <Screen>
@@ -128,14 +62,7 @@ export function Home() {
         {/* Balance hero - the focal card. */}
         <Stagger.Item index={0}>
           <Card className="relative overflow-hidden p-6">
-            <button
-              onClick={() => nav("/cash")}
-              data-testid="add-money"
-              className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full border border-hair bg-card px-3 py-1.5 text-[13px] font-semibold text-muted transition outline-none hover:bg-canvas hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
-            >
-              <Plus size={14} /> Add money
-            </button>
-            <div className="text-[13px] font-medium text-muted">Private balance</div>
+            <div className="text-[13px] font-medium text-muted">Balance</div>
             <BalanceHero baseUnits={balance?.baseUnits ?? "0"} hidden={hidden} loading={loading} />
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <PrivateChip label="Only you can see this" />
@@ -157,14 +84,6 @@ export function Home() {
                   Syncing chain
                 </span>
               ) : null}
-              {/* Move money out of Private → Public (so it can be sent to any wallet) */}
-              <button
-                onClick={() => nav("/convert?mode=public")}
-                data-testid="home-make-public"
-                className="inline-flex items-center gap-1 rounded-full border border-hair bg-card px-2.5 py-1 text-[11.5px] font-semibold text-muted transition outline-none hover:bg-canvas hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
-              >
-                <Globe size={12} /> Make public
-              </button>
             </div>
           </Card>
         </Stagger.Item>
@@ -173,18 +92,13 @@ export function Home() {
         <Stagger.Item index={1}>
           <div className="mt-4 flex gap-2.5">
             <ActionPill label="Send" testid="action-send" primary icon={<ArrowUpRight size={18} />} onClick={() => nav("/send")} />
-            <ActionPill label="Request" testid="action-request" icon={<ArrowDownLeft size={18} />} onClick={() => nav("/request")} />
-            <ActionPill label="Cash out" testid="action-cashout" icon={<Landmark size={18} />} onClick={() => nav("/cash?tab=out")} />
+            <ActionPill label="Receive" testid="action-receive" icon={<ArrowDownLeft size={18} />} onClick={() => nav("/deposit")} />
+            <ActionPill label="Activity" testid="action-activity" icon={<Clock size={18} />} onClick={() => nav("/activity")} />
           </div>
         </Stagger.Item>
 
-        {/* Public balance - plain liquid USDC for the outside world */}
-        <Stagger.Item index={2}>
-          <PublicBalanceCard baseUnits={publicBalance?.baseUnits ?? "0"} hidden={hidden} loading={loading} onSend={() => nav("/send")} onReceive={() => nav("/deposit")} onMakePrivate={() => nav("/convert?mode=private")} />
-        </Stagger.Item>
-
         {/* Activity preview */}
-        <Stagger.Item index={3}>
+        <Stagger.Item index={2}>
           <Card className="mt-4 px-4 pb-2 pt-4">
             <div className="mb-1 flex items-center justify-between">
               <div className="text-[12px] font-bold uppercase tracking-[0.05em] text-muted">Recent</div>
@@ -207,20 +121,20 @@ export function Home() {
               </div>
             ) : history.length === 0 ? (
               <div className="flex flex-col items-center gap-3 py-7 text-center">
-                <div className="text-sm font-semibold text-ink">Add money to get going</div>
+                <div className="text-sm font-semibold text-ink">Receive money to get going</div>
                 <div className="max-w-[240px] text-[13px] text-muted">
                   Once there's money in your wallet, your payments show up here - private to you.
                 </div>
                 <button
-                  onClick={() => nav("/cash")}
-                  data-testid="empty-add-money"
+                  onClick={() => nav("/deposit")}
+                  data-testid="empty-receive"
                   className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-[13px] font-semibold text-white shadow-[var(--shadow-glow)] outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
                 >
-                  <Plus size={14} /> Add money
+                  <ArrowDownLeft size={14} /> Receive
                 </button>
               </div>
             ) : (
-              history.slice(0, 4).map((row, i, a) => <ActivityItem key={row.id} row={row} last={i === a.length - 1} />)
+              history.slice(0, 4).map((row, i, a) => <ActivityItem key={row.id} row={row} hidden={hidden} last={i === a.length - 1} />)
             )}
           </Card>
         </Stagger.Item>

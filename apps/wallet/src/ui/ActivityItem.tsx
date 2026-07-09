@@ -17,9 +17,9 @@ const STATUS_PILL: Record<string, { label: string; cls: string } | undefined> = 
   failed: { label: "Failed", cls: "text-danger bg-danger/12" },
 };
 
-export function ActivityItem({ row, last }: { row: ActivityRow; last?: boolean }) {
+export function ActivityItem({ row, hidden, last }: { row: ActivityRow; hidden?: boolean; last?: boolean }) {
   const nav = useNavigate();
-  const isCash = row.type === "cashOut" || row.type === "unshield" || row.type === "shield" || row.type === "cashIn";
+  const isSystemTransfer = row.type === "cashOut" || row.type === "unshield" || row.type === "shield" || row.type === "cashIn";
   const pill = STATUS_PILL[row.status];
   const amountDirection = row.status === "failed" ? undefined : row.direction;
   return (
@@ -32,7 +32,7 @@ export function ActivityItem({ row, last }: { row: ActivityRow; last?: boolean }
       className={`group -mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-xl px-2 py-3 text-left transition hover:bg-canvas/60 ${last ? "" : "border-b border-hair"}`}
       data-testid="activity-row"
     >
-      {isCash ? (
+      {isSystemTransfer ? (
         <div className={`flex h-[42px] w-[42px] flex-none items-center justify-center rounded-full ${row.direction === "in" ? "bg-[#e7e0fb] text-[#4a2fa0]" : "bg-[#fbf1dd] text-[#9a6b12]"}`}>
           {row.direction === "in" ? <ArrowDownLeft size={18} /> : <Landmark size={18} />}
         </div>
@@ -53,7 +53,13 @@ export function ActivityItem({ row, last }: { row: ActivityRow; last?: boolean }
       </div>
       <div className="flex items-center gap-1">
         <div className="flex flex-col items-end">
-          <AmountText baseUnits={row.amount} direction={amountDirection} className="text-base" />
+          {hidden ? (
+            <span className="font-display tnum text-base text-ink/70" aria-label="Amount hidden">
+              ••••
+            </span>
+          ) : (
+            <AmountText baseUnits={row.amount} direction={amountDirection} className="text-base" />
+          )}
           <span className="mt-0.5 text-xs text-muted">{relativeTime(row.timestamp)}</span>
         </div>
         <ChevronRight size={15} className="flex-none text-hair transition group-hover:text-muted" />

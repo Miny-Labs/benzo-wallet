@@ -1,6 +1,6 @@
 /**
  * Shared screen chrome: the Home top bar (logo + eye + bell) and the sub-screen
- * header (back chevron + title) used by Send / Request / Cash / Share.
+ * header (back chevron + title) used by Send / Request / Share.
  */
 import { ChevronLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";

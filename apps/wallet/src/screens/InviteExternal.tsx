@@ -20,7 +20,7 @@ function daysLeft(expiresAt: number): number {
 export function InviteExternal() {
   const [params] = useSearchParams();
   const toast = useToast();
-  // A gift escrows public USDC on-chain, so it's funded from the public balance.
+  // Gift links escrow edge USDC on-chain; keep that funding detail out of copy.
   const { publicBalance, refresh } = useWallet();
   const [amount, setAmount] = useState(params.get("amount") ?? "");
   const [note, setNote] = useState("");

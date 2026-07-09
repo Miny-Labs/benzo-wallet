@@ -51,7 +51,7 @@ export function Activity() {
               <div className="rounded-[var(--radius-card)] bg-card px-4 shadow-[var(--shadow-card)]">
                 {rows.map((row, i) => (
                   <Stagger.Item key={row.id} index={Math.min(gi * 2 + i, 6)}>
-                    <ActivityItem row={hidden ? { ...row } : row} last={i === rows.length - 1} />
+                    <ActivityItem row={row} hidden={hidden} last={i === rows.length - 1} />
                   </Stagger.Item>
                 ))}
               </div>

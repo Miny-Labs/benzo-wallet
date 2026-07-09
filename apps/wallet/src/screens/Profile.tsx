@@ -18,7 +18,7 @@ import { exportWallet, getLocalAccountSummary, getLocalRecoveryStatus, markWalle
 
 export function Profile() {
   const nav = useNavigate();
-  const { session, balance, publicBalance, hidden, toggleHidden } = useWallet();
+  const { session, balance, hidden, toggleHidden } = useWallet();
   const toast = useToast();
   const live = session?.live;
   const summary = getLocalAccountSummary();
@@ -42,7 +42,6 @@ export function Profile() {
   const [deleting, setDeleting] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
   const privateHasFunds = BigInt(balance?.baseUnits ?? "0") > 0n;
-  const publicHasFunds = BigInt(publicBalance?.baseUnits ?? "0") > 0n;
   async function toggleLock(key: "onOpen" | "onSend") {
     const next = { ...lock, [key]: !lock[key] };
     // Turning a lock ON requires proving the platform passkey prompt works right now.
@@ -307,14 +306,12 @@ export function Profile() {
               <div className="min-w-0 flex-1">
                 <div className="text-[15px] font-semibold">Your account stays yours</div>
                 <div className="mt-1 text-[12.5px] leading-relaxed text-muted">
-                  Move money to any Avalanche wallet before leaving. Private funds must be made public or cashed out first. Deleting creates a fresh Benzo wallet next time you sign in.
+                  Back up your recovery data before deleting hosted profile data. Deleting creates a fresh Benzo wallet next time you sign in.
                 </div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <Button variant="secondary" size="sm" onClick={() => nav("/deposit")} data-testid="account-receive">Receive address</Button>
-              <Button variant="secondary" size="sm" onClick={() => nav("/send?mode=public")} data-testid="account-send-out">Send out</Button>
-              <Button variant="secondary" size="sm" onClick={() => nav("/convert?mode=public")} data-testid="account-make-public">Make public</Button>
               <Button variant="secondary" size="sm" onClick={() => setDeleteOpen((v) => !v)} data-testid="account-delete-open">
                 <Trash2 size={14} /> Delete data
               </Button>
@@ -322,11 +319,11 @@ export function Profile() {
             {deleteOpen ? (
               <div className="rounded-xl border border-hair bg-canvas/70 p-3" data-testid="account-delete-panel">
                 <div className="text-[12.5px] leading-relaxed text-muted">
-                  Deletion clears hosted Benzo profile data for this sign-in and rotates your Benzo wallet. It will be refused while any private balance, public balance, or pending invite funds remain.
+                  Deletion clears hosted Benzo profile data for this sign-in and rotates your Benzo wallet. Move remaining funds first.
                 </div>
-                {(privateHasFunds || publicHasFunds) ? (
+                {privateHasFunds ? (
                   <div className="mt-2 rounded-lg bg-amber/12 px-3 py-2 text-[12px] font-medium text-[#9a6b12]" data-testid="account-delete-blocked">
-                    Move funds out first. Private: {privateHasFunds ? "not empty" : "empty"} · Public: {publicHasFunds ? "not empty" : "empty"}
+                    Move funds out first. Balance is not empty.
                   </div>
                 ) : null}
                 {deleteErr ? <div className="mt-2 text-[12px] font-medium text-danger" data-testid="account-delete-error">{deleteErr}</div> : null}

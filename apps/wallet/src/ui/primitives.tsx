@@ -208,7 +208,7 @@ export function Input({
   );
 }
 
-/** The big numeric amount entry used by Send / Request / Cash-out. */
+/** The big numeric amount entry used by Send / Request. */
 export function AmountField({
   value,
   onChange,
@@ -280,7 +280,7 @@ export function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`skeleton rounded-xl ${className}`} />;
 }
 
-/** Animated success checkmark for settled sends / cash-outs. */
+/** Animated success checkmark for settled sends. */
 export function SuccessCheck({ size = 72 }: { size?: number }) {
   return (
     <motion.div

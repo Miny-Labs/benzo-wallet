@@ -10,7 +10,7 @@
 import { useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Check, ExternalLink, FileSearch, Globe2, Landmark, ShieldCheck, X } from "lucide-react";
+import { Check, ExternalLink, FileSearch, ShieldCheck, X } from "lucide-react";
 import { useWallet } from "../lib/store";
 import { fullDateTime } from "../lib/format";
 import { Screen } from "../ui/motion";
@@ -28,19 +28,6 @@ interface Step {
   state: StepState;
 }
 
-/** Cash-style rows (add money / cash out / shield / unshield) vs a person-to-person payment. */
-function isCashRow(row: ActivityRow): boolean {
-  return row.type === "cashOut" || row.type === "unshield" || row.type === "shield" || row.type === "cashIn";
-}
-
-function isMakePublicRow(row: ActivityRow): boolean {
-  return row.type === "makePublic" || row.name === "Made public" || row.note.includes("Public balance");
-}
-
-function isPublicSendRow(row: ActivityRow): boolean {
-  return row.type === "publicSend" || row.note === "Public send";
-}
-
 function isFailedLikeRow(row: ActivityRow): boolean {
   if (row.status === "failed") return true;
   if (row.txHash) return false;
@@ -52,66 +39,6 @@ function isFailedLikeRow(row: ActivityRow): boolean {
 function timeline(row: ActivityRow): Step[] {
   const failed = isFailedLikeRow(row);
   const settled = row.status === "settled";
-  if (isPublicSendRow(row)) {
-    return [
-      { label: "Public payment created", state: "done" },
-      {
-        label: failed ? "Public send failed" : settled ? "Sent on Avalanche testnet" : "Sending on Avalanche testnet",
-        hint: "Recipient and amount are public on-chain",
-        state: failed ? "failed" : settled ? "done" : "active",
-      },
-      {
-        label: settled ? "Settled" : "Settling",
-        state: failed ? "upcoming" : settled ? "done" : "active",
-      },
-    ];
-  }
-  if (isMakePublicRow(row)) {
-    return [
-      { label: "Make-public created", state: "done" },
-      {
-        label: failed ? "Private proof or settlement failed" : "Proved private",
-        hint: failed ? "No on-chain settlement was recorded" : "The source balance stayed hidden",
-        state: failed ? "failed" : "done",
-      },
-      {
-        label: settled ? "Moved to Public balance" : "Moving to Public balance",
-        hint: settled ? undefined : "Avalanche testnet settlement",
-        state: failed ? "upcoming" : settled ? "done" : "active",
-      },
-    ];
-  }
-  // Off-ramp simulation (cash out / unshield): created, proved private, returned to reserve.
-  if (row.type === "cashOut" || row.type === "unshield") {
-    return [
-      { label: "Cash-out created", state: "done" },
-      {
-        label: failed ? "Private proof or settlement failed" : "Proved private",
-        hint: failed ? "No on-chain settlement was recorded" : "Your balance stayed hidden",
-        state: failed ? "failed" : "done",
-      },
-      {
-        label: settled ? "Returned to testnet reserve" : "Returning to testnet reserve",
-        hint: settled ? undefined : "Avalanche testnet settlement",
-        state: failed ? "upcoming" : settled ? "done" : "active",
-      },
-    ];
-  }
-  // On-ramp (add money): received → added.
-  if (row.type === "cashIn" || row.type === "shield") {
-    return [
-      { label: "Public USDC received", state: "done" },
-      { label: "Encrypted balance updated", state: failed ? "failed" : "done" },
-    ];
-  }
-  // Incoming payment.
-  if (row.direction === "in") {
-    return [
-      { label: "Payment received", state: "done" },
-      { label: "Settled", state: failed ? "failed" : "done" },
-    ];
-  }
-  // Outgoing private payment - the ZK story, told plainly.
   if (failed) {
     return [
       { label: "Payment attempt created", state: "done" },
@@ -121,6 +48,12 @@ function timeline(row: ActivityRow): Step[] {
         state: "failed",
       },
       { label: "Not settled", state: "upcoming" },
+    ];
+  }
+  if (row.direction === "in") {
+    return [
+      { label: "Payment received", state: "done" },
+      { label: settled ? "Settled" : "Settling", state: settled ? "done" : "active" },
     ];
   }
   return [
@@ -157,16 +90,11 @@ export function TxDetail() {
     );
   }
 
-  const cash = isCashRow(row);
-  const makePublic = isMakePublicRow(row);
-  const publicSend = isPublicSendRow(row);
-  const shield = row.type === "cashIn" || row.type === "shield";
   const failed = isFailedLikeRow(row);
   const steps = timeline(row);
   // Honest on-chain claim: a legacy local row never counts as "Verified on-chain",
   // even if it carries a txHash - otherwise we'd link a dead explorer tx.
   const onChain = !row.unverified && !!row.txHash;
-  const privatePayment = row.type !== "cashOut" && row.type !== "unshield" && !publicSend;
   const amountDirection = failed ? undefined : row.direction;
   const counterpartyPrefix =
     failed && row.direction === "out"
@@ -181,13 +109,7 @@ export function TxDetail() {
       <div className="px-5 pt-2">
         {/* amount + who */}
         <div className="flex flex-col items-center pt-3 text-center">
-          {cash ? (
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#e7e0fb] text-[#4a2fa0]">
-              <Landmark size={24} />
-            </div>
-          ) : (
-            <Avatar name={row.name} tone={row.tone} size={56} />
-          )}
+          <Avatar name={row.name} tone={row.tone} size={56} />
           <div className="mt-3" data-testid="txdetail-amount">
             <AmountText baseUnits={hidden ? "0" : row.amount} direction={amountDirection} className="text-[40px]" />
           </div>
@@ -200,18 +122,10 @@ export function TxDetail() {
             </span>
           ) : null}
           <div className="mt-3">
-            {publicSend ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fbf1dd] px-3 py-1 text-[12px] font-semibold text-[#9a6b12]">
-                <Globe2 size={13} /> Public Avalanche payment
-              </span>
-            ) : failed ? (
+            {failed ? (
               <PrivateChip label="No on-chain transfer recorded" />
-            ) : privatePayment ? (
-              <PrivateChip label={shield ? "Edge public; balance encrypted" : cash ? "Your balance stayed private" : `Only you and ${row.name} can see this`} />
             ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#fbf1dd] px-3 py-1 text-[12px] font-semibold text-[#9a6b12]">
-                <Landmark size={13} /> {makePublic ? "Made public" : "Testnet reserve cash-out"}
-              </span>
+              <PrivateChip label={row.direction === "in" ? "Only you can see this" : `Only you and ${row.name} can see this`} />
             )}
           </div>
         </div>
@@ -231,8 +145,8 @@ export function TxDetail() {
           <DRow
             k="Privacy"
             v={
-              <span className={`inline-flex items-center gap-1.5 ${publicSend ? "text-[#9a6b12]" : "text-pos"}`}>
-                {publicSend ? <Globe2 size={14} /> : <ShieldCheck size={14} />} {publicSend ? "Public" : shield ? "Edge public; balance encrypted" : privatePayment ? "Private" : "Amount private"}
+              <span className="inline-flex items-center gap-1.5 text-pos">
+                <ShieldCheck size={14} /> {failed ? "No transfer" : "Private"}
               </span>
             }
           />
@@ -252,7 +166,7 @@ export function TxDetail() {
               <ExternalLink size={16} /> View receipt
             </a>
           ) : null}
-          {onChain && privatePayment ? (
+          {onChain && !failed ? (
             <Button variant="secondary" full onClick={() => nav("/share-proof")} data-testid="txdetail-share">
               <ShieldCheck size={16} /> Share a provable receipt
             </Button>

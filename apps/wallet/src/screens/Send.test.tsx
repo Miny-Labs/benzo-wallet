@@ -3,8 +3,6 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Send } from "./Send";
 
-const TX_HASH = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-
 const walletState = vi.hoisted(() => ({
   session: {
     profile: { handle: "tester", name: "Tester" },
@@ -15,9 +13,9 @@ const walletState = vi.hoisted(() => ({
     missing: [],
     prover: { available: ["local"], mode: "local", location: "local" },
   },
-  balance: { baseUnits: "0", live: true },
+  balance: { baseUnits: "1001000000", live: true },
   publicBalance: {
-    baseUnits: "1001000000",
+    baseUnits: "0",
     address: "0x2222222222222222222222222222222222222222",
     asset: "USDC",
     issuer: "",
@@ -34,34 +32,13 @@ const walletState = vi.hoisted(() => ({
   refreshBalance: vi.fn(async () => undefined),
 }));
 
-const mocks = vi.hoisted(() => ({
-  apiSendPublic: vi.fn(),
-  saveLocalHistory: vi.fn(),
-  sendPublicClientSide: vi.fn(),
+const streamMocks = vi.hoisted(() => ({
+  run: vi.fn(),
+  reset: vi.fn(),
 }));
 
 vi.mock("../lib/store", () => ({
   useWallet: () => walletState,
-}));
-
-vi.mock("../lib/api", async () => {
-  const actual = await vi.importActual<typeof import("../lib/api")>("../lib/api");
-  return {
-    ...actual,
-    currentGoogleCredential: () => null,
-    api: {
-      ...actual.api,
-      sendPublic: mocks.apiSendPublic,
-    },
-  };
-});
-
-vi.mock("../lib/benzoClient", () => ({
-  sendPublicClientSide: mocks.sendPublicClientSide,
-}));
-
-vi.mock("../lib/history", () => ({
-  saveLocalHistory: mocks.saveLocalHistory,
 }));
 
 vi.mock("../lib/lock", () => ({
@@ -73,18 +50,24 @@ vi.mock("../lib/useSendStream", () => ({
   useSendStream: () => ({
     state: { phase: "idle" },
     receipt: null,
-    run: vi.fn(),
-    reset: vi.fn(),
+    run: streamMocks.run,
+    reset: streamMocks.reset,
   }),
 }));
 
 describe("Send", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    walletState.balance = { baseUnits: "1001000000", live: true };
     walletState.refresh.mockResolvedValue(true);
     walletState.refreshBalance.mockResolvedValue(undefined);
-    mocks.apiSendPublic.mockRejectedValue(new Error("BFF offline"));
-    mocks.sendPublicClientSide.mockResolvedValue({ txHash: TX_HASH, prover: "local" });
+    streamMocks.run.mockResolvedValue({
+      status: "settled",
+      txHash: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      prover: "local",
+      amount: "2500000",
+      onChain: true,
+    });
   });
 
   afterEach(() => {
@@ -92,6 +75,8 @@ describe("Send", () => {
   });
 
   it("opens and dismisses the compliance step-up sheet before balance checks", async () => {
+    walletState.balance = { baseUnits: "0", live: true };
+
     render(
       <MemoryRouter initialEntries={["/send"]}>
         <Send />
@@ -116,12 +101,7 @@ describe("Send", () => {
     await waitFor(() => expect(screen.queryByTestId("send-stepup")).not.toBeInTheDocument());
   });
 
-  it("sends a public ERC-20 transfer with the backend unplugged", async () => {
-    const fetchMock = vi.fn(async () => {
-      throw new Error("BFF offline");
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
+  it("sends a direct EVM address through the private send ceremony path", async () => {
     render(
       <MemoryRouter initialEntries={["/send"]}>
         <Send />
@@ -132,26 +112,22 @@ describe("Send", () => {
     fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "2.5" } });
     fireEvent.change(screen.getByTestId("send-memo"), { target: { value: "rent" } });
 
+    expect(screen.getByTestId("send-kind")).toHaveTextContent("Private send to this wallet address");
     fireEvent.click(screen.getByTestId("send-submit"));
     fireEvent.click(await screen.findByTestId("send-confirm"));
 
-    expect(await screen.findByTestId("send-public-overlay")).toBeInTheDocument();
-    expect(screen.getByTestId("send-public-title")).toHaveTextContent("Sent to a wallet");
-    expect(mocks.apiSendPublic).not.toHaveBeenCalled();
-    expect(mocks.sendPublicClientSide).toHaveBeenCalledWith("0x1111111111111111111111111111111111111111", "2500000");
-    expect(mocks.saveLocalHistory).toHaveBeenCalledWith(expect.objectContaining({
-      id: TX_HASH,
-      type: "publicSend",
-      note: "rent",
-      amount: "2500000",
-      direction: "out",
-      status: "settled",
-      txHash: TX_HASH,
-    }));
-    expect(walletState.refresh).toHaveBeenCalled();
+    expect(streamMocks.run).toHaveBeenCalledWith(
+      "0x1111111111111111111111111111111111111111",
+      "2.5",
+      "rent",
+      "local",
+      false,
+      undefined,
+    );
+    await waitFor(() => expect(walletState.refresh).toHaveBeenCalled());
   });
 
-  it("rejects an invalid public amount without sending or recording history", () => {
+  it("rejects an invalid amount without starting a send", () => {
     render(
       <MemoryRouter initialEntries={["/send"]}>
         <Send />
@@ -166,12 +142,12 @@ describe("Send", () => {
 
     fireEvent.click(screen.getByTestId("send-submit"));
 
-    expect(mocks.sendPublicClientSide).not.toHaveBeenCalled();
-    expect(mocks.saveLocalHistory).not.toHaveBeenCalled();
-    expect(screen.queryByTestId("send-public-overlay")).not.toBeInTheDocument();
+    expect(streamMocks.run).not.toHaveBeenCalled();
   });
 
-  it("records an empty note for a public send when memo is blank", async () => {
+  it("blocks private sends when the single balance is too low", () => {
+    walletState.balance = { baseUnits: "1000000", live: true };
+
     render(
       <MemoryRouter initialEntries={["/send"]}>
         <Send />
@@ -181,16 +157,8 @@ describe("Send", () => {
     fireEvent.change(screen.getByTestId("send-handle"), { target: { value: "0x1111111111111111111111111111111111111111" } });
     fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "2.5" } });
 
-    fireEvent.click(screen.getByTestId("send-submit"));
-    fireEvent.click(await screen.findByTestId("send-confirm"));
-
-    expect(await screen.findByTestId("send-public-overlay")).toBeInTheDocument();
-    expect(mocks.saveLocalHistory).toHaveBeenCalledWith(expect.objectContaining({
-      id: TX_HASH,
-      type: "publicSend",
-      note: "",
-      amount: "2500000",
-      status: "settled",
-    }));
+    expect(screen.getByTestId("send-low-private")).toHaveTextContent("Not enough private USDC");
+    expect(screen.getByTestId("send-submit")).toBeDisabled();
+    expect(streamMocks.run).not.toHaveBeenCalled();
   });
 });
