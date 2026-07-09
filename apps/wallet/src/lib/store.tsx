@@ -5,6 +5,7 @@ import { getLocalAccount, isWalletUnlocked, getLocalAccountSummary } from "./loc
 import { listLocalHistory } from "./history";
 import { listLocal } from "./contacts";
 import { applyActivityHints, mergeActivityRows, readEercActivityClientSide } from "./eercActivity";
+import { subscribeNetwork } from "./network";
 
 export interface PublicBalance {
   baseUnits: string;
@@ -187,6 +188,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     window.addEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
     return () => window.removeEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
   }, []);
+
+  // Switching networks re-points every client-side read at a different chain +
+  // address bundle, so re-load balance and history from the newly active network.
+  useEffect(() => subscribeNetwork(() => {
+    if (isWalletUnlocked()) void refresh();
+  }), [refresh]);
 
   return (
     <Ctx.Provider value={{ session, balance, publicBalance, history, contacts, loading, error, hidden, toggleHidden, deviceVerified, refresh, refreshBalance }}>

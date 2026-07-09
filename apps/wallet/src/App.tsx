@@ -10,7 +10,8 @@ import { VideoBackground } from "./ui/VideoBackground";
 import { StageVideo } from "./ui/StageVideo";
 import { LockGate } from "./ui/LockGate";
 import { spring } from "./ui/motion";
-import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { Component, lazy, Suspense, useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useNetwork } from "./lib/networkContext";
 // Screens are lazy-loaded so each route ships as its own chunk — only the first
 // view's code is parsed on load, the rest arrive on navigation. (Named exports,
 // so each import() is mapped to a `default` for React.lazy.)
@@ -129,6 +130,7 @@ class RouteErrorBoundary extends Component<{ children: ReactNode }, { failed: bo
 export function App() {
   const loc = useLocation();
   const isDesktop = useIsDesktop();
+  const { theme } = useNetwork();
   const [onboarded, setOnboarded] = useState(false);
   const [locked, setLocked] = useState(true);
   const [checking, setChecking] = useState(true);
@@ -167,6 +169,16 @@ export function App() {
     <div
       className="fixed inset-0 flex h-[100dvh] w-full items-center justify-center overflow-hidden bg-[#dfe0dc] sm:bg-[radial-gradient(125%_85%_at_50%_-10%,#ecece7,#dcdcd5_55%,#d3d4cd)] sm:p-6"
       data-testid="app-root"
+      data-network={theme.short}
+      style={
+        {
+          // Retint the whole shell to the active network — every bg-accent /
+          // text-accent / shadow-glow follows this cascaded override.
+          "--color-accent": theme.accent,
+          "--color-accent-soft": theme.accentSoft,
+          "--shadow-glow": theme.glow,
+        } as CSSProperties
+      }
     >
       {/* desktop ambient: the looping video stage BEHIND the device (not inside it) */}
       {isDesktop ? <StageVideo /> : null}
@@ -175,7 +187,7 @@ export function App() {
           {/* the app's background - the looping sky video, inside the phone on
               EVERY viewport (desktop + mobile). On desktop the StageVideo also
               plays behind the device; on mobile the phone is the whole screen. */}
-          <VideoBackground tint="#f2f2ee" />
+          <VideoBackground tint={theme.tint} />
           <AnimatePresence>{onboarded && locked ? <LockGate onUnlock={() => setLocked(false)} /> : null}</AnimatePresence>
           <AnimatePresence>{!onboarded ? <Onboarding onDone={finishOnboarding} /> : null}</AnimatePresence>
           {showShell ? (

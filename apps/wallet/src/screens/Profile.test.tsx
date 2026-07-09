@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Profile } from "./Profile";
+import { NetworkProvider } from "../lib/networkContext";
+import * as net from "../lib/network";
 
 const walletState = vi.hoisted(() => ({
   session: {
@@ -177,5 +179,59 @@ describe("Profile recovery export", () => {
     expect(await screen.findByTestId("recovery-error")).toHaveTextContent("Unlock cancelled.");
     expect(localMocks.exportWallet).not.toHaveBeenCalled();
     expect(screen.queryByTestId("recovery-backup-json")).not.toBeInTheDocument();
+  });
+});
+
+describe("Profile network switcher", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    net.setActiveNetwork("fuji");
+    localStorage.clear();
+  });
+  afterEach(() => {
+    net.setActiveNetwork("fuji");
+    localStorage.clear();
+  });
+
+  function renderProfile() {
+    return render(
+      <NetworkProvider>
+        <MemoryRouter>
+          <Profile />
+        </MemoryRouter>
+      </NetworkProvider>,
+    );
+  }
+
+  it("defaults to Fuji and marks it the active environment", () => {
+    renderProfile();
+    expect(screen.getByTestId("network-option-fuji")).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("network-option-avalanche")).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByTestId("network-tagline")).toHaveTextContent("Fuji testnet");
+  });
+
+  it("switches to mainnet, persists the choice, and swaps the resolved address bundle", async () => {
+    renderProfile();
+
+    fireEvent.click(screen.getByTestId("network-option-avalanche"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("network-option-avalanche")).toHaveAttribute("aria-selected", "true"),
+    );
+    expect(screen.getByTestId("network-tagline")).toHaveTextContent("real funds");
+    expect(screen.getByTestId("profile-mode")).toHaveTextContent("Avalanche C-Chain");
+
+    // Persisted for reloads + the module bundle now targets C-Chain.
+    expect(localStorage.getItem("benzo.network")).toBe("avalanche");
+    expect(net.getActiveNetwork()).toBe("avalanche");
+    expect(net.ENCRYPTED_ERC_ADDRESS).toBe("0x708d0b83461973F46041a36f588b8760dbC0Db0e");
+
+    // Switching back to Fuji works.
+    fireEvent.click(screen.getByTestId("network-option-fuji"));
+    await waitFor(() =>
+      expect(screen.getByTestId("network-option-fuji")).toHaveAttribute("aria-selected", "true"),
+    );
+    expect(net.getActiveNetwork()).toBe("fuji");
+    expect(localStorage.getItem("benzo.network")).toBe("fuji");
   });
 });
