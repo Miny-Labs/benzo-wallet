@@ -28,6 +28,12 @@ const passkeyMocks = vi.hoisted(() => {
   };
 });
 
+const activationMocks = vi.hoisted(() => ({
+  handleAvailableOnChain: vi.fn(),
+  isRegisteredOnEerc: vi.fn(),
+  registerEercAccount: vi.fn(),
+}));
+
 vi.mock("./passkey", () => ({
   createDeviceAuthProof: passkeyMocks.createDeviceAuthProof,
   derivePasskeySecret: passkeyMocks.derivePasskeySecret,
@@ -35,7 +41,18 @@ vi.mock("./passkey", () => ({
   registerPasskey: passkeyMocks.registerPasskey,
 }));
 
+vi.mock("./eerc", () => ({
+  registerEercAccount: activationMocks.registerEercAccount,
+}));
+
+vi.mock("./handleRegistry", () => ({
+  handleAvailableOnChain: activationMocks.handleAvailableOnChain,
+  isRegisteredOnEerc: activationMocks.isRegisteredOnEerc,
+  normalizeHandle: (handle: string) => handle.trim().replace(/^@/, "").toLowerCase(),
+}));
+
 import {
+  activatePrivateBalance,
   createWallet,
   createWalletWithPasskey,
   exportWallet,
@@ -49,6 +66,9 @@ describe("local wallet recovery", () => {
     storeMocks.kv = new MemoryKVStore();
     storeMocks.open.mockImplementation(async () => storeMocks.kv);
     vi.clearAllMocks();
+    activationMocks.handleAvailableOnChain.mockResolvedValue({ available: false });
+    activationMocks.isRegisteredOnEerc.mockResolvedValue(true);
+    activationMocks.registerEercAccount.mockResolvedValue(`0x${"a".repeat(64)}`);
     localStorage.clear();
   });
 
@@ -179,5 +199,38 @@ describe("local wallet recovery", () => {
       recoverable: true,
       status: "healthy",
     });
+  });
+
+  it("activates a new private balance by registering when the registrar has no key", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new Error("backend unplugged");
+    }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    activationMocks.isRegisteredOnEerc.mockResolvedValue(false);
+
+    const account = await createWalletWithPasskey("alex");
+
+    await expect(activatePrivateBalance()).resolves.toEqual({
+      alreadyRegistered: false,
+      txHash: `0x${"a".repeat(64)}`,
+    });
+    expect(activationMocks.isRegisteredOnEerc).toHaveBeenCalledWith(account.address);
+    expect(activationMocks.registerEercAccount).toHaveBeenCalledWith(account);
+  });
+
+  it("does not double-register when the registrar already has the wallet", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new Error("backend unplugged");
+    }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    activationMocks.isRegisteredOnEerc.mockResolvedValue(true);
+
+    const account = await createWalletWithPasskey("alex");
+
+    await expect(activatePrivateBalance()).resolves.toEqual({
+      alreadyRegistered: true,
+    });
+    expect(activationMocks.isRegisteredOnEerc).toHaveBeenCalledWith(account.address);
+    expect(activationMocks.registerEercAccount).not.toHaveBeenCalled();
   });
 });

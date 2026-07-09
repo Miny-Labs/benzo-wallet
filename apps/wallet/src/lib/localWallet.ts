@@ -2,6 +2,8 @@ import { accountFromSignedMessage, createAccount, type BenzoAccount } from "@ben
 import { IndexedDbKVStore, Keychain, newSalt, passphraseWrappingKey, prfWrappingKey } from "@benzo/wallet";
 import type { Hex } from "viem";
 import { api } from "./api";
+import { registerEercAccount } from "./eerc";
+import { isRegisteredOnEerc } from "./handleRegistry";
 import { createDeviceAuthProof, derivePasskeySecret, hasPasskey, registerPasskey } from "./passkey";
 
 export interface WalletSecrets {
@@ -39,6 +41,11 @@ export interface LocalRecoveryStatus {
   createdAt?: number;
   lastExportedAt?: number;
   backupConfirmedAt?: number;
+}
+
+export interface PrivateBalanceActivation {
+  alreadyRegistered: boolean;
+  txHash?: Hex;
 }
 
 function toHex(b: Uint8Array): string {
@@ -216,6 +223,25 @@ export function getLocalAccount(): BenzoAccount | null {
 
 export function isWalletUnlocked(): boolean {
   return activeAccount !== null;
+}
+
+let eercRegistrationInFlight: Promise<PrivateBalanceActivation | null> | null = null;
+
+export async function activatePrivateBalance(): Promise<PrivateBalanceActivation | null> {
+  const account = getLocalAccount();
+  if (!account) return null;
+  if (!eercRegistrationInFlight) {
+    eercRegistrationInFlight = (async () => {
+      if (await isRegisteredOnEerc(account.address)) {
+        return { alreadyRegistered: true };
+      }
+      const txHash = await registerEercAccount(account);
+      return { alreadyRegistered: !txHash, txHash };
+    })().finally(() => {
+      eercRegistrationInFlight = null;
+    });
+  }
+  return eercRegistrationInFlight;
 }
 
 async function loginSiweSession(): Promise<void> {
