@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, Eye, Fingerprint, KeyRound, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Eye, Fingerprint, Key, KeyRound, ShieldAlert, ShieldCheck } from "lucide-react";
 import { LogoMark } from "../ui/Logo";
 import { Button, Input, useToast } from "../ui/primitives";
 import { fadeUp, stagger, EASE } from "../ui/motion";
 import { useWallet } from "../lib/store";
 import { isWebAuthnAvailable } from "../lib/passkey";
-import { activatePrivateBalance, createWalletWithPasskey, importWallet } from "../lib/localWallet";
+import { activatePrivateBalance, createWallet, createWalletWithPasskey, importWallet } from "../lib/localWallet";
 
-type Step = "welcome" | "import" | "activating";
+type Step = "welcome" | "create_passcode" | "import" | "activating";
 
 const POINTS = [
   { icon: <ShieldCheck size={18} />, title: "Local custody", body: "Secrets are kept on your device, locked by passkey or passcode." },
@@ -19,6 +19,7 @@ const POINTS = [
 export function Onboarding({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState<Step>("welcome");
   const [passphrase, setPassphrase] = useState("");
+  const [confirmPassphrase, setConfirmPassphrase] = useState("");
   const [importedText, setImportedText] = useState("");
   const [lockMethod, setLockMethod] = useState<"passkey" | "passphrase">("passkey");
   const [busy, setBusy] = useState<boolean>(false);
@@ -51,16 +52,44 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
     }
   }
 
-  // One tap: silently generate the seed + passkey (or a device-local secret when
-  // there's no authenticator) and go straight to activation → Home. Backup is a
-  // later, non-blocking step in Profile — never a gate here.
+  // One tap: silently generate the seed + passkey and go straight to activation →
+  // Home. Backup is a later, non-blocking step in Profile — never a gate here.
+  // Devices without WebAuthn can't derive a passkey secret, so they fall back to
+  // a passcode-encrypted keychain — creation always has a path.
   async function handleCreate() {
+    if (!isPasskeyCapable) {
+      setErr(null);
+      setStep("create_passcode");
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {
       await createWalletWithPasskey("benzo-local-user");
     } catch (e) {
       setErr((e as Error).message.includes("cancel") ? "Passkey cancelled." : "Could not create wallet. Please try again.");
+      setBusy(false);
+      return;
+    }
+    setStep("activating");
+    await runActivation();
+  }
+
+  async function handleCreateWithPasscode() {
+    if (passphrase.length < 4) {
+      setErr("Passcode must be at least 4 characters.");
+      return;
+    }
+    if (passphrase !== confirmPassphrase) {
+      setErr("Passcodes do not match.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      await createWallet(passphrase);
+    } catch (e) {
+      setErr((e as Error).message);
       setBusy(false);
       return;
     }
@@ -134,11 +163,49 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
             {err ? <p className="mt-4 text-center text-[13px] text-danger" data-testid="onboarding-error">{err}</p> : null}
             <div className="mt-6 space-y-3">
               <Button full size="lg" loading={busy} onClick={handleCreate} data-testid="onboarding-create">
-                <Fingerprint size={18} /> Create new wallet
+                {isPasskeyCapable ? <Fingerprint size={18} /> : null} Create new wallet
               </Button>
               <Button full variant="secondary" size="lg" disabled={busy} onClick={() => { setStep("import"); setErr(null); }} data-testid="onboarding-import">
                 Import existing wallet
               </Button>
+            </div>
+          </Pane>
+        )}
+
+        {step === "create_passcode" && (
+          <Pane key="create_passcode" onBack={() => { setStep("welcome"); setErr(null); }}>
+            <div className="my-auto flex flex-col w-full pb-6">
+              <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-full bg-accent/10 text-accent">
+                <Key size={30} />
+              </div>
+              <h1 className="font-display mt-5 text-center text-[24px] leading-tight">Set a passcode</h1>
+              <p className="mt-2 text-center text-[14px] text-muted max-w-[290px] mx-auto">
+                This device has no passkey, so your wallet keys are encrypted with a passcode you choose.
+              </p>
+
+              {err ? <p className="mt-4 text-center text-[13px] text-danger" data-testid="onboarding-error">{err}</p> : null}
+
+              <div className="mt-6 space-y-4">
+                <Input
+                  type="password"
+                  label="Choose a passcode"
+                  value={passphrase}
+                  onChange={(e) => setPassphrase(e.target.value)}
+                  placeholder="At least 4 characters"
+                  data-testid="passcode-input"
+                />
+                <Input
+                  type="password"
+                  label="Confirm passcode"
+                  value={confirmPassphrase}
+                  onChange={(e) => setConfirmPassphrase(e.target.value)}
+                  placeholder="Repeat passcode"
+                  data-testid="confirm-passcode-input"
+                />
+                <Button full size="lg" onClick={handleCreateWithPasscode} loading={busy} data-testid="create-passcode">
+                  Set passcode & create
+                </Button>
+              </div>
             </div>
           </Pane>
         )}

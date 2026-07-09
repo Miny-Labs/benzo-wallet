@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, type ActivityHint, type ActivityRow, type Balance, type Contact, type Session } from "./api";
+import { api, AUTH_CHANGED_EVENT, type ActivityHint, type ActivityRow, type Balance, type Contact, type Session } from "./api";
 import { readShieldedBalanceClientSide, readPublicBalanceClientSide } from "./benzoClient";
 import { getLocalAccount, isWalletUnlocked, getLocalAccountSummary } from "./localWallet";
 import { listLocalHistory } from "./history";
@@ -184,8 +184,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onAuthChanged = () => setAuthenticated(isWalletUnlocked());
-    window.addEventListener("benzo:auth-changed", onAuthChanged);
-    return () => window.removeEventListener("benzo:auth-changed", onAuthChanged);
+    window.addEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
+    return () => window.removeEventListener(AUTH_CHANGED_EVENT, onAuthChanged);
   }, []);
 
   return (

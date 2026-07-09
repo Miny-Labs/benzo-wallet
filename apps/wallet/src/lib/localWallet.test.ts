@@ -22,9 +22,7 @@ const passkeyMocks = vi.hoisted(() => {
   return {
     derivePasskeySecret: vi.fn(async () => secret),
     hasPasskey: vi.fn(() => true),
-    lockCapable: vi.fn(() => false),
     registerPasskey: vi.fn(async () => undefined),
-    verifyPresence: vi.fn(async () => undefined),
     secret,
   };
 });
@@ -38,9 +36,7 @@ const activationMocks = vi.hoisted(() => ({
 vi.mock("./passkey", () => ({
   derivePasskeySecret: passkeyMocks.derivePasskeySecret,
   hasPasskey: passkeyMocks.hasPasskey,
-  lockCapable: passkeyMocks.lockCapable,
   registerPasskey: passkeyMocks.registerPasskey,
-  verifyPresence: passkeyMocks.verifyPresence,
 }));
 
 vi.mock("./eerc", () => ({
@@ -59,13 +55,10 @@ import {
   createWalletWithPasskey,
   exportWallet,
   getLocalRecoveryStatus,
-  isWalletUnlocked,
   lockWallet,
   markWalletBackupConfirmed,
-  restoreSoftSession,
   unlockWalletWithPasskey,
 } from "./localWallet";
-import { setLockSettings } from "./lock";
 
 describe("local wallet recovery", () => {
   beforeEach(() => {
@@ -76,7 +69,6 @@ describe("local wallet recovery", () => {
     activationMocks.isRegisteredOnEerc.mockResolvedValue(true);
     activationMocks.registerEercAccount.mockResolvedValue(`0x${"a".repeat(64)}`);
     localStorage.clear();
-    sessionStorage.clear();
   });
 
   afterEach(() => {
@@ -84,7 +76,6 @@ describe("local wallet recovery", () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     localStorage.clear();
-    sessionStorage.clear();
   });
 
   it("creates a recoverable passkey wallet and exports with the backend unplugged", async () => {
@@ -258,35 +249,24 @@ describe("local wallet recovery", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("restores a soft session on reload when no open-lock is set", () => {
+  it("does not persist any wallet secret to web storage", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new Error("backend unplugged");
+    }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await createWalletWithPasskey("alex");
+
+    // No plaintext keys anywhere in session/local storage — the sealed keychain
+    // (IndexedDB) is the only place secrets live, so XSS can't lift a raw key.
     const expected = accountFromSignedMessage(passkeyMocks.secret);
-    // Simulate a prior tab having persisted a soft session, then a reload:
-    // module memory is cleared but sessionStorage survives.
-    sessionStorage.setItem("benzo.softSession.v1", JSON.stringify(softSecretsFor(expected)));
-    expect(isWalletUnlocked()).toBe(false);
-
-    const restored = restoreSoftSession();
-
-    expect(restored?.address).toBe(expected.address);
-    expect(isWalletUnlocked()).toBe(true);
-  });
-
-  it("refuses to restore a soft session when an open-lock is opted in", () => {
-    setLockSettings({ onOpen: true, onSend: false });
-    const expected = accountFromSignedMessage(passkeyMocks.secret);
-    sessionStorage.setItem("benzo.softSession.v1", JSON.stringify(softSecretsFor(expected)));
-
-    expect(restoreSoftSession()).toBeNull();
-    expect(isWalletUnlocked()).toBe(false);
+    for (const store of [sessionStorage, localStorage]) {
+      for (let i = 0; i < store.length; i++) {
+        const value = store.getItem(store.key(i) as string) ?? "";
+        expect(value).not.toContain(expected.evmPrivateKey);
+        expect(value).not.toContain(expected.eercDecryptionKey);
+      }
+    }
     expect(sessionStorage.getItem("benzo.softSession.v1")).toBeNull();
   });
 });
-
-function softSecretsFor(account: ReturnType<typeof accountFromSignedMessage>) {
-  return {
-    evmPrivateKey: account.evmPrivateKey,
-    eercDecryptionKey: account.eercDecryptionKey,
-    orgSpendId: account.spendSk.toString(),
-    mvkSeedHex: Array.from(new Uint8Array(32).fill(7), (x) => x.toString(16).padStart(2, "0")).join(""),
-  };
-}

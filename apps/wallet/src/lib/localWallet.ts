@@ -1,9 +1,9 @@
 import { accountFromSignedMessage, createAccount, type BenzoAccount } from "@benzo/core";
 import { IndexedDbKVStore, Keychain, newSalt, passphraseWrappingKey, prfWrappingKey } from "@benzo/wallet";
 import type { Hex } from "viem";
+import { AUTH_CHANGED_EVENT } from "./api";
 import { registerEercAccount } from "./eerc";
 import { isRegisteredOnEerc } from "./handleRegistry";
-import { getLockSettings } from "./lock";
 import { derivePasskeySecret, hasPasskey, registerPasskey } from "./passkey";
 
 export interface WalletSecrets {
@@ -15,16 +15,9 @@ export interface WalletSecrets {
 
 let activeKeychain: Keychain | null = null;
 let activeAccount: BenzoAccount | null = null;
-// Kept alongside the account so a soft-restored session (no live Keychain) can
-// still reveal its backup, and so lock can wipe it deterministically.
-let activeSecrets: WalletSecrets | null = null;
 
 const WALLET_TYPE_KEY = "benzo.wallet.type";
 const RECOVERY_STATE_KEY = "benzo.recovery.v1";
-// A short-lived, per-tab soft-unlock cache. It lets a page reload re-open the
-// wallet WITHOUT a fresh biometric/passcode prompt — but only when the user has
-// NOT opted into "require unlock on open" (lib/lock onOpen). Cleared on lock.
-const SOFT_SESSION_KEY = "benzo.softSession.v1";
 
 type WalletType = "passkey" | "passphrase";
 type RecoveryBinding = "passkey-prf" | "manual-backup";
@@ -217,55 +210,9 @@ export function getLocalRecoveryStatus(): LocalRecoveryStatus {
 
 function notifyWalletChanged(): void {
   if (typeof window !== "undefined") {
-    // Same channel the store listens on to (re)load balances/history when the
-    // wallet unlocks, locks, or soft-restores. No backend round-trip involved.
-    window.dispatchEvent(new Event("benzo:auth-changed"));
-  }
-}
-
-function persistSoftSession(secrets: WalletSecrets): void {
-  // Never cache secrets when the user asked to re-verify on open — that toggle
-  // means every reload must go through the lock, so a soft session would defeat it.
-  if (getLockSettings().onOpen) return;
-  try {
-    sessionStorage.setItem(SOFT_SESSION_KEY, JSON.stringify(secrets));
-  } catch {
-    /* ignore */
-  }
-}
-
-function clearSoftSession(): void {
-  try {
-    sessionStorage.removeItem(SOFT_SESSION_KEY);
-  } catch {
-    /* ignore */
-  }
-}
-
-/**
- * Re-open the wallet from the per-tab soft session after a reload, so a
- * self-custody wallet doesn't hard-lock on every refresh. No-op when the wallet
- * is already unlocked, and honored ONLY when the user hasn't opted into an
- * open-lock (lib/lock onOpen) — in which case the cached session is dropped and
- * the caller falls through to the lock screen.
- */
-export function restoreSoftSession(): BenzoAccount | null {
-  if (activeAccount) return activeAccount;
-  if (getLockSettings().onOpen) {
-    clearSoftSession();
-    return null;
-  }
-  try {
-    const raw = sessionStorage.getItem(SOFT_SESSION_KEY);
-    if (!raw) return null;
-    const secrets = JSON.parse(raw) as WalletSecrets;
-    activeSecrets = secrets;
-    activeAccount = accountFromSecrets(secrets);
-    notifyWalletChanged();
-    return activeAccount;
-  } catch {
-    clearSoftSession();
-    return null;
+    // The channel the store listens on to (re)load balances/history when the
+    // wallet unlocks or locks. No backend round-trip involved.
+    window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
   }
 }
 
@@ -327,7 +274,6 @@ export async function createWallet(passphrase: string): Promise<BenzoAccount> {
 
   activeKeychain = await Keychain.create({ kv, wrappingKey, secrets, overwrite: true });
   activeAccount = account;
-  activeSecrets = secrets;
 
   localStorage.setItem(WALLET_TYPE_KEY, "passphrase");
   writeRecoveryState({
@@ -336,7 +282,6 @@ export async function createWallet(passphrase: string): Promise<BenzoAccount> {
     binding: "manual-backup",
     createdAt: Date.now(),
   });
-  persistSoftSession(secrets);
   notifyWalletChanged();
   return account;
 }
@@ -352,7 +297,6 @@ export async function createWalletWithPasskey(userName: string): Promise<BenzoAc
 
   activeKeychain = await Keychain.create({ kv, wrappingKey, secrets, overwrite: true });
   activeAccount = account;
-  activeSecrets = secrets;
 
   localStorage.setItem(WALLET_TYPE_KEY, "passkey");
   writeRecoveryState({
@@ -361,7 +305,6 @@ export async function createWalletWithPasskey(userName: string): Promise<BenzoAc
     binding: "passkey-prf",
     createdAt: Date.now(),
   });
-  persistSoftSession(secrets);
   notifyWalletChanged();
   return account;
 }
@@ -377,9 +320,7 @@ export async function unlockWallet(passphrase: string): Promise<BenzoAccount> {
 
   activeKeychain = kc;
   activeAccount = account;
-  activeSecrets = kc.secrets;
   localStorage.setItem(WALLET_TYPE_KEY, "passphrase");
-  persistSoftSession(kc.secrets);
   notifyWalletChanged();
   return account;
 }
@@ -394,9 +335,7 @@ export async function unlockWalletWithPasskey(): Promise<BenzoAccount> {
 
   activeKeychain = kc;
   activeAccount = account;
-  activeSecrets = kc.secrets;
   localStorage.setItem(WALLET_TYPE_KEY, "passkey");
-  persistSoftSession(kc.secrets);
   notifyWalletChanged();
   return account;
 }
@@ -405,8 +344,6 @@ export function lockWallet(): void {
   activeKeychain?.lock();
   activeKeychain = null;
   activeAccount = null;
-  activeSecrets = null;
-  clearSoftSession();
   // Drop any in-flight/confirmed registration so a re-unlocked (possibly
   // different) account can never inherit the prior session's result.
   eercRegistrationInFlight = null;
@@ -415,10 +352,9 @@ export function lockWallet(): void {
 }
 
 export async function exportWallet(): Promise<string> {
-  const secrets = activeKeychain?.secrets ?? activeSecrets;
-  if (!secrets) throw new Error("Wallet is locked");
+  if (!activeKeychain) throw new Error("Wallet is locked");
   markBackupExported();
-  return JSON.stringify(secrets, null, 2);
+  return JSON.stringify(activeKeychain.secrets, null, 2);
 }
 
 export async function importWallet(importedText: string, passphrase?: string): Promise<BenzoAccount> {
@@ -459,8 +395,6 @@ export async function importWallet(importedText: string, passphrase?: string): P
   }
 
   activeAccount = accountFromSecrets(secrets);
-  activeSecrets = secrets;
-  persistSoftSession(secrets);
   notifyWalletChanged();
   return activeAccount;
 }

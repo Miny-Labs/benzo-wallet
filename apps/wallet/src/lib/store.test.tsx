@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("./api", () => ({
+  AUTH_CHANGED_EVENT: "benzo:auth-changed",
   api: {
     activityHints: mocks.activityHints,
     contacts: mocks.contacts,

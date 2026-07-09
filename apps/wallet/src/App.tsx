@@ -27,7 +27,7 @@ const ShareProof = lazy(() => import("./screens/ShareProof").then((m) => ({ defa
 const InviteExternal = lazy(() => import("./screens/InviteExternal").then((m) => ({ default: m.InviteExternal })));
 const Claim = lazy(() => import("./screens/Claim").then((m) => ({ default: m.Claim })));
 import { Onboarding } from "./screens/Onboarding";
-import { walletExists, isWalletUnlocked, restoreSoftSession } from "./lib/localWallet";
+import { walletExists, isWalletUnlocked } from "./lib/localWallet";
 
 const TABS = [
   { to: "/", label: "Home", icon: HomeIcon },
@@ -137,10 +137,9 @@ export function App() {
     async function checkWallet() {
       const exists = await walletExists();
       setOnboarded(exists);
-      // Re-open from the per-tab soft session so a reload doesn't force a fresh
-      // unlock — unless the user opted into "require unlock on open" (lib/lock
-      // onOpen), which restoreSoftSession honors by declining to restore.
-      if (exists) restoreSoftSession();
+      // Keys live only in the sealed keychain — never in web storage — so a
+      // reload starts LOCKED and re-unlocks through the keychain (a quick passkey
+      // tap, or the passcode). The in-memory session never survives a refresh.
       setLocked(!isWalletUnlocked());
       setChecking(false);
     }
