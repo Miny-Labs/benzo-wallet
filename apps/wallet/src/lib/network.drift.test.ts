@@ -21,8 +21,10 @@ const NETWORK_ENV_KEYS = [
 async function loadNetwork(env: Record<string, string>) {
   vi.resetModules();
   vi.unstubAllEnvs();
-  const viteEnv = import.meta.env as unknown as Record<string, string | undefined>;
-  for (const key of NETWORK_ENV_KEYS) delete viteEnv[key];
+  // Clear any inherited network env via Vitest's tracked stub mechanism so
+  // afterEach's unstubAllEnvs fully restores it (a direct import.meta.env delete
+  // would bypass that and leak across tests).
+  for (const key of NETWORK_ENV_KEYS) vi.stubEnv(key, undefined);
   for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
   return import("./network");
 }
@@ -33,13 +35,14 @@ describe("wallet deployment drift guard", () => {
   });
 
   it("wallet contract IDs expose the current Fuji eERC deployment", async () => {
-    const { DEPLOYMENT, VERIFIER_ID } = await loadNetwork({ VITE_CHAIN_ENV: "fuji" });
+    const { ACTIVE_CHAIN, DEPLOYMENT, NETWORK, VERIFIER_ID } = await loadNetwork({ VITE_CHAIN_ENV: "fuji" });
 
-    expect(DEPLOYMENT.contracts.EncryptedERC).toBeDefined();
-    expect(DEPLOYMENT.contracts.Registrar).toBeDefined();
-    expect(DEPLOYMENT.contracts.tUSDC).toBeDefined();
-    expect(DEPLOYMENT.contracts.verifiers.transfer).toBeDefined();
-    expect(typeof DEPLOYMENT.chainId).toBe("number");
+    expect(NETWORK).toBe("fuji");
+    expect(ACTIVE_CHAIN.id).toBe(43113);
+    expect(DEPLOYMENT.contracts.EncryptedERC).toBe("0x9E16eD3B799541B4929f7E2014904C65E81035b1");
+    expect(DEPLOYMENT.contracts.Registrar).toBe("0x9a63FEa9851097DBAf3757b636217fdde50ABaF0");
+    expect(DEPLOYMENT.contracts.tUSDC).toBe("0x5425890298aed601595a70AB815c96711a31Bc65");
+    expect(DEPLOYMENT.contracts.verifiers.transfer).toBe("0x4bF3DBD3fF57943dC402ec1F280589E1032A32A5");
     expect(VERIFIER_ID).toBe(DEPLOYMENT.contracts.verifiers.transfer);
   });
 
