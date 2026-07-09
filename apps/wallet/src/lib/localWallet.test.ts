@@ -20,10 +20,11 @@ vi.mock("@benzo/wallet", async (importOriginal) => {
 const passkeyMocks = vi.hoisted(() => {
   const secret = new Uint8Array(32).fill(7);
   return {
-    createDeviceAuthProof: vi.fn(),
     derivePasskeySecret: vi.fn(async () => secret),
     hasPasskey: vi.fn(() => true),
+    lockCapable: vi.fn(() => false),
     registerPasskey: vi.fn(async () => undefined),
+    verifyPresence: vi.fn(async () => undefined),
     secret,
   };
 });
@@ -35,10 +36,11 @@ const activationMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("./passkey", () => ({
-  createDeviceAuthProof: passkeyMocks.createDeviceAuthProof,
   derivePasskeySecret: passkeyMocks.derivePasskeySecret,
   hasPasskey: passkeyMocks.hasPasskey,
+  lockCapable: passkeyMocks.lockCapable,
   registerPasskey: passkeyMocks.registerPasskey,
+  verifyPresence: passkeyMocks.verifyPresence,
 }));
 
 vi.mock("./eerc", () => ({
@@ -57,9 +59,13 @@ import {
   createWalletWithPasskey,
   exportWallet,
   getLocalRecoveryStatus,
+  isWalletUnlocked,
   lockWallet,
   markWalletBackupConfirmed,
+  restoreSoftSession,
+  unlockWalletWithPasskey,
 } from "./localWallet";
+import { setLockSettings } from "./lock";
 
 describe("local wallet recovery", () => {
   beforeEach(() => {
@@ -70,6 +76,7 @@ describe("local wallet recovery", () => {
     activationMocks.isRegisteredOnEerc.mockResolvedValue(true);
     activationMocks.registerEercAccount.mockResolvedValue(`0x${"a".repeat(64)}`);
     localStorage.clear();
+    sessionStorage.clear();
   });
 
   afterEach(() => {
@@ -77,6 +84,7 @@ describe("local wallet recovery", () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     localStorage.clear();
+    sessionStorage.clear();
   });
 
   it("creates a recoverable passkey wallet and exports with the backend unplugged", async () => {
@@ -92,7 +100,9 @@ describe("local wallet recovery", () => {
     expect(account.address).toBe(expectedAccount.address);
     expect(account.spendSk).toBe(expectedAccount.spendSk);
     expect(passkeyMocks.registerPasskey).toHaveBeenCalledWith({ userName: "alex", displayName: "alex" });
-    expect(fetchMock).toHaveBeenCalled();
+    // One-tap create must NOT authenticate to any backend — a self-custody wallet
+    // exists purely on-device (no forced SIWE in the lifecycle).
+    expect(fetchMock).not.toHaveBeenCalled();
 
     const backup = JSON.parse(await exportWallet()) as {
       evmPrivateKey: string;
@@ -233,4 +243,50 @@ describe("local wallet recovery", () => {
     expect(activationMocks.isRegisteredOnEerc).toHaveBeenCalledWith(account.address);
     expect(activationMocks.registerEercAccount).not.toHaveBeenCalled();
   });
+
+  it("unlocks without any backend SIWE call", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error("backend must not be called");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const created = await createWalletWithPasskey("alex");
+    lockWallet();
+    const unlocked = await unlockWalletWithPasskey();
+
+    expect(unlocked.address).toBe(created.address);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("restores a soft session on reload when no open-lock is set", () => {
+    const expected = accountFromSignedMessage(passkeyMocks.secret);
+    // Simulate a prior tab having persisted a soft session, then a reload:
+    // module memory is cleared but sessionStorage survives.
+    sessionStorage.setItem("benzo.softSession.v1", JSON.stringify(softSecretsFor(expected)));
+    expect(isWalletUnlocked()).toBe(false);
+
+    const restored = restoreSoftSession();
+
+    expect(restored?.address).toBe(expected.address);
+    expect(isWalletUnlocked()).toBe(true);
+  });
+
+  it("refuses to restore a soft session when an open-lock is opted in", () => {
+    setLockSettings({ onOpen: true, onSend: false });
+    const expected = accountFromSignedMessage(passkeyMocks.secret);
+    sessionStorage.setItem("benzo.softSession.v1", JSON.stringify(softSecretsFor(expected)));
+
+    expect(restoreSoftSession()).toBeNull();
+    expect(isWalletUnlocked()).toBe(false);
+    expect(sessionStorage.getItem("benzo.softSession.v1")).toBeNull();
+  });
 });
+
+function softSecretsFor(account: ReturnType<typeof accountFromSignedMessage>) {
+  return {
+    evmPrivateKey: account.evmPrivateKey,
+    eercDecryptionKey: account.eercDecryptionKey,
+    orgSpendId: account.spendSk.toString(),
+    mvkSeedHex: Array.from(new Uint8Array(32).fill(7), (x) => x.toString(16).padStart(2, "0")).join(""),
+  };
+}

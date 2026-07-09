@@ -9,9 +9,8 @@ vi.mock("./handleRegistry", async (importOriginal) => ({
 import {
   api,
   apiHref,
-  AUTH_REQUIRED_EVENT,
-  credentialLooksWellFormed,
   prepareApiRequest,
+  siweAddressLooksWellFormed,
 } from "./api";
 
 const ADDRESS = "0x00f6B82Ea91E429FDD6Dfed8f273190092dd14D6" as const;
@@ -161,27 +160,27 @@ describe("wallet API on Avalanche services/api", () => {
     expect(fetchMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
   });
 
-  it("clears SIWE state when the API requires sign-in again", async () => {
+  it("does not eject a self-custody wallet on a backend 401 (no auth bus)", async () => {
+    // A 401 must be a non-event: it throws for the caller to catch, but never
+    // clears local state or fires an auth-required bus (that bus was removed).
     localStorage.setItem("benzo.siweAddress", ADDRESS.toLowerCase());
-    localStorage.setItem("benzo.onboarded", "1");
     const onAuthRequired = vi.fn();
-    window.addEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
+    window.addEventListener("benzo:auth-required", onAuthRequired);
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: "SIWE session required" }, 401));
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(api.session()).rejects.toThrow("SIWE session required");
 
-    expect(localStorage.getItem("benzo.siweAddress")).toBeNull();
-    expect(localStorage.getItem("benzo.onboarded")).toBeNull();
-    expect(onAuthRequired).toHaveBeenCalledOnce();
-    window.removeEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
+    expect(localStorage.getItem("benzo.siweAddress")).toBe(ADDRESS.toLowerCase());
+    expect(onAuthRequired).not.toHaveBeenCalled();
+    window.removeEventListener("benzo:auth-required", onAuthRequired);
   });
 
   it("classifies stored SIWE addresses before protected screens mount", () => {
-    expect(credentialLooksWellFormed(null)).toBe(false);
-    expect(credentialLooksWellFormed("benzo-test.not-json.sig")).toBe(false);
-    expect(credentialLooksWellFormed("0xabc")).toBe(false);
-    expect(credentialLooksWellFormed(ADDRESS.toLowerCase())).toBe(true);
+    expect(siweAddressLooksWellFormed(null)).toBe(false);
+    expect(siweAddressLooksWellFormed("benzo-test.not-json.sig")).toBe(false);
+    expect(siweAddressLooksWellFormed("0xabc")).toBe(false);
+    expect(siweAddressLooksWellFormed(ADDRESS.toLowerCase())).toBe(true);
   });
 
   it("does not expose removed money-flow stubs", () => {
