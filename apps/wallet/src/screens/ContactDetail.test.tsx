@@ -53,6 +53,8 @@ describe("ContactDetail", () => {
   it("edits and persists the contact name", () => {
     renderDetail("@mansi");
 
+    // View-first: reveal the fields via the Edit affordance before editing.
+    fireEvent.click(screen.getByTestId("contact-detail-edit-toggle"));
     const save = screen.getByTestId("contact-detail-save");
     expect(save).toBeDisabled();
 
@@ -65,10 +67,13 @@ describe("ContactDetail", () => {
     expect(screen.getAllByText("Mansi Q").length).toBeGreaterThan(0);
   });
 
-  it("removes the contact from local storage", () => {
+  it("removes the contact from local storage after confirming", () => {
     renderDetail("@mansi");
 
+    // Remove is a red, confirmed action now — the first tap only reveals the confirm.
     fireEvent.click(screen.getByTestId("contact-detail-remove"));
+    expect(JSON.parse(localStorage.getItem(CONTACTS_LS_KEY) ?? "[]")).toHaveLength(1);
+    fireEvent.click(screen.getByTestId("contact-detail-remove-confirm-yes"));
 
     expect(JSON.parse(localStorage.getItem(CONTACTS_LS_KEY) ?? "[]")).toEqual([]);
   });
