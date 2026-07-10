@@ -1,24 +1,25 @@
 /**
- * The send ceremony (S0) — the flagship full-viewport coin-flight. A full-screen
- * overlay driven by the shared payment state machine (@benzo/ui): one continuous
- * coin materializes and scrambles into cipher inside a closing lock ring
- * (encrypt), flies edge-to-edge across the screen (settle), then lands into a
- * verifiable receipt (verify). The coin is a SINGLE persistent element carrying a
- * shared `layoutId`, so it physically travels between phases instead of an
- * AnimatePresence swap teleporting a fresh element in each time.
+ * The send ceremony (S0) — the flagship full-viewport coin. A full-screen overlay
+ * driven by the shared payment state machine (@benzo/ui): a genuine 3D coin sits
+ * CENTERED and tumbles on its axes while it works. Through encrypt + settle it
+ * JITTERS (a rapid micro-shake) and throws off air/speed streaks that intensify as
+ * the load ramps up — the honest "this is proving/settling under load" state, held
+ * as long as the machine takes. On verify/confirmed the coin EXPLODES into a
+ * confetti overdrive burst, then settles into the verifiable receipt. On error it
+ * falters and dims — no celebration.
  *
  * The animation is a slave to the machine — never a timer — so it tells the truth
  * about proving/settlement. The one exception is the per-phase FLOOR: a fast local
  * proof can jump submitting→confirmed in a blink, so each phase is held on screen
  * for at least SEND_PHASE_FLOOR_MS before advancing (walked one step at a time),
- * so the settle flight never flashes past. Collapses to a calm, static labeled
- * step list under prefers-reduced-motion.
+ * so the working coin never flashes past. Collapses to a calm, static coin → check
+ * → receipt under prefers-reduced-motion (no jitter, no streaks, no confetti).
  *
- * The coin is deliberately a literal coin/token, but the metaphor is swappable:
- * change only <CoinBody> (e.g. to an encrypted packet / shard of light) and the
- * flight choreography is untouched.
+ * The coin is a literal 3D coin built in CSS (preserve-3d: stacked disc layers for
+ * a real milled edge + an embossed $ front / Benzo-mark back). Swap <Coin3D> alone
+ * to change the metaphor; the working/burst choreography is untouched.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, ChevronDown, Copy, ExternalLink, ShieldCheck, X } from "lucide-react";
 import { sendCeremonyView, SEND_RAIL_LABELS, SEND_PHASE_FLOOR_MS, type CeremonyPhase } from "@benzo/ui/send-sequence";
@@ -26,7 +27,9 @@ import { type PaymentPhase, type PaymentState } from "@benzo/ui/payment-state";
 import { EASE } from "../motion";
 import { Button, SuccessCheck } from "../primitives";
 import { copyTextToClipboard } from "../../lib/clipboard";
-import { fmtUsd } from "../../lib/format";
+import { fmtUsdcApproxUsd } from "../../lib/format";
+import { COPY } from "../../lib/copy";
+import { useNetworkEnv } from "../../lib/networkEnv";
 import { explorerTx } from "../OnChainDetails";
 
 export interface SendReceipt {
@@ -56,6 +59,25 @@ const PHASE_TO_PAYMENT: Record<CeremonyPhase, PaymentPhase> = {
   error: "failed",
 };
 
+/**
+ * Consumer-facing stage copy for whatever phase is on screen. Plain English only —
+ * "Preparing your private payment" → "Waiting for confirmation" → "Payment
+ * complete". The settle sub is network-aware ("Fuji Testnet is confirming"); the
+ * error sub is the real message off the state machine.
+ */
+function ceremonyCopy(phase: CeremonyPhase, networkName: string, errorSub: string): { title: string; sub: string } {
+  switch (phase) {
+    case "encrypt":
+      return COPY.ceremony.preparing;
+    case "settle":
+      return { title: COPY.ceremony.confirming.title, sub: COPY.ceremony.confirming.sub(networkName) };
+    case "verify":
+      return COPY.ceremony.complete;
+    case "error":
+      return { title: COPY.ceremony.failed.title, sub: errorSub };
+  }
+}
+
 export function SendCeremony({
   state,
   receipt,
@@ -68,11 +90,15 @@ export function SendCeremony({
   onRetry: () => void;
 }) {
   const reduce = useReducedMotion() ?? false;
+  const env = useNetworkEnv();
   const target = sendCeremonyView(state, { prover: receipt.prover, reducedMotion: reduce }).phase;
   const { phase, step } = useFlooredCeremonyPhase(target, reduce);
 
-  // Honest copy for whatever phase is actually on screen (respects the floor hold).
+  // The honest state machine still decides WHICH phase is on screen; `shown` only
+  // carries the real error message for the failure state. Everything else uses the
+  // consumer-facing stage copy (crypto detail is deferred to Advanced details).
   const shown = sendCeremonyView({ ...state, phase: PHASE_TO_PAYMENT[phase] }, { prover: receipt.prover, reducedMotion: reduce });
+  const stageCopy = ceremonyCopy(phase, env.name, shown.sub);
 
   if (state.phase === "idle") return null;
 
@@ -89,9 +115,9 @@ export function SendCeremony({
     >
       <PhaseRail step={failed ? step : PHASE_STEP[phase]} failed={failed} reduce={reduce} />
 
-      {/* The coin-flight stage — full-bleed so the coin can travel edge-to-edge. */}
+      {/* The coin stage — full-bleed so the burst can throw confetti to the edges. */}
       <div className="relative flex w-full flex-1 items-center justify-center">
-        <CoinField phase={phase} reduce={reduce} />
+        <CoinStage phase={phase} reduce={reduce} />
         <AnimatePresence>
           {done ? (
             <motion.div
@@ -99,7 +125,7 @@ export function SendCeremony({
               className="relative z-10"
               initial={reduce ? false : { opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.35, ease: EASE, delay: reduce ? 0 : 0.25 }}
+              transition={{ duration: 0.35, ease: EASE, delay: reduce ? 0 : 0.3 }}
             >
               <VerifyReveal receipt={receipt} reduce={reduce} />
             </motion.div>
@@ -110,10 +136,10 @@ export function SendCeremony({
       <div className="relative z-10 w-full">
         <div className="mb-6">
           <div className="font-display text-2xl" data-testid="ceremony-title">
-            {shown.title}
+            {stageCopy.title}
           </div>
           <div className="mt-1 text-sm text-muted" data-testid="ceremony-sub">
-            {shown.sub}
+            {stageCopy.sub}
           </div>
         </div>
 
@@ -138,7 +164,7 @@ export function SendCeremony({
  * Drive the on-screen cinematic phase off the machine, but never faster than the
  * per-phase floor. We walk PHASE_ORDER one step at a time and hold each step for
  * SEND_PHASE_FLOOR_MS before advancing — so even an instant submitting→confirmed
- * still plays the full settle flight. Failures interrupt immediately (no floor),
+ * still plays the full working sequence. Failures interrupt immediately (no floor),
  * and reduced-motion snaps straight to the real phase (nothing cinematic to hold).
  */
 function useFlooredCeremonyPhase(target: CeremonyPhase, reduce: boolean): { phase: CeremonyPhase; step: number } {
@@ -206,163 +232,321 @@ function PhaseRail({ step, failed, reduce }: { step: number; failed: boolean; re
   );
 }
 
-// ----------------------------------------------------- the one continuous coin
-const GLYPHS = "0123456789abcdef∎▚▞◆◈⬡".split("");
-
-/** Coin position/scale per phase. The coin never unmounts between encrypt→settle
- *  →verify, so it travels; here we just retarget it. Flight distance is measured
- *  from the stage so it reaches edge-to-edge on any frame width. */
-function coinFlight(phase: CeremonyPhase, reduce: boolean, flightX: number) {
-  if (reduce) {
-    return {
-      animate: { x: 0, y: 0, scale: 1, opacity: phase === "verify" || phase === "error" ? 0 : 1 },
-      transition: { duration: 0 },
-    };
-  }
-  switch (phase) {
-    case "encrypt":
-      return {
-        animate: { x: 0, y: 0, scale: [1, 1.05, 1], opacity: 1 },
-        transition: { duration: 1.8, ease: "easeInOut" as const, repeat: Number.POSITIVE_INFINITY },
-      };
-    case "settle":
-      return {
-        animate: { x: [0, flightX * 0.55, flightX], y: [0, -46, 0], scale: [1, 0.96, 0.82], opacity: [1, 1, 0.9] },
-        // Tie the flight to the settle floor so the coin visibly crosses the screen.
-        transition: { duration: SEND_PHASE_FLOOR_MS.settle / 1000, ease: EASE },
-      };
-    case "verify":
-      return { animate: { x: 0, y: 0, scale: 0.4, opacity: 0 }, transition: { duration: 0.45, ease: EASE } };
-    default:
-      return { animate: { opacity: 0, scale: 0.8 }, transition: { duration: 0.2 } };
-  }
-}
-
-function CoinField({ phase, reduce }: { phase: CeremonyPhase; reduce: boolean }) {
-  const stageRef = useRef<HTMLDivElement>(null);
-  const [flightX, setFlightX] = useState(160);
-  useEffect(() => {
-    const measure = () => {
-      const w = stageRef.current?.offsetWidth ?? 0;
-      if (w > 0) setFlightX(Math.min(Math.max(w * 0.42, 120), 280));
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, []);
-
-  const cipher = useCipherScramble(phase === "encrypt" && !reduce);
-  const flight = coinFlight(phase, reduce, flightX);
+// ------------------------------------------------------------ the coin stage
+/**
+ * What's on the stage per phase:
+ *  - encrypt + settle ("working"): the 3D coin, jittering + throwing speed
+ *    streaks that intensify from encrypt → settle.
+ *  - verify: the coin bursts (AnimatePresence exit) into a confetti overdrive.
+ *  - error: a dimmed failure mark — no coin, no confetti.
+ */
+function CoinStage({ phase, reduce }: { phase: CeremonyPhase; reduce: boolean }) {
+  const working = phase === "encrypt" || phase === "settle";
+  const boost = phase === "settle";
 
   return (
-    <div ref={stageRef} className="pointer-events-none absolute inset-0 flex items-center justify-center">
-      {/* Full-bleed encrypt aura — expanding rings that fill the screen while proving. */}
-      {phase === "encrypt" && !reduce ? <EncryptAura /> : null}
-
-      {/* Failure mark replaces the coin. */}
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
       {phase === "error" ? (
         <motion.div
-          className="flex h-20 w-20 items-center justify-center rounded-full bg-danger/12 text-danger"
+          className="flex h-24 w-24 items-center justify-center rounded-full bg-danger/12 text-danger"
           initial={reduce ? false : { scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
         >
-          <X size={34} />
+          <X size={36} />
         </motion.div>
-      ) : (
+      ) : null}
+
+      <AnimatePresence>
+        {working ? (
+          <motion.div
+            key="coin"
+            data-testid="ceremony-coin"
+            className="relative flex items-center justify-center"
+            initial={reduce ? false : { scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            // The coin "explodes" — pop + fade out just as the confetti fires.
+            exit={reduce ? { opacity: 0 } : { scale: 1.55, opacity: 0 }}
+            transition={{ duration: reduce ? 0 : 0.28, ease: EASE }}
+          >
+            {!reduce ? <SpeedStreaks boost={boost} /> : null}
+            <Coin3D reduce={reduce} boost={boost} />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      {phase === "verify" && !reduce ? <ConfettiOverdrive /> : null}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ 3D coin
+const COIN = 120; // diameter (px)
+const THICK = 16; // edge thickness (px)
+const LAYERS = 14; // stacked discs that form the milled edge
+
+/** A genuine 3D coin: stacked disc layers give a real edge, embossed faces spin
+ *  into and out of view. Under reduced motion it's a calm, static front-facing coin. */
+function Coin3D({ reduce, boost }: { reduce: boolean; boost: boolean }) {
+  const layers = useMemo(
+    () =>
+      Array.from({ length: LAYERS }, (_, i) => {
+        const z = -THICK / 2 + (i / (LAYERS - 1)) * THICK;
+        return { z, key: i };
+      }),
+    [],
+  );
+
+  const spin = reduce
+    ? undefined
+    : { rotateY: [0, 360] };
+  const spinT = { duration: boost ? 1.05 : 2.3, ease: "linear" as const, repeat: Number.POSITIVE_INFINITY };
+
+  return (
+    <div
+      style={{ perspective: 900, perspectiveOrigin: "50% 42%" }}
+      className="flex items-center justify-center"
+    >
+      <JitterWrapper reduce={reduce} boost={boost}>
+        {/* Static tilt so we read the coin from slightly above (more depth). */}
         <motion.div
-          layoutId="send-coin"
-          data-testid="ceremony-coin"
-          className="relative flex h-24 w-24 items-center justify-center"
-          initial={reduce ? false : { scale: 0, opacity: 0 }}
-          {...flight}
+          style={{ transformStyle: "preserve-3d" }}
+          initial={{ rotateX: -16 }}
+          animate={reduce ? { rotateX: -10 } : { rotateX: [-16, -9, -16] }}
+          transition={reduce ? { duration: 0 } : { duration: 4, ease: "easeInOut", repeat: Number.POSITIVE_INFINITY }}
         >
-          {/* Closing lock ring hugging the coin, only while encrypting. */}
-          {phase === "encrypt" ? <LockRing reduce={reduce} /> : null}
-          <CoinBody>
-            {phase === "encrypt" && !reduce ? (
-              <span className="font-display tnum text-xl tracking-tight">{cipher}</span>
-            ) : (
-              <ShieldCheck size={26} />
-            )}
-          </CoinBody>
+          <motion.div
+            className="relative"
+            style={{
+              width: COIN,
+              height: COIN,
+              transformStyle: "preserve-3d",
+              filter: "drop-shadow(0 10px 34px rgba(115,66,226,0.45))",
+            }}
+            initial={reduce ? { rotateY: 0 } : false}
+            animate={spin}
+            transition={spinT}
+          >
+            {/* Milled edge — a stack of discs between the two faces. */}
+            {layers.map(({ z, key }) => (
+              <span
+                key={key}
+                className="absolute inset-0 rounded-full"
+                style={{
+                  transform: `translateZ(${z}px)`,
+                  background: "linear-gradient(90deg, #3a2380 0%, #7c4ff0 50%, #3a2380 100%)",
+                }}
+              />
+            ))}
+
+            {/* Front face — embossed $. */}
+            <CoinFace z={THICK / 2}>
+              <span
+                className="font-display leading-none"
+                style={{
+                  fontSize: 52,
+                  color: "rgba(255,255,255,0.96)",
+                  textShadow: "0 1px 0 rgba(255,255,255,0.45), 0 -1.5px 1px rgba(60,20,120,0.5)",
+                }}
+              >
+                $
+              </span>
+            </CoinFace>
+
+            {/* Back face — the Benzo mark. */}
+            <CoinFace z={THICK / 2} back>
+              <span
+                className="font-display leading-none"
+                style={{
+                  fontSize: 50,
+                  color: "rgba(255,255,255,0.92)",
+                  textShadow: "0 1px 0 rgba(255,255,255,0.4), 0 -1.5px 1px rgba(60,20,120,0.5)",
+                }}
+              >
+                B
+              </span>
+            </CoinFace>
+          </motion.div>
         </motion.div>
-      )}
+      </JitterWrapper>
     </div>
   );
 }
 
-/** The literal coin. Swap this alone to change the metaphor (packet / shard). */
-function CoinBody({ children }: { children: React.ReactNode }) {
+/** One embossed coin face at ±half-thickness. `back` flips it so its glyph reads
+ *  correctly (not mirrored) and hides it from the front via backface-culling. */
+function CoinFace({ z, back, children }: { z: number; back?: boolean; children: React.ReactNode }) {
   return (
-    <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-accent to-[#9a6bff] text-white shadow-[var(--shadow-glow)]">
-      {children}
-    </div>
-  );
-}
-
-function LockRing({ reduce }: { reduce: boolean }) {
-  if (reduce) return <div className="absolute -inset-3 rounded-full border-[3px] border-accent/30" />;
-  return (
-    <motion.svg className="absolute -inset-5" viewBox="0 0 100 100">
-      <motion.circle
-        cx="50"
-        cy="50"
-        r="46"
-        fill="none"
-        stroke="var(--color-accent, #7342E2)"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeDasharray="289"
-        initial={{ strokeDashoffset: 289 }}
-        animate={{ strokeDashoffset: [289, 40, 289] }}
-        transition={{ duration: 1.8, ease: "easeInOut", repeat: Number.POSITIVE_INFINITY }}
-        style={{ transformOrigin: "50% 50%", rotate: -90 }}
+    <div
+      className="absolute inset-0 flex items-center justify-center rounded-full"
+      style={{
+        transform: back ? `rotateY(180deg) translateZ(${z}px)` : `translateZ(${z}px)`,
+        backfaceVisibility: "hidden",
+        background:
+          "radial-gradient(circle at 32% 26%, #b79bff 0%, var(--color-accent, #7342E2) 44%, #5227ae 100%)",
+        boxShadow: "inset 0 0 0 3px rgba(255,255,255,0.14), inset 0 -8px 18px rgba(40,12,90,0.4)",
+      }}
+    >
+      {/* Specular highlight sweep. */}
+      <span
+        className="pointer-events-none absolute inset-0 rounded-full"
+        style={{
+          background:
+            "radial-gradient(circle at 30% 22%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 42%)",
+        }}
       />
-    </motion.svg>
+      {/* Embossed inner ring. */}
+      <span className="pointer-events-none absolute inset-[10px] rounded-full border border-white/25" />
+      <span className="relative">{children}</span>
+    </div>
   );
 }
 
-function EncryptAura() {
+/** Rapid micro-shake (random tiny translate + rotate) that conveys the coin working
+ *  under load. Amplitude ramps up in the settle ("boost") phase. */
+function JitterWrapper({ reduce, boost, children }: { reduce: boolean; boost: boolean; children: React.ReactNode }) {
+  const jitter = useMemo(() => {
+    const amp = boost ? 6 : 3;
+    const n = 9;
+    const rand = (m: number) => (Math.random() * 2 - 1) * m;
+    return {
+      x: Array.from({ length: n }, () => rand(amp)),
+      y: Array.from({ length: n }, () => rand(amp)),
+      rotate: Array.from({ length: n }, () => rand(amp * 0.5)),
+    };
+  }, [boost]);
+
+  if (reduce) return <div style={{ transformStyle: "preserve-3d" }}>{children}</div>;
   return (
-    <>
-      {[0, 0.6, 1.2].map((delay) => (
+    <motion.div
+      style={{ transformStyle: "preserve-3d" }}
+      animate={jitter}
+      transition={{ duration: boost ? 0.32 : 0.5, ease: "linear", repeat: Number.POSITIVE_INFINITY }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+// -------------------------------------------------------------- speed streaks
+/** Air/speed streaks radiating outward past the coin — motion lines that intensify
+ *  as the work ramps up. Never rendered under reduced motion. */
+function SpeedStreaks({ boost }: { boost: boolean }) {
+  const count = boost ? 16 : 10;
+  const streaks = useMemo(
+    () =>
+      Array.from({ length: count }, (_, i) => ({
+        angle: (360 / count) * i + (Math.random() * 12 - 6),
+        delay: Math.random() * (boost ? 0.6 : 1),
+        len: 22 + Math.random() * (boost ? 26 : 16),
+      })),
+    [count, boost],
+  );
+  const duration = boost ? 0.6 : 1.0;
+  const outer = boost ? 230 : 175;
+  const peak = boost ? 0.85 : 0.5;
+
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+      <div className="relative h-0 w-0">
+        {streaks.map((s, i) => (
+          <div
+            key={i}
+            className="absolute left-0 top-0"
+            style={{ transform: `rotate(${s.angle}deg)` }}
+          >
+            <motion.span
+              className="absolute rounded-full"
+              style={{
+                left: -1.25,
+                width: 2.5,
+                height: s.len,
+                background: "linear-gradient(to top, rgba(154,107,255,0) 0%, var(--color-accent, #7342E2) 100%)",
+              }}
+              initial={{ y: -54, opacity: 0 }}
+              animate={{ y: [-54, -outer], opacity: [0, peak, 0] }}
+              transition={{
+                duration,
+                delay: s.delay,
+                ease: "easeOut",
+                repeat: Number.POSITIVE_INFINITY,
+                repeatDelay: boost ? 0.05 : 0.25,
+              }}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------------- confetti / overdrive
+const CONFETTI_COLORS = ["var(--color-accent, #7342E2)", "#9a6bff", "#c8a6ff", "#ffd166", "#4ecb8f", "#ff8fd0", "#5bc8ff"];
+
+/** The over-the-top finish: a shockwave + core flash + ~44 confetti particles blown
+ *  out from where the coin was, then faded. Fires once on entering verify. */
+function ConfettiOverdrive() {
+  const pieces = useMemo(
+    () =>
+      Array.from({ length: 44 }, (_, i) => {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 80 + Math.random() * 170;
+        return {
+          key: i,
+          dx: Math.cos(angle) * dist,
+          dy: Math.sin(angle) * dist,
+          rot: Math.random() * 720 - 360,
+          w: 6 + Math.random() * 7,
+          h: 8 + Math.random() * 10,
+          color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+          delay: Math.random() * 0.08,
+          dur: 0.9 + Math.random() * 0.7,
+          round: Math.random() > 0.55,
+        };
+      }),
+    [],
+  );
+
+  return (
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+      {/* Shockwave ring. */}
+      <motion.span
+        className="absolute rounded-full border-2"
+        style={{ width: 120, height: 120, borderColor: "var(--color-accent, #7342E2)" }}
+        initial={{ scale: 0.3, opacity: 0.7 }}
+        animate={{ scale: 3.2, opacity: 0 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+      />
+      {/* Core flash. */}
+      <motion.span
+        className="absolute rounded-full"
+        style={{
+          width: 130,
+          height: 130,
+          background: "radial-gradient(circle, rgba(200,166,255,0.85) 0%, rgba(115,66,226,0) 70%)",
+        }}
+        initial={{ scale: 0.2, opacity: 0.9 }}
+        animate={{ scale: 2.1, opacity: 0 }}
+        transition={{ duration: 0.45, ease: "easeOut" }}
+      />
+      {/* Confetti. */}
+      {pieces.map((p) => (
         <motion.span
-          key={delay}
-          className="absolute rounded-full border border-accent/30"
-          style={{ width: 220, height: 220 }}
-          initial={{ scale: 0.4, opacity: 0.5 }}
-          animate={{ scale: 2.6, opacity: 0 }}
-          transition={{ duration: 1.8, ease: "easeOut", repeat: Number.POSITIVE_INFINITY, delay }}
+          key={p.key}
+          className="absolute"
+          style={{ width: p.w, height: p.h, background: p.color, borderRadius: p.round ? "50%" : 2 }}
+          initial={{ x: 0, y: 0, scale: 0, opacity: 1, rotate: 0 }}
+          animate={{
+            x: [0, p.dx * 0.6, p.dx],
+            y: [0, p.dy - 24, p.dy + 40],
+            scale: [0, 1, 1, 0.85],
+            opacity: [1, 1, 1, 0],
+            rotate: p.rot,
+          }}
+          transition={{ duration: p.dur, delay: p.delay, ease: "easeOut", times: [0, 0.2, 0.7, 1] }}
         />
       ))}
-    </>
+    </div>
   );
-}
-
-/** Cipher-glyph scramble (~8fps, capped). Active only while encrypting. */
-function useCipherScramble(active: boolean): string {
-  const [cipher, setCipher] = useState("$");
-  useEffect(() => {
-    if (!active) {
-      setCipher("$");
-      return;
-    }
-    let on = true;
-    const id = setInterval(() => {
-      if (!on) return;
-      setCipher(
-        Array.from(
-          { length: 3 },
-          () => GLYPHS[Math.floor(performance.now() / 73 + Math.random() * GLYPHS.length) % GLYPHS.length],
-        ).join(""),
-      );
-    }, 125);
-    return () => {
-      on = false;
-      clearInterval(id);
-    };
-  }, [active]);
-  return cipher;
 }
 
 // ----------------------------------------------------------------- verify
@@ -370,7 +554,7 @@ function VerifyReveal({ receipt, reduce }: { receipt: SendReceipt; reduce: boole
   const [showDetails, setShowDetails] = useState(false);
   const rows: Array<{ label: string; value: React.ReactNode }> = [
     { label: "To", value: receipt.recipient },
-    { label: "Amount", value: fmtUsd(receipt.amount) },
+    { label: "Amount", value: fmtUsdcApproxUsd(receipt.amount) },
   ];
   if (receipt.memo) rows.push({ label: "Note", value: receipt.memo });
 
@@ -399,7 +583,7 @@ function VerifyReveal({ receipt, reduce }: { receipt: SendReceipt; reduce: boole
             className="inline-flex items-center gap-1 text-[12px] font-semibold text-muted hover:text-ink"
             data-testid="receipt-details-toggle"
           >
-            {showDetails ? "Hide details" : "Receipt details"}
+            {showDetails ? "Hide details" : COPY.ceremony.advancedDetails}
             <ChevronDown size={13} className={`transition-transform ${showDetails ? "rotate-180" : ""}`} />
           </button>
           <AnimatePresence initial={false}>
@@ -409,7 +593,11 @@ function VerifyReveal({ receipt, reduce }: { receipt: SendReceipt; reduce: boole
                 animate={{ opacity: 1, y: 0 }}
                 exit={reduce ? undefined : { opacity: 0, y: -4 }}
                 className="mt-2 flex flex-wrap items-center justify-center gap-2"
+                data-testid="receipt-advanced"
               >
+                {/* Cryptographic detail lives here — witness/prover/proof-time —
+                    never in the everyday stage copy above. */}
+                <span className="rounded-full bg-ink/[0.05] px-2.5 py-1 text-[11px] font-semibold text-muted">{COPY.proofOnDevice}</span>
                 {typeof receipt.provingMs === "number" ? (
                   <span className="rounded-full bg-ink/[0.05] px-2.5 py-1 text-[11px] font-semibold text-muted">Proved in {(receipt.provingMs / 1000).toFixed(1)}s</span>
                 ) : null}
@@ -430,7 +618,7 @@ function VerifyReveal({ receipt, reduce }: { receipt: SendReceipt; reduce: boole
           </AnimatePresence>
         </div>
       </div>
-      <p className="text-[12px] text-muted">Only you and {receipt.recipient} can see this.</p>
+      <p className="text-[12px] text-muted">{COPY.paymentPrivacy(receipt.recipient)}</p>
     </div>
   );
 }
