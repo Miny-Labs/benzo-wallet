@@ -1,10 +1,14 @@
 /**
- * Home - the single focal screen. One big balance (Helvetica Now, counts up), the
- * ambient Private chip, a 3-pill action row (Send is the purple+glow focal
- * action), and a plain-English activity preview. No tx hashes, gas, or "connect
- * wallet". A blocking banner appears only when the BFF isn't live.
+ * Home - the single focal screen. One compact balance (Helvetica Now, counts up),
+ * the ambient Private chip, a row of quick actions, and a plain-English activity
+ * preview. No tx hashes, gas, or "connect wallet". A blocking banner appears only
+ * when the BFF isn't live.
+ *
+ * Send lives on the central nav FAB, so it is NOT repeated as a glowing pill here
+ * (critique #52 — dedupe Send). The quick-action row carries the affordances the
+ * FAB doesn't: Receive, Request, and the Benzo differentiator, Prove.
  */
-import { ArrowDownLeft, Clock } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, ShieldCheck } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useWallet } from "../lib/store";
@@ -13,20 +17,17 @@ import { TopBar } from "../ui/chrome";
 import { BalanceHero, BalanceDenomination } from "../ui/money";
 import { PrivateChip } from "../ui/privacy";
 import { Card } from "../ui/primitives";
-import { SendGlyph } from "../ui/icons";
 import { COPY } from "../lib/copy";
 import { ActivityItem } from "../ui/ActivityItem";
 
-function ActionPill({
+function QuickAction({
   label,
   icon,
-  primary,
   onClick,
   testid,
 }: {
   label: string;
   icon: React.ReactNode;
-  primary?: boolean;
   onClick: () => void;
   testid: string;
 }) {
@@ -36,11 +37,11 @@ function ActionPill({
       whileHover={{ y: -3 }}
       onClick={onClick}
       data-testid={testid}
-      className={`flex flex-1 flex-col items-center gap-2 rounded-[22px] py-4 text-[13px] font-semibold transition outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas ${
-        primary ? "bg-accent text-white shadow-[var(--shadow-glow)]" : "bg-card text-ink shadow-[0_6px_18px_rgba(25,40,55,0.05)]"
-      }`}
+      // ~96px tall — inside the 88-104px band the critique asks for. Equal-weight
+      // secondary cards; the purple glow belongs to the nav Send FAB alone.
+      className="flex h-24 flex-1 flex-col items-center justify-center gap-2 rounded-[20px] bg-card text-[13px] font-semibold text-ink shadow-[0_6px_18px_rgba(25,40,55,0.05)] transition outline-none hover:shadow-[0_8px_22px_rgba(25,40,55,0.09)] focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
     >
-      <span className={`flex h-9 w-9 items-center justify-center rounded-full ${primary ? "bg-white/20" : "bg-canvas"}`}>{icon}</span>
+      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas text-accent">{icon}</span>
       {label}
     </motion.button>
   );
@@ -63,13 +64,13 @@ export function Home() {
       ) : null}
 
       <Stagger className="px-5">
-        {/* Balance hero - the focal card. */}
+        {/* Balance hero - the focal card, de-inflated (p-5, one ink figure). */}
         <Stagger.Item index={0}>
-          <Card className="relative overflow-hidden p-6">
-            <div className="text-[13px] font-medium text-muted">Balance</div>
+          <Card className="relative overflow-hidden p-5">
+            <div className="text-[13px] font-medium text-muted">Private balance</div>
             <BalanceHero baseUnits={balance?.baseUnits ?? "0"} hidden={hidden} loading={loading} arrived={justSent} />
             {/* Denomination / "not real money" context — load-bearing on testnet. */}
-            <BalanceDenomination className="mt-1.5" />
+            <BalanceDenomination className="mt-1" />
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <PrivateChip label={COPY.privateOnChain} />
               {balance?.syncing ? (
@@ -85,12 +86,12 @@ export function Home() {
           </Card>
         </Stagger.Item>
 
-        {/* Action row */}
+        {/* Quick actions — Send is the nav FAB, so it is not duplicated here. */}
         <Stagger.Item index={1}>
           <div className="mt-4 flex gap-2.5">
-            <ActionPill label="Send" testid="action-send" primary icon={<SendGlyph size={18} />} onClick={() => nav("/send")} />
-            <ActionPill label="Receive" testid="action-receive" icon={<ArrowDownLeft size={18} />} onClick={() => nav("/deposit")} />
-            <ActionPill label="Activity" testid="action-activity" icon={<Clock size={18} />} onClick={() => nav("/activity")} />
+            <QuickAction label="Receive" testid="action-receive" icon={<ArrowDownLeft size={18} />} onClick={() => nav("/deposit")} />
+            <QuickAction label="Request" testid="action-request" icon={<ArrowUpRight size={18} />} onClick={() => nav("/request")} />
+            <QuickAction label="Prove" testid="action-prove" icon={<ShieldCheck size={18} />} onClick={() => nav("/share-proof")} />
           </div>
         </Stagger.Item>
 
@@ -131,7 +132,7 @@ export function Home() {
                 </button>
               </div>
             ) : (
-              history.slice(0, 4).map((row, i, a) => <ActivityItem key={row.id} row={row} hidden={hidden} last={i === a.length - 1} />)
+              history.slice(0, 3).map((row, i, a) => <ActivityItem key={row.id} row={row} hidden={hidden} last={i === a.length - 1} />)
             )}
           </Card>
         </Stagger.Item>
