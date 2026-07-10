@@ -22,7 +22,7 @@ function timeAgo(ts: number): string {
 }
 
 export function Notifications() {
-  const { history, session } = useWallet();
+  const { history, session, loading } = useWallet();
   const notifs = useMemo(() => deriveNotifications(history, { live: !!session?.live }), [history, session?.live]);
   // Opening the screen marks everything read (the badge clears on next render).
   useEffect(() => {
@@ -32,7 +32,21 @@ export function Notifications() {
   return (
     <Screen>
       <ScreenHeader title="Notifications" />
-      {notifs.length === 0 ? (
+      {loading && history.length === 0 ? (
+        // Loading skeletons — don't flash "all caught up" before history loads.
+        <div className="space-y-3 px-5 pt-2" data-testid="notifs-loading" aria-hidden="true">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center gap-3 rounded-[var(--radius-card)] bg-card p-3.5 shadow-[var(--shadow-card)]">
+              <div className="skeleton h-10 w-10 rounded-full" />
+              <div className="flex-1 space-y-1.5">
+                <div className="skeleton h-3.5 w-32 rounded" />
+                <div className="skeleton h-3 w-24 rounded" />
+              </div>
+              <div className="skeleton h-3 w-10 rounded" />
+            </div>
+          ))}
+        </div>
+      ) : notifs.length === 0 ? (
         <div className="flex flex-col items-center justify-center px-8 py-24 text-center" data-testid="notifs-empty">
           <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-card text-muted">
             <ArrowDownLeft size={22} />

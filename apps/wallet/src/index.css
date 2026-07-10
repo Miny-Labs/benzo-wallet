@@ -121,7 +121,23 @@ body {
   background: var(--color-card);
 }
 .pb-nav {
-  padding-bottom: var(--nav-inset);
+  /* BottomNav + FAB clearance, plus the mobile home-indicator inset so the last
+     row of content never hides under it. Desktop insets resolve to 0. */
+  padding-bottom: calc(var(--nav-inset) + env(safe-area-inset-bottom));
+}
+
+/* ------------------------------------------------------------ safe areas
+   The chrome lives edge-to-edge on a real phone, so respect the notch / status
+   bar (top) and the home indicator (bottom). The BottomNav is owned by the app
+   shell, so it's padded from here by its test id rather than reaching into that
+   layout. All env() insets are 0 on desktop, so these are inert there. */
+[data-testid="bottom-nav"] {
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
+  padding-left: max(1.5rem, env(safe-area-inset-left));
+  padding-right: max(1.5rem, env(safe-area-inset-right));
+}
+.safe-top {
+  padding-top: calc(1.25rem + env(safe-area-inset-top));
 }
 /* Balance hero - the single focal figure on Home. One token so the dollars and
    the smaller cents/$ glyphs stay in proportion if the hero is ever retuned. */

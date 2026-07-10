@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { BalanceHero } from "./money";
 import { OnChainDetails } from "./OnChainDetails";
 import { PrivateChip, ProvableChip } from "./privacy";
-import { Button } from "./primitives";
+import { Button, Card } from "./primitives";
 import { ActivityItem } from "./ActivityItem";
 import type { ActivityRow } from "../lib/api";
 
@@ -47,6 +47,23 @@ describe("Button", () => {
     render(<Button loading onClick={onClick}>Go</Button>);
     fireEvent.click(screen.getByText("Go"));
     expect(onClick).not.toHaveBeenCalled();
+  });
+});
+
+describe("Card", () => {
+  it("stays a plain non-interactive div without onClick", () => {
+    render(<Card>hello</Card>);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+  it("is a focusable, keyboard-operable button when clickable", () => {
+    const onClick = vi.fn();
+    render(<Card onClick={onClick}>tap</Card>);
+    const card = screen.getByRole("button");
+    expect(card).toHaveAttribute("tabindex", "0");
+    fireEvent.keyDown(card, { key: "Enter" });
+    fireEvent.keyDown(card, { key: " " });
+    fireEvent.click(card);
+    expect(onClick).toHaveBeenCalledTimes(3);
   });
 });
 

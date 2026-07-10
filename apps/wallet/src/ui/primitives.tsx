@@ -102,10 +102,26 @@ export function Card({
   className?: string;
   onClick?: () => void;
 } & HTMLAttributes<HTMLDivElement>) {
+  // A clickable Card must be reachable + operable by keyboard, not just the mouse:
+  // when `onClick` is set it becomes a focusable button with Enter/Space support
+  // and a visible focus ring. Non-interactive cards stay plain <div>s.
+  const interactive = Boolean(onClick);
   return (
     <div
       onClick={onClick}
-      className={`rounded-[var(--radius-card)] bg-card shadow-[var(--shadow-card)] ${onClick ? "cursor-pointer" : ""} ${className}`}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      className={`rounded-[var(--radius-card)] bg-card shadow-[var(--shadow-card)] ${interactive ? "cursor-pointer outline-none transition focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas" : ""} ${className}`}
       {...rest}
     >
       {children}
