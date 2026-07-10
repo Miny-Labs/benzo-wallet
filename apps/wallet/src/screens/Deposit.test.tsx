@@ -23,8 +23,12 @@ function renderDeposit() {
 }
 
 describe("Deposit / Receive", () => {
-  beforeEach(() => net.setActiveNetwork("fuji"));
-  afterEach(() => net.setActiveNetwork("fuji"));
+  let original: ReturnType<typeof net.getActiveNetwork>;
+  beforeEach(() => {
+    original = net.getActiveNetwork();
+    net.setActiveNetwork("fuji");
+  });
+  afterEach(() => net.setActiveNetwork(original));
 
   it("is a top-level tab with no back button and a testnet warning", () => {
     renderDeposit();

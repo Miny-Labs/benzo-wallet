@@ -29,6 +29,9 @@ export function Deposit() {
   async function copy() {
     if (!address) return;
     const ok = await copyTextToClipboard(address);
+    // On a blocked clipboard, reveal the full address so there is something to
+    // select and copy by hand (the guidance below points at it).
+    if (!ok) setShowFull(true);
     setCopyState(ok ? "copied" : "blocked");
     setTimeout(() => setCopyState("idle"), ok ? 1500 : 3000);
   }
@@ -40,8 +43,11 @@ export function Deposit() {
       try {
         await navigator.share({ title: "My Benzo address", text });
         return;
-      } catch {
-        /* user dismissed the share sheet — fall through to copy */
+      } catch (e) {
+        // Tapping Cancel on the native share sheet rejects with AbortError — a
+        // dismissal, not a failure — so bail out quietly with no copy/toast.
+        if ((e as Error)?.name === "AbortError") return;
+        // Any real failure (e.g. this payload can't be shared) falls through to copy.
       }
     }
     const ok = await copyTextToClipboard(address);
@@ -92,7 +98,7 @@ export function Deposit() {
               className="mt-1.5 flex w-full items-center justify-center gap-2 rounded-xl bg-canvas px-3 py-2.5 font-mono text-[13px] leading-tight text-ink transition outline-none hover:bg-canvas/70 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-accent/40"
               data-testid="deposit-address"
             >
-              <span className="break-all text-center">{address ? (showFull ? address : shortAddress(address, 5)) : "Unavailable"}</span>
+              <span className="select-all break-all text-center [user-select:text]">{address ? (showFull ? address : shortAddress(address, 5)) : "Unavailable"}</span>
             </button>
             {address ? (
               <div className="mt-0.5 text-center text-[11px] text-muted">{showFull ? "Tap to shorten" : "Tap to show full address"}</div>
@@ -107,7 +113,7 @@ export function Deposit() {
           </div>
           {copyState === "blocked" ? (
             <div className="w-full text-center text-[11.5px] font-semibold text-danger" data-testid="deposit-copy-status">
-              Copy blocked. Tap the address to reveal it, then copy manually.
+              Copy blocked. The full address is shown above — select it to copy manually.
             </div>
           ) : null}
         </div>
