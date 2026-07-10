@@ -8,7 +8,7 @@
  * (critique #52 — dedupe Send). The quick-action row carries the affordances the
  * FAB doesn't: Receive, Request, and the Benzo differentiator, Prove.
  */
-import { ArrowDownLeft, ArrowUpRight, ShieldCheck } from "lucide-react";
+import { ArrowDownLeft, HandCoins, ShieldCheck } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useWallet } from "../lib/store";
@@ -90,7 +90,7 @@ export function Home() {
         <Stagger.Item index={1}>
           <div className="mt-4 flex gap-2.5">
             <QuickAction label="Receive" testid="action-receive" icon={<ArrowDownLeft size={18} />} onClick={() => nav("/deposit")} />
-            <QuickAction label="Request" testid="action-request" icon={<ArrowUpRight size={18} />} onClick={() => nav("/request")} />
+            <QuickAction label="Request" testid="action-request" icon={<HandCoins size={18} />} onClick={() => nav("/request")} />
             <QuickAction label="Prove" testid="action-prove" icon={<ShieldCheck size={18} />} onClick={() => nav("/share-proof")} />
           </div>
         </Stagger.Item>
