@@ -15,7 +15,7 @@ export interface PublicBalance {
   live: boolean;
 }
 
-interface WalletState {
+export interface WalletState {
   session: Session | null;
   balance: Balance | null;
   publicBalance: PublicBalance | null;
@@ -31,6 +31,10 @@ interface WalletState {
 }
 
 const Ctx = createContext<WalletState | null>(null);
+
+// Exposed so the DEMO-mode provider (src/demo) can supply the same context to
+// the same `useWallet()` consumers. Unused by the normal build.
+export { Ctx as WalletContext };
 
 // The direct-RPC activity scan must stay usable when the BFF is slow or down, so
 // the /activity hints call is only ever allowed to hold up the local scan by a

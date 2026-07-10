@@ -9,7 +9,14 @@ import { WalletProvider } from "./lib/store";
 import { NetworkProvider, useNetwork } from "./lib/networkContext";
 import { createQueryClient, createWagmiConfig } from "./lib/wagmi";
 import { ToastProvider } from "./ui/primitives";
+import { DEMO_MODE } from "./demo/flag";
+import { DemoWalletProvider } from "./demo/DemoWalletProvider";
 import "./index.css";
+
+// In DEMO MODE the seeded, no-network store stands in for the real one; both
+// supply the same context to `useWallet()`. Folds to `WalletProvider` (and
+// tree-shakes the demo import) in every normal build.
+const Wallet = DEMO_MODE ? DemoWalletProvider : WalletProvider;
 
 // The wagmi config + query cache are bound to a single chain, so they're rebuilt
 // whenever the active network changes. The app shell above/below stays mounted —
@@ -33,11 +40,11 @@ if (root) {
         <Web3Providers>
           <MotionConfig reducedMotion="user">
             <BrowserRouter>
-              <WalletProvider>
+              <Wallet>
                 <ToastProvider>
                   <App />
                 </ToastProvider>
-              </WalletProvider>
+              </Wallet>
             </BrowserRouter>
           </MotionConfig>
         </Web3Providers>

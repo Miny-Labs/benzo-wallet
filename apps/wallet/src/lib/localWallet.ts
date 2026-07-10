@@ -5,6 +5,8 @@ import { AUTH_CHANGED_EVENT } from "./api";
 import { registerEercAccount } from "./eerc";
 import { isRegisteredOnEerc } from "./handleRegistry";
 import { derivePasskeySecret, hasPasskey, registerPasskey } from "./passkey";
+import { DEMO_MODE } from "../demo/flag";
+import { getDemoAccount, getDemoAccountSummary } from "../demo/account";
 
 export interface WalletSecrets {
   evmPrivateKey: Hex;
@@ -226,10 +228,12 @@ export async function walletExists(): Promise<boolean> {
 }
 
 export function getLocalAccount(): BenzoAccount | null {
+  if (DEMO_MODE) return getDemoAccount();
   return activeAccount;
 }
 
 export function isWalletUnlocked(): boolean {
+  if (DEMO_MODE) return true;
   return activeAccount !== null;
 }
 
@@ -415,6 +419,7 @@ export async function deleteWallet(): Promise<void> {
 }
 
 export function getLocalAccountSummary() {
+  if (DEMO_MODE) return getDemoAccountSummary();
   if (!activeAccount) return null;
   return {
     address: activeAccount.address,
