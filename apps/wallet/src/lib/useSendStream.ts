@@ -8,6 +8,8 @@ import { resolveHandleOnChain } from "./handleRegistry";
 import { saveLocalHistory } from "./history";
 import { isValidEvmAddress, normalizeEvmAddress } from "./address";
 import { mapError } from "./errors";
+import { DEMO_MODE } from "../demo/flag";
+import { demoRunSend } from "../demo/sendStream";
 
 export function useSendStream() {
   const [state, dispatch] = useReducer(paymentReducer, initialPaymentState);
@@ -30,6 +32,8 @@ export function useSendStream() {
 
   const run = useCallback(
     async (to: string, amount: string, memo: string | undefined, prover: ProverKind, _proverAvailable = false, requestId?: string) => {
+      // DEMO MODE: scripted walk of the payment state machine — no proving, no RPC.
+      if (DEMO_MODE) return demoRunSend(to, amount, memo, dispatch, setReceipt);
       dispatch({ type: "RESET" });
       setReceipt(null);
       dispatch({ type: "START" });

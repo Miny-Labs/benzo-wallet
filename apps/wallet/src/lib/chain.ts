@@ -1,5 +1,7 @@
 import { createPublicClient, http } from "viem";
 import { ACTIVE_CHAIN, ENCRYPTED_ERC_ADDRESS, RPC_URL, subscribeNetwork } from "./network";
+import { DEMO_MODE } from "../demo/flag";
+import { demoLedgerSequence } from "../demo/registry";
 
 export { ENCRYPTED_ERC_ADDRESS, RPC_URL };
 
@@ -21,6 +23,9 @@ subscribeNetwork(() => {
 });
 
 export async function getChainStatus(signal?: AbortSignal): Promise<ChainStatus> {
+  if (DEMO_MODE) {
+    return { sequence: demoLedgerSequence(), protocolVersion: ACTIVE_CHAIN.id };
+  }
   const block = await client.getBlock();
   // viem's getBlock can't be cancelled mid-flight; if the caller aborted while
   // it was pending (e.g. a network switch), don't surface a now-stale block.

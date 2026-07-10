@@ -2,6 +2,8 @@ import type { BenzoAccount } from "@benzo/core";
 import { getAddress, type Address, type Hex, type PublicClient } from "viem";
 import { createViemClients, getPublicClient } from "./eerc";
 import { HANDLE_REGISTRY_ADDRESS, REGISTRAR_ADDRESS } from "./network";
+import { DEMO_MODE } from "../demo/flag";
+import { demoIsRegisteredOnEerc } from "../demo/registry";
 
 // On-chain @handle resolution against the Benzo HandleRegistry over Fuji RPC.
 // This is the PRIMARY, source-of-truth path: sending to a @handle never needs
@@ -104,6 +106,7 @@ export async function isRegisteredOnEerc(
   address: Address,
   client: PublicClient = getPublicClient(),
 ): Promise<boolean> {
+  if (DEMO_MODE) return demoIsRegisteredOnEerc(address);
   if (!REGISTRAR_ADDRESS) return false;
   try {
     return (await client.readContract({
