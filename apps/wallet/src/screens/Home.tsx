@@ -8,7 +8,7 @@
  * (critique #52 — dedupe Send). The quick-action row carries the affordances the
  * FAB doesn't: Receive, Request, and the Benzo differentiator, Prove.
  */
-import { ArrowDownLeft, HandCoins, ShieldCheck } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, HandCoins, ShieldCheck } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useWallet } from "../lib/store";
@@ -52,12 +52,13 @@ export function Home() {
   const location = useLocation();
   const justSent = Boolean((location.state as { justSent?: boolean } | null)?.justSent);
   const { balance, history, loading, hidden, toggleHidden, session } = useWallet();
+  const chainUnavailable = !!session && !session.live;
 
   return (
     <Screen>
       <TopBar hidden={hidden} onToggleHide={toggleHidden} />
 
-      {session && !session.live ? (
+      {chainUnavailable ? (
         <div role="alert" className="mx-5 mb-1 rounded-xl bg-amber/12 px-3 py-2 text-[12px] font-medium text-[#9a6b12]" data-testid="chain-unavailable-banner">
           Live chain connection unavailable. Balance and money actions are blocked until the app reconnects.
         </div>
@@ -82,6 +83,30 @@ export function Home() {
                   Syncing chain
                 </span>
               ) : null}
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!chainUnavailable) nav("/shield?mode=shield");
+                }}
+                disabled={chainUnavailable}
+                data-testid="home-make-private"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-accent px-3 py-2 text-[13px] font-semibold text-white shadow-[var(--shadow-glow)] transition outline-none hover:brightness-110 disabled:cursor-not-allowed disabled:bg-ink/[0.06] disabled:text-muted disabled:shadow-none disabled:hover:brightness-100 focus-visible:ring-2 focus-visible:ring-accent/50"
+              >
+                <ArrowDownLeft size={15} /> Make private
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!chainUnavailable) nav("/shield?mode=unshield");
+                }}
+                disabled={chainUnavailable}
+                data-testid="home-cash-out"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-canvas px-3 py-2 text-[13px] font-semibold text-ink transition outline-none hover:bg-ink/[0.05] disabled:cursor-not-allowed disabled:bg-ink/[0.06] disabled:text-muted focus-visible:ring-2 focus-visible:ring-accent/40"
+              >
+                <ArrowUpRight size={15} /> Cash out
+              </button>
             </div>
           </Card>
         </Stagger.Item>

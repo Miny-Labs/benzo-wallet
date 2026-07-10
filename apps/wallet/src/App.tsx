@@ -14,11 +14,13 @@ import { ShellProvider, useShell } from "./ui/shell";
 import { spring } from "./ui/motion";
 import { Component, lazy, Suspense, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { useNetwork } from "./lib/networkContext";
+import { useWallet } from "./lib/store";
 // Screens are lazy-loaded so each route ships as its own chunk — only the first
 // view's code is parsed on load, the rest arrive on navigation. (Named exports,
 // so each import() is mapped to a `default` for React.lazy.)
 const Home = lazy(() => import("./screens/Home").then((m) => ({ default: m.Home })));
 const Send = lazy(() => import("./screens/Send").then((m) => ({ default: m.Send })));
+const Shield = lazy(() => import("./screens/Shield").then((m) => ({ default: m.Shield })));
 const Request = lazy(() => import("./screens/Request").then((m) => ({ default: m.Request })));
 const Activity = lazy(() => import("./screens/Activity").then((m) => ({ default: m.Activity })));
 const TxDetail = lazy(() => import("./screens/TxDetail").then((m) => ({ default: m.TxDetail })));
@@ -44,6 +46,8 @@ const TABS = [
 function BottomNav() {
   const loc = useLocation();
   const nav = useNavigate();
+  const { session } = useWallet();
+  const chainUnavailable = !!session && !session.live;
   const active = (to: string) => (to === "/" ? loc.pathname === "/" : loc.pathname.startsWith(to));
   return (
     <nav className="safe-nav relative flex items-end justify-between border-t border-hair bg-card pt-2.5" data-testid="bottom-nav">
@@ -54,12 +58,15 @@ function BottomNav() {
       <motion.button
         whileTap={{ scale: 0.9 }}
         whileHover={{ y: -2 }}
-        onClick={() => nav("/send")}
+        onClick={() => {
+          if (!chainUnavailable) nav("/send");
+        }}
+        disabled={chainUnavailable}
         aria-label="Send money"
         data-testid="fab-send"
-        className="-mt-7 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-[var(--shadow-glow)] outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+        className="-mt-7 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-[var(--shadow-glow)] outline-none disabled:cursor-not-allowed disabled:bg-ink/[0.08] disabled:text-muted disabled:shadow-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
       >
-        <SendGlyph size={24} className="text-white" />
+        <SendGlyph size={24} className={chainUnavailable ? "text-muted" : "text-white"} />
       </motion.button>
       {TABS.slice(2).map((t) => (
         <NavBtn key={t.to} {...t} on={active(t.to)} onClick={() => nav(t.to)} />
@@ -228,6 +235,7 @@ export function App() {
               <Routes location={loc} key={loc.pathname}>
                 <Route path="/" element={<Home />} />
                 <Route path="/send" element={<Send />} />
+                <Route path="/shield" element={<Shield />} />
                 <Route path="/request" element={<Request />} />
                 <Route path="/activity" element={<Activity />} />
                 <Route path="/activity/:id" element={<TxDetail />} />
