@@ -9,7 +9,7 @@
  * Reusable: the header pill (ui/NetworkPill) and Profile's compact network row can
  * both drive it — `<NetworkSheet open onClose />`.
  */
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { AlertTriangle, Check } from "lucide-react";
 import type { DeploymentNetwork } from "@benzo/config";
 import { useNetwork } from "../lib/networkContext";
@@ -46,10 +46,12 @@ export function NetworkSheet({ open, onClose }: { open: boolean; onClose: () => 
   const { network, setNetwork, options } = useNetwork();
   const [confirm, setConfirm] = useState<DeploymentNetwork | null>(null);
 
-  function close() {
+  // Stable across renders so Sheet's Escape-key effect (keyed on onClose) doesn't
+  // tear down and re-bind its listener on every render.
+  const close = useCallback(() => {
     setConfirm(null);
     onClose();
-  }
+  }, [onClose]);
 
   function choose(next: DeploymentNetwork) {
     if (next === network) {
@@ -94,7 +96,7 @@ export function NetworkSheet({ open, onClose }: { open: boolean; onClose: () => 
         </div>
       ) : (
         <div data-testid="network-sheet">
-          <div className="space-y-2" role="listbox" aria-label="Networks">
+          <div className="space-y-2" role="group" aria-label="Networks">
             {options.map((opt) => {
               const n = opt.network;
               const meta = META[n];
@@ -105,8 +107,7 @@ export function NetworkSheet({ open, onClose }: { open: boolean; onClose: () => 
                 <button
                   key={n}
                   type="button"
-                  role="option"
-                  aria-selected={on}
+                  aria-pressed={on}
                   disabled={!ready}
                   onClick={() => choose(n)}
                   data-testid={`network-sheet-${n}`}
