@@ -4,11 +4,12 @@
  * settings dump.
  */
 import { useEffect, useState } from "react";
-import { BadgeCheck, Check, ChevronRight, Copy, Eye, EyeOff, Globe, KeyRound, Lock, ShieldCheck, Sparkles, Trash2, Users } from "lucide-react";
+import { BadgeCheck, Check, ChevronRight, Copy, Eye, EyeOff, KeyRound, Lock, ShieldCheck, Sparkles, Trash2, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "../lib/store";
 import { getChainStatus } from "../lib/chain";
 import { useNetwork } from "../lib/networkContext";
+import { AvalancheMark, NetworkMark } from "../ui/Logo";
 import { getLockSettings, setLockSettings, lockCapable, requireUnlock } from "../lib/lock";
 import { tierInfo, sendCapUsd } from "../lib/tiers";
 import { motion, Screen, spring, Stagger } from "../ui/motion";
@@ -271,7 +272,7 @@ export function Profile() {
         <Stagger.Item index={5}>
           <Card className="p-4" data-testid="network-switcher">
             <div className="mb-3 flex items-center gap-3">
-              <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accent/10 text-accent"><Globe size={18} /></div>
+              <NetworkMark network={network} size={36} className="flex-none" />
               <div className="min-w-0 flex-1">
                 <div className="text-[15px] font-medium">Network</div>
                 <div className="truncate text-[12.5px] text-muted" data-testid="network-tagline">
@@ -319,6 +320,9 @@ export function Profile() {
                   </button>
                 );
               })}
+            </div>
+            <div className="mt-3 flex items-center justify-center gap-1.5 text-[11.5px] font-medium text-muted" data-testid="built-on-avalanche">
+              <AvalancheMark size={14} /> Built on Avalanche
             </div>
           </Card>
         </Stagger.Item>

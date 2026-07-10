@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Bell, ChevronLeft, Check, Globe } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Logo } from "./Logo";
+import { Logo, NetworkMark } from "./Logo";
 import { IconButton } from "./primitives";
 import { HideToggle } from "./privacy";
 import { spring } from "./motion";
@@ -55,9 +55,7 @@ function NetworkGlobe() {
             className="absolute right-0 top-full z-50 mt-2 w-56 max-w-[calc(100vw-2.5rem)] origin-top-right rounded-2xl border border-hair bg-card p-3 shadow-[var(--shadow-card)]"
           >
             <div className="mb-2 flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/10 text-accent">
-                <Globe size={14} />
-              </div>
+              <NetworkMark network={network} size={28} />
               <div className="min-w-0 flex-1">
                 <div className="text-[13px] font-semibold text-ink">Network</div>
                 <div className="truncate text-[11px] text-muted" data-testid="home-network-current">{theme.label}</div>
