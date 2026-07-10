@@ -86,4 +86,18 @@ describe("useShieldStream", () => {
     expect(result.current.state.error).toBe("Couldn't reach Avalanche right now. Please try again.");
     expect(mocks.saveLocalHistory).not.toHaveBeenCalled();
   });
+
+  it("fails invalid amounts before starting the client-side shield flow", async () => {
+    const { result } = renderHook(() => useShieldStream());
+
+    let r: unknown;
+    await act(async () => {
+      r = await result.current.run("shield", "0", undefined, "local");
+    });
+
+    expect(r).toBeNull();
+    expect(result.current.state).toMatchObject({ phase: "failed", error: "Enter an amount above $0." });
+    expect(mocks.shieldPublicUsdcClientSide).not.toHaveBeenCalled();
+    expect(mocks.unshieldPrivateUsdcClientSide).not.toHaveBeenCalled();
+  });
 });

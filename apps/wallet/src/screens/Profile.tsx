@@ -107,6 +107,7 @@ export function Profile() {
   const hasFunds = privateHasFunds || publicHasFunds;
   const backedUp = Boolean(recovery.backupConfirmedAt);
   const canDelete = backedUp && deleteConfirm.trim().toUpperCase() === "DELETE";
+  const chainUnavailable = !!session && !session.live;
 
   async function toggleLock(key: "onOpen" | "onSend") {
     const next = { ...lock, [key]: !lock[key] };
@@ -233,7 +234,7 @@ export function Profile() {
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Button variant="secondary" size="sm" onClick={() => nav("/deposit")} data-testid="profile-receive">Receive</Button>
-                  <Button variant="secondary" size="sm" onClick={() => nav("/shield?mode=unshield")} data-testid="profile-cash-out">
+                  <Button variant="secondary" size="sm" onClick={() => nav("/shield?mode=unshield")} disabled={chainUnavailable} data-testid="profile-cash-out">
                     <ArrowUpRight size={14} /> Cash out
                   </Button>
                 </div>

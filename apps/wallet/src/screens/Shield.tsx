@@ -64,7 +64,7 @@ export function Shield() {
   const [memo, setMemo] = useState("");
   const [step, setStep] = useState<Step>("form");
   const [firing, setFiring] = useState(false);
-  const { balance, publicBalance, refresh, refreshBalance } = useWallet();
+  const { balance, publicBalance, refresh, refreshBalance, session } = useWallet();
   const { state, receipt, run, reset } = useShieldStream();
   const plan = useMemo(() => proverPlan(), []);
 
@@ -98,7 +98,8 @@ export function Shield() {
   const checkingBalance = parsedAmount.valid && !sourceKnown;
   const lowBalance = parsedAmount.valid && sourceKnown && parsedAmount.value > sourceValue;
   const balanceError = mode === "shield" ? INSUFFICIENT_PUBLIC_USDC_SHIELD_ERROR : INSUFFICIENT_PRIVATE_USDC_ERROR;
-  const valid = parsedAmount.valid && !checkingBalance && !lowBalance;
+  const chainUnavailable = !!session && !session.live;
+  const valid = !chainUnavailable && parsedAmount.valid && !checkingBalance && !lowBalance;
   const inFlight = state.phase !== "idle";
   const copy = MODE_COPY[mode];
 
@@ -117,7 +118,7 @@ export function Shield() {
   };
 
   async function fire() {
-    if (firing || inFlight) return;
+    if (firing || inFlight || chainUnavailable) return;
     setFiring(true);
     try {
       if (shouldLockOnSend() && !(await requireUnlock())) return;
@@ -130,13 +131,24 @@ export function Shield() {
 
   function done() {
     reset();
-    nav("/", { state: mode === "shield" ? { justSent: true } : undefined });
+    if (mode === "shield") {
+      nav("/", { state: { justSent: true } });
+      return;
+    }
+    // Cash out lands in public USDC, outside the private BalanceHero animation.
+    nav("/");
   }
 
   return (
     <Screen>
       <ScreenHeader title={copy.title} />
       <div className="px-5 pt-2">
+        {chainUnavailable ? (
+          <div role="alert" className="mb-3 rounded-xl bg-amber/12 px-3 py-2 text-[12px] font-medium text-[#9a6b12]" data-testid="shield-chain-unavailable">
+            Live chain connection unavailable. Balance and money actions are blocked until the app reconnects.
+          </div>
+        ) : null}
+
         <Segmented
           active={mode}
           onChange={changeMode}
@@ -210,6 +222,7 @@ export function Shield() {
             memo={memo}
             plan={plan}
             firing={firing}
+            chainUnavailable={chainUnavailable}
             onBack={() => setStep("form")}
             onConfirm={fire}
           />
@@ -227,6 +240,7 @@ function ConfirmStep({
   memo,
   plan,
   firing,
+  chainUnavailable,
   onBack,
   onConfirm,
 }: {
@@ -235,6 +249,7 @@ function ConfirmStep({
   memo: string;
   plan: { onDevice: boolean; kind: ProverKind; reason: string };
   firing: boolean;
+  chainUnavailable: boolean;
   onBack: () => void;
   onConfirm: () => void;
 }) {
@@ -271,7 +286,7 @@ function ConfirmStep({
         <Button variant="secondary" size="lg" onClick={onBack} disabled={firing} data-testid="shield-back">
           Back
         </Button>
-        <Button full size="lg" loading={firing} disabled={firing} onClick={onConfirm} data-testid="shield-confirm">
+        <Button full size="lg" loading={firing} disabled={firing || chainUnavailable} onClick={onConfirm} data-testid="shield-confirm">
           {mode === "shield" ? <ArrowDownLeft size={18} className="flex-none" /> : <ArrowUpRight size={18} className="flex-none" />}
           <span className="truncate">{copy.action} {fmtUsd(amount)}</span>
         </Button>

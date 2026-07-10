@@ -2,7 +2,7 @@ import type { Dispatch } from "react";
 import type { PaymentEvent } from "@benzo/ui/payment-state";
 import type { SettleResult } from "../lib/api";
 import type { ShieldMode } from "../lib/useShieldStream";
-import { usdcToBaseUnits } from "../lib/format";
+import { INVALID_AMOUNT, parsePositiveUsdcAmount } from "../lib/amount";
 import { applyDemoShield } from "./state";
 
 function delay(ms: number): Promise<void> {
@@ -22,34 +22,42 @@ export async function demoRunShield(
   dispatch: Dispatch<PaymentEvent>,
   setReceipt: (receipt: SettleResult | null) => void,
 ): Promise<SettleResult | null> {
-  const baseUnits = usdcToBaseUnits(amount).toString();
-
   dispatch({ type: "RESET" });
   setReceipt(null);
 
-  dispatch({ type: "START" });
-  await delay(650);
+  try {
+    const parsed = parsePositiveUsdcAmount(amount);
+    if (!parsed.valid) throw new Error(parsed.error ?? INVALID_AMOUNT);
+    const baseUnits = parsed.baseUnits;
 
-  dispatch({ type: "WITNESS_READY" });
-  const provingMs = mode === "shield" ? 1600 : 1900;
-  await delay(provingMs);
+    dispatch({ type: "START" });
+    await delay(650);
 
-  dispatch({ type: "PROOF_READY", provingMs });
-  const txHash = fakeTxHash();
-  dispatch({ type: "SUBMITTED", txHash });
-  await delay(900);
+    dispatch({ type: "WITNESS_READY" });
+    const provingMs = mode === "shield" ? 1600 : 1900;
+    await delay(provingMs);
 
-  const receipt: SettleResult = {
-    status: "settled",
-    txHash,
-    prover: "local",
-    amount: baseUnits,
-    onChain: true,
-    provingMs,
-  };
-  applyDemoShield({ mode, amountBaseUnits: baseUnits, memo, txHash });
-  setReceipt(receipt);
-  dispatch({ type: "CONFIRMED" });
+    dispatch({ type: "PROOF_READY", provingMs });
+    const txHash = fakeTxHash();
+    dispatch({ type: "SUBMITTED", txHash });
+    await delay(900);
 
-  return receipt;
+    const receipt: SettleResult = {
+      status: "settled",
+      txHash,
+      prover: "local",
+      amount: baseUnits,
+      onChain: true,
+      provingMs,
+    };
+    applyDemoShield({ mode, amountBaseUnits: baseUnits, memo, txHash });
+    setReceipt(receipt);
+    dispatch({ type: "CONFIRMED" });
+
+    return receipt;
+  } catch (err) {
+    const fallback = mode === "shield" ? "Couldn't make USDC private" : "Couldn't cash out";
+    dispatch({ type: "FAIL", error: err instanceof Error && err.message ? err.message : fallback });
+    return null;
+  }
 }

@@ -2,7 +2,7 @@ import { useCallback, useReducer, useState } from "react";
 import { initialPaymentState, paymentReducer, type PaymentState } from "@benzo/ui/payment-state";
 import type { ProverKind, SendPhaseEvent, SettleResult } from "./api";
 import { shieldPublicUsdcClientSide, unshieldPrivateUsdcClientSide } from "./benzoClient";
-import { usdcToBaseUnits } from "./format";
+import { INVALID_AMOUNT, parsePositiveUsdcAmount } from "./amount";
 import { saveLocalHistory } from "./history";
 import { mapError } from "./errors";
 import { DEMO_MODE } from "../demo/flag";
@@ -44,13 +44,18 @@ export function useShieldStream() {
 
   const run = useCallback(
     async (mode: ShieldMode, amount: string, memo: string | undefined, _prover: ProverKind, _proverAvailable = false) => {
-      if (DEMO_MODE) return demoRunShield(mode, amount, memo, dispatch, setReceipt);
       dispatch({ type: "RESET" });
       setReceipt(null);
+      const parsedAmount = parsePositiveUsdcAmount(amount);
+      if (!parsedAmount.valid) {
+        dispatch({ type: "FAIL", error: parsedAmount.error ?? INVALID_AMOUNT });
+        return null;
+      }
+      if (DEMO_MODE) return demoRunShield(mode, amount, memo, dispatch, setReceipt);
       dispatch({ type: "START" });
       try {
         apply({ phase: "proving" });
-        const baseUnits = usdcToBaseUnits(amount).toString();
+        const baseUnits = parsedAmount.baseUnits;
         const cs =
           mode === "shield"
             ? await shieldPublicUsdcClientSide(baseUnits, memo)

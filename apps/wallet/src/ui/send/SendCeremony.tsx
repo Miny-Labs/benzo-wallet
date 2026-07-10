@@ -73,22 +73,26 @@ const KIND_COPY: Record<
   CeremonyKind,
   {
     preparing: { title: string; sub: string };
+    confirming: { title: string; sub: (networkName: string) => string };
     complete: { title: string; sub: string };
     failedTitle: string;
   }
 > = {
   send: {
     preparing: COPY.ceremony.preparing,
+    confirming: COPY.ceremony.confirming,
     complete: COPY.ceremony.complete,
     failedTitle: COPY.ceremony.failed.title,
   },
   shield: {
     preparing: { title: "Making USDC private", sub: "Creating your proof on this device" },
+    confirming: { title: "Finalizing private balance", sub: (networkName) => `${networkName} is confirming your shield.` },
     complete: { title: "Money made private", sub: "Private balance updated" },
     failedTitle: "Couldn't make private",
   },
   unshield: {
     preparing: { title: "Preparing cash out", sub: "Creating your proof on this device" },
+    confirming: { title: "Finalizing cash out", sub: (networkName) => `${networkName} is confirming your cash out.` },
     complete: { title: "Cash out complete", sub: "Public USDC updated" },
     failedTitle: "Couldn't cash out",
   },
@@ -100,12 +104,18 @@ function ceremonyCopy(kind: CeremonyKind, phase: CeremonyPhase, networkName: str
     case "encrypt":
       return copy.preparing;
     case "settle":
-      return { title: COPY.ceremony.confirming.title, sub: COPY.ceremony.confirming.sub(networkName) };
+      return { title: copy.confirming.title, sub: copy.confirming.sub(networkName) };
     case "verify":
       return copy.complete;
     case "error":
       return { title: copy.failedTitle, sub: errorSub };
   }
+}
+
+function receiptStatusLabel(kind: CeremonyKind, onChain: boolean): string {
+  if (kind === "send") return onChain ? "Private payment on-chain" : "Private payment not verified on-chain";
+  if (kind === "shield") return onChain ? "Private on-chain" : "Private balance update not verified on-chain";
+  return onChain ? "Public USDC on-chain" : "Cash out not verified on-chain";
 }
 
 export function SendCeremony({
@@ -589,12 +599,8 @@ function VerifyReveal({ receipt, reduce }: { receipt: SendReceipt; reduce: boole
   ];
   if (receipt.memo) rows.push({ label: "Note", value: receipt.memo });
   const kind = receipt.kind ?? "send";
-  const statusLabel =
-    kind === "send"
-      ? `Private payment${receipt.onChain ? "" : " · not verified on-chain"}`
-      : kind === "shield"
-        ? `Private on-chain${receipt.onChain ? "" : " · not verified on-chain"}`
-        : `Proof verified${receipt.onChain ? "" : " · not verified on-chain"}`;
+  const statusLabel = receiptStatusLabel(kind, receipt.onChain);
+  const statusTone = receipt.onChain ? "text-pos" : "text-muted";
   const privacyNote =
     kind === "send"
       ? COPY.paymentPrivacy(receipt.recipient)
@@ -618,7 +624,7 @@ function VerifyReveal({ receipt, reduce }: { receipt: SendReceipt; reduce: boole
             <span className="font-semibold text-ink">{r.value}</span>
           </motion.div>
         ))}
-        <div className="mt-3 flex items-center justify-center gap-1.5 text-[12px] font-medium text-pos">
+        <div className={`mt-3 flex items-center justify-center gap-1.5 text-[12px] font-medium ${statusTone}`}>
           <ShieldCheck size={13} /> {statusLabel}
         </div>
         <div className="mt-2 flex flex-col items-center">

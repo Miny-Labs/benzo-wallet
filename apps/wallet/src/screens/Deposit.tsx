@@ -12,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { copyTextToClipboard } from "../lib/clipboard";
 import { getLocalAccountSummary } from "../lib/localWallet";
 import { shortAddress } from "../lib/address";
+import { useWallet } from "../lib/store";
 import { useNetworkEnv } from "../lib/networkEnv";
 import { Screen } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
@@ -25,6 +26,8 @@ export function Deposit() {
   const [showFull, setShowFull] = useState(false);
   const address = getLocalAccountSummary()?.address ?? "";
   const assetLabel = env.isTestnet ? `Test ${env.asset}` : env.asset;
+  const { session } = useWallet();
+  const chainUnavailable = !!session && !session.live;
 
   async function copy() {
     if (!address) return;
@@ -110,7 +113,7 @@ export function Deposit() {
             <ActionBtn onClick={copy} disabled={!address} testid="deposit-copy" icon={copyState === "copied" ? <Check size={16} className="text-pos" /> : <Copy size={16} />} label={copyState === "copied" ? "Copied" : "Copy"} />
             <ActionBtn onClick={share} disabled={!address} testid="deposit-share" icon={<Share2 size={16} />} label="Share" />
             <ActionBtn onClick={() => nav("/request")} testid="deposit-request" icon={<HandCoins size={16} />} label="Request" />
-            <ActionBtn onClick={() => nav("/shield?mode=shield")} disabled={!address} testid="deposit-make-private" icon={<ShieldCheck size={16} />} label="Make private" />
+            <ActionBtn onClick={() => nav("/shield?mode=shield")} disabled={!address || chainUnavailable} testid="deposit-make-private" icon={<ShieldCheck size={16} />} label="Make private" />
           </div>
           {copyState === "blocked" ? (
             <div role="status" aria-live="polite" className="w-full text-center text-[11.5px] font-semibold text-danger" data-testid="deposit-copy-status">

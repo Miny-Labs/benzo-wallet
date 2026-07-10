@@ -54,6 +54,20 @@ describe("SendCeremony — centered 3D coin ceremony", () => {
     expect(screen.getByTestId("ceremony-retry")).toBeInTheDocument();
     expect(screen.queryByTestId("ceremony-coin")).not.toBeInTheDocument();
   });
+
+  it("uses shield-specific settle copy", () => {
+    render(<SendCeremony state={{ phase: "submitting", txHash: "0xabc" }} receipt={{ ...receipt, kind: "shield" }} onDone={vi.fn()} onRetry={vi.fn()} />);
+
+    expect(screen.getByTestId("ceremony-title")).toHaveTextContent("Finalizing private balance");
+    expect(screen.getByTestId("ceremony-sub")).toHaveTextContent("confirming your shield");
+  });
+
+  it("does not call an unverified shield receipt private on-chain", () => {
+    render(<SendCeremony state={{ phase: "confirmed" }} receipt={{ ...receipt, kind: "shield", onChain: false }} onDone={vi.fn()} onRetry={vi.fn()} />);
+
+    expect(screen.getByTestId("ceremony-receipt")).toHaveTextContent("Private balance update not verified on-chain");
+    expect(screen.getByTestId("ceremony-receipt")).not.toHaveTextContent("Private on-chain");
+  });
 });
 
 const SETTLE_FLOOR_MS = 800;

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Deposit } from "./Deposit";
 import * as net from "../lib/network";
@@ -14,10 +14,20 @@ vi.mock("../lib/clipboard", () => ({
   copyTextToClipboard: vi.fn(async () => true),
 }));
 
+vi.mock("../lib/store", () => ({
+  useWallet: () => ({ session: { live: true } }),
+}));
+
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location">{`${location.pathname}${location.search}`}</div>;
+}
+
 function renderDeposit() {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={["/deposit"]}>
       <Deposit />
+      <LocationProbe />
     </MemoryRouter>,
   );
 }
@@ -54,6 +64,9 @@ describe("Deposit / Receive", () => {
 
   it("offers a make-private action from Receive", () => {
     renderDeposit();
-    expect(screen.getByTestId("deposit-make-private")).toHaveTextContent("Make private");
+    const makePrivate = screen.getByTestId("deposit-make-private");
+    expect(makePrivate).toHaveTextContent("Make private");
+    fireEvent.click(makePrivate);
+    expect(screen.getByTestId("location")).toHaveTextContent("/shield?mode=shield");
   });
 });

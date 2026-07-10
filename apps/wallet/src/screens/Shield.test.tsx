@@ -57,6 +57,8 @@ vi.mock("../lib/useShieldStream", () => ({
 describe("Shield", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    walletState.session.live = true;
+    walletState.session.mode = "live";
     walletState.balance = { baseUnits: "10000000", live: true };
     walletState.publicBalance = {
       baseUnits: "5000000",
@@ -108,5 +110,17 @@ describe("Shield", () => {
 
     await waitFor(() => expect(streamMocks.run).toHaveBeenCalledWith("unshield", "2.5", "bank", "local", false));
     expect(walletState.refresh).toHaveBeenCalled();
+  });
+
+  it("blocks shield review while the chain is unavailable", () => {
+    walletState.session.live = false;
+    walletState.session.mode = "unavailable";
+    renderShield();
+
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "2" } });
+
+    expect(screen.getByTestId("shield-chain-unavailable")).toHaveTextContent(/money actions are blocked/i);
+    expect(screen.getByTestId("shield-submit")).toBeDisabled();
+    expect(streamMocks.run).not.toHaveBeenCalled();
   });
 });
