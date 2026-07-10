@@ -13,7 +13,9 @@ import type { Address, Chain } from "viem";
 const env = import.meta.env as unknown as Record<string, string | undefined>;
 
 function deploymentNetwork(value: string | undefined): DeploymentNetwork {
-  if (value === "benzonet" || value === "avalanche") return value;
+  // The consumer wallet only ships the public chains. `benzonet` (the permissioned
+  // business L1) is intentionally NOT reachable here — it folds back to Fuji.
+  if (value === "avalanche") return value;
   return "fuji";
 }
 
@@ -126,7 +128,9 @@ export function isDeploymentNetwork(value: unknown): value is DeploymentNetwork 
 export function getStoredNetwork(): DeploymentNetwork | null {
   try {
     const raw = globalThis.localStorage?.getItem(NETWORK_STORAGE_KEY);
-    return isDeploymentNetwork(raw) ? raw : null;
+    // A previously-stored "benzonet" is no longer offered in the wallet — treat it
+    // as unset so it falls back to Fuji rather than stranding a user on it.
+    return isDeploymentNetwork(raw) && raw !== "benzonet" ? raw : null;
   } catch {
     return null;
   }

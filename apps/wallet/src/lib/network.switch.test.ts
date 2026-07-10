@@ -51,15 +51,15 @@ describe("reactive network switching", () => {
 
   it("persists the selection and restores it on the next reload", async () => {
     const net = await loadFreshNetwork();
-    net.setActiveNetwork("benzonet");
-    expect(localStorage.getItem(KEY)).toBe("benzonet");
-    expect(net.getStoredNetwork()).toBe("benzonet");
+    net.setActiveNetwork("avalanche");
+    expect(localStorage.getItem(KEY)).toBe("avalanche");
+    expect(net.getStoredNetwork()).toBe("avalanche");
 
     // A fresh module import (page reload) must resolve the stored network.
     const reloaded = await loadFreshNetwork();
-    expect(reloaded.getActiveNetwork()).toBe("benzonet");
-    expect(reloaded.ACTIVE_CHAIN.id).toBe(68420);
-    expect(reloaded.ENCRYPTED_ERC_ADDRESS).toBe("0x790Dd53099E5009a9Cf572769a5A663cCb7EfAcE");
+    expect(reloaded.getActiveNetwork()).toBe("avalanche");
+    expect(reloaded.ACTIVE_CHAIN.id).toBe(43114);
+    expect(reloaded.ENCRYPTED_ERC_ADDRESS).toBe("0x708d0b83461973F46041a36f588b8760dbC0Db0e");
   });
 
   it("switches back to Fuji cleanly", async () => {
