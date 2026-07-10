@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Send } from "./Send";
+import { CONTACTS_LS_KEY } from "../lib/contacts";
 
 const walletState = vi.hoisted(() => ({
   session: {
@@ -63,7 +64,6 @@ vi.mock("../lib/useSendStream", () => ({
   }),
 }));
 
-const CONTACTS_LS_KEY = "benzo.contacts.local.v1";
 function seedContacts() {
   localStorage.setItem(
     CONTACTS_LS_KEY,

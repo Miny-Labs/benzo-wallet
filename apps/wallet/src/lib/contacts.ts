@@ -1,7 +1,10 @@
 import { type Contact } from "./api";
 import { decodeRecipient } from "./recipient";
 
-const LS = "benzo.contacts.local.v1";
+/** localStorage key for the device-local contacts (exported so tests key off the
+ *  single source of truth instead of re-hardcoding the string). */
+export const CONTACTS_LS_KEY = "benzo.contacts.local.v1";
+const LS = CONTACTS_LS_KEY;
 
 export function normAddress(a: string): string {
   const t = a.trim();

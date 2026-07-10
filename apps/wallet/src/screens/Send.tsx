@@ -92,7 +92,9 @@ export function Send() {
   const plan = useMemo(() => proverPlan(), []);
   const recipient = normalizeRecipientInput(to);
   const kind = useMemo(() => (recipient ? classifyRecipientInput(recipient) : null), [recipient]);
-  const showAtAdornment = looksLikeBareHandle(to);
+  // Only show the `@` once there's enough to read as a handle (2+ chars), not on
+  // the very first keystroke when the input isn't classifiable yet.
+  const showAtAdornment = looksLikeBareHandle(to) && to.trim().length >= 2;
 
   const badAddress = useMemo(() => looksLikeEvmAddressInput(recipient) && !isValidEvmAddress(recipient), [recipient]);
   useEffect(() => {
@@ -183,7 +185,16 @@ export function Send() {
       <div className="px-5 pt-2">
         {step === "form" ? (
           <>
-            <div className="relative">
+            {/* Focus is tracked on the whole control (not just the input) so tabbing
+                from the field INTO a dropdown option keeps the list open — collapse
+                only when focus leaves the control entirely (keyboard-accessible). */}
+            <div
+              className="relative"
+              onFocus={() => setToFocused(true)}
+              onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) setToFocused(false);
+              }}
+            >
               <label htmlFor="send-to" className="text-sm font-semibold text-ink">
                 To
               </label>
@@ -197,8 +208,6 @@ export function Send() {
                   id="send-to"
                   value={to}
                   onChange={(e) => setTo(e.target.value)}
-                  onFocus={() => setToFocused(true)}
-                  onBlur={() => setToFocused(false)}
                   data-testid="send-handle"
                   placeholder="Name, @handle, address, or Receive Code"
                   autoCapitalize="off"
