@@ -76,7 +76,9 @@ export function BalanceHero({
       <div className="font-display text-hero mt-1.5 flex items-baseline tracking-tight" aria-label={fmtUsd(baseUnits)}>
         <span className="text-hero-sub mr-px font-semibold">$</span>
         <span>{dollars.replace(/^\$/, "")}</span>
-        <span className="text-hero-sub text-muted">.{cents}</span>
+        {/* Cents share the dollars' ink + baseline — the decimal is part of one
+            figure, not a muted afterthought (Home critique #52). */}
+        <span className="text-hero-sub">.{cents}</span>
       </div>
     </div>
   );
