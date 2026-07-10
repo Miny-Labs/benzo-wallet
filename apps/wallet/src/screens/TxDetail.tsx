@@ -9,13 +9,12 @@
  * plain buttons - view the on-chain proof, and share a receipt behind a pre-share
  * disclosure preview that spells out exactly what the recipient learns (#56).
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Check, Copy, ExternalLink, FileSearch, ShieldCheck } from "lucide-react";
 import { copyTextToClipboard } from "../lib/clipboard";
 import { useWallet } from "../lib/store";
 import { fmtUsdc, fullDateTime } from "../lib/format";
-import { shortAddress } from "../lib/address";
 import { useNetworkEnv } from "../lib/networkEnv";
 import { COPY } from "../lib/copy";
 import { Screen } from "../ui/motion";
@@ -27,6 +26,21 @@ import type { ActivityRow } from "../lib/api";
 
 const isDeposit = (row: ActivityRow) => row.type === "shield" || row.type === "cashIn";
 const isWithdraw = (row: ActivityRow) => row.type === "unshield" || row.type === "cashOut";
+
+/** Prefix-agnostic short form for a reference — a 0x tx hash, a bare hex hash, or
+ *  a local id. Unlike shortAddress it never assumes a 2-char "0x" prefix, so a
+ *  non-EVM id isn't sliced at the wrong offset. */
+function shortReference(ref: string): string {
+  return ref.length > 16 ? `${ref.slice(0, 8)}…${ref.slice(-6)}` : ref;
+}
+
+/** Did the row's owner actually pay a network fee? A plain incoming transfer is
+ *  free to the recipient, but a deposit (shield/cashIn — direction "in") and
+ *  anything outgoing pay gas. Fee ≠ direction. */
+function paidNetworkFee(row: ActivityRow): boolean {
+  if (isDeposit(row)) return true;
+  return row.direction === "out";
+}
 
 function isFailedLikeRow(row: ActivityRow): boolean {
   if (row.status === "failed") return true;
@@ -68,6 +82,10 @@ export function TxDetail() {
   const row = useMemo(() => history.find((r) => r.id === id), [history, id]);
   const [copied, setCopied] = useState(false);
   const [disclose, setDisclose] = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Clear the copy-reset timer on unmount so it can't fire setState after the
+  // user has navigated away from the receipt.
+  useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
 
   if (!row) {
     return (
@@ -101,7 +119,8 @@ export function TxDetail() {
     const ok = await copyTextToClipboard(reference);
     if (ok) {
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(false), 1500);
     } else {
       toast({ title: "Couldn't copy reference", tone: "danger" });
     }
@@ -185,12 +204,12 @@ export function TxDetail() {
             k="Reference"
             v={
               <button type="button" onClick={copyReference} data-testid="txdetail-reference" className="inline-flex items-center gap-1.5 rounded font-mono text-[12px] text-ink outline-none hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/40">
-                {shortAddress(reference, 6)}
+                {shortReference(reference)}
                 {copied ? <Check size={13} className="text-pos" /> : <Copy size={13} className="text-muted" />}
               </button>
             }
           />
-          <DRow k="Fee" v={<span className="text-muted">{row.direction === "in" ? "None — you received" : "Network fee (paid in AVAX)"}</span>} />
+          <DRow k="Fee" v={<span className="text-muted">{paidNetworkFee(row) ? "Network fee (paid in AVAX)" : "None — you received"}</span>} />
         </div>
 
         {/* actions */}
