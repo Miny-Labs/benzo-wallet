@@ -53,27 +53,34 @@ export function ShareProof() {
   }
 
   return (
-    <Screen>
+    <Screen className="flex min-h-full flex-col">
       <ScreenHeader title="Prove your balance" />
-      <div className="px-5 pt-2">
+      {/* Fill the whole screen: intro at the top, the amount entry centered in the
+          leftover space, and the CTA pinned near the bottom — no dead zone. */}
+      <div className="flex flex-1 flex-col px-5 pb-8 pt-2">
         <p className="text-[14px] leading-relaxed text-muted">
           Prove you hold <span className="font-semibold text-ink">at least</span> a chosen amount. Your real balance stays hidden.
         </p>
 
-        <div className="mt-6">
-          <div className="text-center text-[13px] font-semibold text-muted">I can prove I have at least</div>
-          <AmountField value={min} onChange={setMin} />
+        <div className="flex flex-1 flex-col justify-center gap-6 py-6">
+          <div>
+            <div className="text-center text-[13px] font-semibold text-muted">I can prove I have at least</div>
+            <AmountField value={min} onChange={setMin} />
+            <div className="mt-2 text-center text-[12.5px] text-muted">Pick the floor you want to prove — never your real balance.</div>
+          </div>
+
+          <div className="mx-auto flex w-full max-w-[320px] items-center gap-2 rounded-2xl border border-hair bg-card px-3.5 py-2.5 text-[12.5px] text-muted" data-testid="proof-prover-plan">
+            {plan.onDevice ? <Smartphone size={15} className="flex-none text-accent" /> : <ShieldCheck size={15} className="flex-none text-accent" />}
+            <span>{plan.reason}</span>
+          </div>
         </div>
 
-        <div className="mt-4 flex items-center gap-2 rounded-2xl border border-hair bg-card px-3.5 py-2.5 text-[12.5px] text-muted" data-testid="proof-prover-plan">
-          {plan.onDevice ? <Smartphone size={15} className="flex-none text-accent" /> : <ShieldCheck size={15} className="flex-none text-accent" />}
-          <span>{plan.reason}</span>
+        <div className="mt-auto">
+          <Button full size="lg" disabled={!valid} loading={phase === "busy"} onClick={generate} data-testid="proof-generate">
+            {phase === "busy" ? "Generating proof…" : "Generate proof"}
+          </Button>
+          {err ? <div className="mt-2 text-center text-sm text-danger" data-testid="proof-error">{err}</div> : null}
         </div>
-
-        <Button full size="lg" className="mt-6" disabled={!valid} loading={phase === "busy"} onClick={generate} data-testid="proof-generate">
-          {phase === "busy" ? "Generating proof…" : "Generate proof"}
-        </Button>
-        {err ? <div className="mt-2 text-center text-sm text-danger" data-testid="proof-error">{err}</div> : null}
       </div>
 
       <AnimatePresence>

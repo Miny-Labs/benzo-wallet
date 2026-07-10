@@ -24,6 +24,7 @@ const Deposit = lazy(() => import("./screens/Deposit").then((m) => ({ default: m
 const Profile = lazy(() => import("./screens/Profile").then((m) => ({ default: m.Profile })));
 const Notifications = lazy(() => import("./screens/Notifications").then((m) => ({ default: m.Notifications })));
 const Contacts = lazy(() => import("./screens/Contacts").then((m) => ({ default: m.Contacts })));
+const ContactDetail = lazy(() => import("./screens/ContactDetail").then((m) => ({ default: m.ContactDetail })));
 const ShareProof = lazy(() => import("./screens/ShareProof").then((m) => ({ default: m.ShareProof })));
 const InviteExternal = lazy(() => import("./screens/InviteExternal").then((m) => ({ default: m.InviteExternal })));
 const Claim = lazy(() => import("./screens/Claim").then((m) => ({ default: m.Claim })));
@@ -215,6 +216,7 @@ export function App() {
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/notifications" element={<Notifications />} />
                 <Route path="/contacts" element={<Contacts />} />
+                <Route path="/contacts/:handle" element={<ContactDetail />} />
                 <Route path="/share-proof" element={<ShareProof />} />
                 <Route path="/invite" element={<InviteExternal />} />
                 <Route path="/claim" element={<Claim />} />

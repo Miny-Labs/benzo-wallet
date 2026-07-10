@@ -3,15 +3,17 @@
  * empty + skeleton states; everything in plain English.
  */
 import { useMemo } from "react";
-import { Clock } from "lucide-react";
+import { ChevronLeft, Clock } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useWallet } from "../lib/store";
 import { dayBucket } from "../lib/format";
 import { Screen, Stagger } from "../ui/motion";
-import { EmptyState } from "../ui/primitives";
+import { EmptyState, IconButton } from "../ui/primitives";
 import { ActivityItem } from "../ui/ActivityItem";
 import type { ActivityRow } from "../lib/api";
 
 export function Activity() {
+  const nav = useNavigate();
   const { history, loading, hidden } = useWallet();
 
   const groups = useMemo(() => {
@@ -25,7 +27,13 @@ export function Activity() {
 
   return (
     <Screen>
-      <div className="px-5 pb-1 pt-6">
+      {/* Activity is both a bottom-nav tab and a push from Home's "Activity"
+          button — either way Home is the sensible parent, so the chevron always
+          returns there rather than an ambiguous history pop. */}
+      <div className="flex items-center gap-2 px-5 pb-1 pt-5">
+        <IconButton onClick={() => nav("/")} aria-label="Back to home" data-testid="activity-back">
+          <ChevronLeft size={20} />
+        </IconButton>
         <h1 className="font-display text-2xl">Activity</h1>
       </div>
       <div className="px-5">

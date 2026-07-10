@@ -4,7 +4,7 @@
  * settings dump.
  */
 import { useEffect, useState } from "react";
-import { Activity, BadgeCheck, Check, ChevronRight, Copy, Eye, EyeOff, Globe, KeyRound, Lock, ShieldCheck, Sparkles, Trash2, Users } from "lucide-react";
+import { BadgeCheck, Check, ChevronRight, Copy, Eye, EyeOff, Globe, KeyRound, Lock, ShieldCheck, Sparkles, Trash2, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useWallet } from "../lib/store";
 import { getChainStatus } from "../lib/chain";
@@ -222,21 +222,12 @@ export function Profile() {
                 </span>
               }
             />
-            <Row
-              icon={<KeyRound size={18} />}
-              label="Recovery path"
-              right={
-                <span className="max-w-[180px] text-right text-[12.5px] leading-tight text-muted" data-testid="profile-recovery-plan">
-                  {recovery.nextSteps[0]}
-                </span>
-              }
-            />
             <div className="py-3.5" data-testid="profile-recovery-export">
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas text-ink"><KeyRound size={18} /></div>
                 <div className="min-w-0 flex-1">
                   <div className="text-[15px] font-medium">Reveal recovery key</div>
-                  <div className="text-[12.5px] leading-tight text-muted">Export evmPrivateKey, eercDecryptionKey, orgSpendId, and mvkSeedHex.</div>
+                  <div className="text-[12.5px] leading-tight text-muted">Export your wallet's recovery key.</div>
                 </div>
                 <Button variant="secondary" size="sm" loading={exportingBackup} onClick={revealRecoveryBackup} data-testid="recovery-reveal">
                   Reveal
@@ -271,22 +262,6 @@ export function Profile() {
                 </div>
               ) : null}
             </div>
-            <Row
-              icon={<Activity size={18} />}
-              label="Network"
-              right={
-                <span className="inline-flex items-center gap-1.5 text-[13px] text-muted" data-testid="profile-network" title="Read directly from the chain in your browser - no server">
-                  {ledger != null ? (
-                    <>
-                      <span className="h-1.5 w-1.5 rounded-full bg-pos" />
-                      Live · ledger #{ledger.toLocaleString()}
-                    </>
-                  ) : (
-                    "Connecting…"
-                  )}
-                </span>
-              }
-            />
           </Card>
         </Stagger.Item>
 
@@ -296,10 +271,10 @@ export function Profile() {
         <Stagger.Item index={5}>
           <Card className="p-4" data-testid="network-switcher">
             <div className="mb-3 flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent"><Globe size={18} /></div>
+              <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accent/10 text-accent"><Globe size={18} /></div>
               <div className="min-w-0 flex-1">
                 <div className="text-[15px] font-medium">Network</div>
-                <div className="text-[12.5px] text-muted" data-testid="network-tagline">
+                <div className="truncate text-[12.5px] text-muted" data-testid="network-tagline">
                   {network === "avalanche"
                     ? "Live C-Chain · real funds"
                     : network === "benzonet"
@@ -307,6 +282,18 @@ export function Profile() {
                       : "Fuji testnet · test funds"}
                 </div>
               </div>
+              {/* The live ledger read (direct from the chain, no server) now lives
+                  here — one network section instead of a duplicate status row. */}
+              <span className="inline-flex flex-none items-center gap-1.5 text-[12px] text-muted" data-testid="profile-network" title="Read directly from the chain in your browser - no server">
+                {ledger != null ? (
+                  <>
+                    <span className="h-1.5 w-1.5 rounded-full bg-pos" />
+                    #{ledger.toLocaleString()}
+                  </>
+                ) : (
+                  "Connecting…"
+                )}
+              </span>
             </div>
             <div className="relative flex rounded-full bg-ink/[0.05] p-1" role="tablist" aria-label="Active network">
               {options.map((opt) => {

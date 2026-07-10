@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Trash2, Send as SendIcon } from "lucide-react";
 import { useWallet } from "../lib/store";
-import { listLocal, saveContact, removeContact, mergeContacts, isSaved, normAddress } from "../lib/contacts";
+import { saveContact, removeContact, mergeContacts, isSaved, normAddress } from "../lib/contacts";
 import { Screen, Stagger } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
 import { Avatar, Button, Card, Input } from "../ui/primitives";
@@ -67,17 +67,25 @@ export function Contacts() {
           {merged.map((c, i) => (
             <Stagger.Item index={i} key={c.handle}>
               <Card className="flex items-center gap-3 p-3.5" data-testid="contact-row">
-                <Avatar name={c.name} size={42} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[15px] font-semibold">{c.name}</div>
-                  <div className="truncate text-[13px] text-muted">
-                    {c.handle.startsWith("bzr_")
-                      ? `${c.handle.slice(0, 10)}...${c.handle.slice(-8)}`
-                      : c.handle.length > 24
-                      ? `${c.handle.slice(0, 8)}...${c.handle.slice(-8)}`
-                      : c.handle}
+                <button
+                  type="button"
+                  onClick={() => nav(`/contacts/${encodeURIComponent(c.handle)}`)}
+                  data-testid="contact-open"
+                  aria-label={`Open ${c.name}`}
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left transition outline-none active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-accent/40"
+                >
+                  <Avatar name={c.name} tone={c.tone} size={42} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[15px] font-semibold">{c.name}</div>
+                    <div className="truncate text-[13px] text-muted">
+                      {c.handle.startsWith("bzr_")
+                        ? `${c.handle.slice(0, 10)}...${c.handle.slice(-8)}`
+                        : c.handle.length > 24
+                        ? `${c.handle.slice(0, 8)}...${c.handle.slice(-8)}`
+                        : c.handle}
+                    </div>
                   </div>
-                </div>
+                </button>
                 <button
                   onClick={() => nav(`/send?to=${encodeURIComponent(c.handle)}`)}
                   aria-label={`Pay ${c.name}`}

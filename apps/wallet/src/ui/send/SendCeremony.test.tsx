@@ -16,25 +16,25 @@ function renderCeremony(state: PaymentState) {
   return render(<SendCeremony state={state} receipt={receipt} onDone={vi.fn()} onRetry={vi.fn()} />);
 }
 
-describe("SendCeremony — full-viewport coin-flight", () => {
+describe("SendCeremony — centered 3D coin ceremony", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("materializes the continuous coin while proving (encrypt phase)", () => {
+  it("materializes the working coin while proving (encrypt phase)", () => {
     renderCeremony({ phase: "proving" });
     expect(screen.getByTestId("ceremony-coin")).toBeInTheDocument();
     expect(screen.getByTestId("ceremony-title")).toHaveTextContent("Encrypting your payment");
     expect(screen.queryByTestId("ceremony-receipt")).not.toBeInTheDocument();
   });
 
-  it("honors the settle floor so an instant confirm never flashes past the flight", () => {
+  it("honors the settle floor so an instant confirm never flashes past the working coin", () => {
     const { rerender } = renderCeremony({ phase: "submitting", txHash: "0xabc" });
     expect(screen.getByTestId("ceremony-title")).toHaveTextContent("Settling securely");
 
     // The real machine races submitting -> confirmed almost instantly.
     rerender(<SendCeremony state={{ phase: "confirmed" }} receipt={receipt} onDone={vi.fn()} onRetry={vi.fn()} />);
 
-    // Still settling: the coin is mid-flight and the receipt is withheld until the floor elapses.
+    // Still settling: the coin is still working and the receipt is withheld until the floor elapses.
     expect(screen.getByTestId("ceremony-title")).toHaveTextContent("Settling securely");
     expect(screen.queryByTestId("ceremony-receipt")).not.toBeInTheDocument();
     expect(screen.queryByTestId("receipt-details-toggle")).not.toBeInTheDocument();

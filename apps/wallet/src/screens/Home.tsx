@@ -4,7 +4,7 @@
  * action), and a plain-English activity preview. No tx hashes, gas, or "connect
  * wallet". A blocking banner appears only when the BFF isn't live.
  */
-import { ArrowDownLeft, ArrowUpRight, Clock, Smartphone } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Clock } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useWallet } from "../lib/store";
@@ -48,7 +48,7 @@ export function Home() {
   const nav = useNavigate();
   const location = useLocation();
   const justSent = Boolean((location.state as { justSent?: boolean } | null)?.justSent);
-  const { balance, history, loading, hidden, toggleHidden, session, deviceVerified } = useWallet();
+  const { balance, history, loading, hidden, toggleHidden, session } = useWallet();
 
   return (
     <Screen>
@@ -68,15 +68,6 @@ export function Home() {
             <BalanceHero baseUnits={balance?.baseUnits ?? "0"} hidden={hidden} loading={loading} arrived={justSent} />
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <PrivateChip label="Only you can see this" />
-              {deviceVerified ? (
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-full bg-pos/10 px-2.5 py-1 text-[11.5px] font-semibold text-pos"
-                  data-testid="device-verified"
-                  title="Your balance was read and computed on this device, straight from the chain - no server."
-                >
-                  <Smartphone size={12} /> Read on your device
-                </span>
-              ) : null}
               {balance?.syncing ? (
                 <span
                   className="inline-flex items-center gap-1.5 rounded-full bg-amber/12 px-2.5 py-1 text-[11.5px] font-semibold text-[#9a6b12]"
