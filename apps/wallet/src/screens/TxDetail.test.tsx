@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import type { ActivityRow } from "../lib/api";
@@ -25,13 +25,13 @@ function renderDetail(row: ActivityRow) {
 }
 
 describe("TxDetail", () => {
-  it("lets a verified private receive row open proof sharing", () => {
+  it("gives a verified private receive a specific title, status, and shareable receipt", () => {
     renderDetail({
       id: "h_1_tx",
       type: "receive",
-      name: "Paid you",
+      name: "Mansi",
       note: "Paid you",
-      amount: "1000000",
+      amount: "120000000",
       direction: "in",
       status: "settled",
       timestamp: 1782370212,
@@ -39,14 +39,18 @@ describe("TxDetail", () => {
       tone: "accent",
     });
 
+    // Specific title, not "Details".
     expect(screen.getByText("Payment received")).toBeInTheDocument();
-    expect(screen.getByText("Settled")).toBeInTheDocument();
-    expect(screen.getByText("Private")).toBeInTheDocument();
+    expect(screen.getByTestId("txdetail-status")).toHaveTextContent("Settled");
+    expect(within(screen.getByTestId("txdetail-amount")).getByText("+120.00 USDC")).toBeInTheDocument();
+    expect(screen.getByText("from")).toBeInTheDocument();
+    // Copyable reference + a proof status.
+    expect(screen.getByTestId("txdetail-reference")).toBeInTheDocument();
     expect(screen.getByTestId("txdetail-explorer")).toBeInTheDocument();
     expect(screen.getByTestId("txdetail-share")).toBeInTheDocument();
   });
 
-  it("describes outgoing private sends with proof and settlement steps", () => {
+  it("describes an outgoing private send without leaking a public label", () => {
     renderDetail({
       id: "h_send",
       type: "send",
@@ -60,13 +64,16 @@ describe("TxDetail", () => {
       tone: "neutral",
     });
 
-    expect(screen.getByText("Payment created")).toBeInTheDocument();
-    expect(screen.getByText("Proved private")).toBeInTheDocument();
-    expect(screen.getByText("Amount and recipient stayed hidden")).toBeInTheDocument();
-    expect(screen.queryByText(/public avalanche|testnet reserve|made public/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Payment sent")).toBeInTheDocument();
+    // "Alex" appears in the counterparty line and the metadata "To" row.
+    expect(screen.getAllByText("Alex").length).toBeGreaterThan(0);
+    expect(screen.getByText("to")).toBeInTheDocument();
+    expect(within(screen.getByTestId("txdetail-amount")).getByText("−5.00 USDC")).toBeInTheDocument();
+    expect(screen.getByTestId("txdetail-share")).toBeInTheDocument();
+    expect(screen.queryByText(/public avalanche|made public|testnet reserve/i)).not.toBeInTheDocument();
   });
 
-  it("does not present a failed private send as a proved or debited transfer", () => {
+  it("does not present a failed private send as a debited or shareable transfer", () => {
     renderDetail({
       id: "h_failed_private",
       type: "send",
@@ -79,13 +86,12 @@ describe("TxDetail", () => {
       tone: "neutral",
     });
 
-    expect(screen.getByText("$5.00")).toBeInTheDocument();
-    expect(screen.queryByText("−$5.00")).not.toBeInTheDocument();
+    expect(screen.getByText("Payment failed")).toBeInTheDocument();
+    expect(within(screen.getByTestId("txdetail-amount")).getByText("5.00 USDC")).toBeInTheDocument();
+    expect(screen.queryByText("−5.00 USDC")).not.toBeInTheDocument();
     expect(screen.getByText("attempted to")).toBeInTheDocument();
-    expect(screen.getByText("Private proof did not complete")).toBeInTheDocument();
-    expect(screen.getByText("No on-chain settlement was recorded")).toBeInTheDocument();
+    expect(screen.getByTestId("txdetail-failed-note")).toBeInTheDocument();
     expect(screen.getByText("No on-chain transfer recorded")).toBeInTheDocument();
-    expect(screen.queryByText("Proved private")).not.toBeInTheDocument();
     expect(screen.queryByTestId("txdetail-share")).not.toBeInTheDocument();
     expect(screen.queryByTestId("txdetail-explorer")).not.toBeInTheDocument();
   });
@@ -103,11 +109,10 @@ describe("TxDetail", () => {
       tone: "neutral",
     });
 
-    expect(screen.getByText("$5.00")).toBeInTheDocument();
-    expect(screen.queryByText("−$5.00")).not.toBeInTheDocument();
-    expect(screen.getByText("attempted to")).toBeInTheDocument();
-    expect(screen.getByText("Private proof did not complete")).toBeInTheDocument();
+    expect(screen.getByText("Payment failed")).toBeInTheDocument();
+    expect(within(screen.getByTestId("txdetail-amount")).getByText("5.00 USDC")).toBeInTheDocument();
+    expect(screen.queryByText("−5.00 USDC")).not.toBeInTheDocument();
+    expect(screen.getByTestId("txdetail-failed-note")).toBeInTheDocument();
     expect(screen.getByText("No on-chain transfer recorded")).toBeInTheDocument();
-    expect(screen.queryByText("Proved private")).not.toBeInTheDocument();
   });
 });
