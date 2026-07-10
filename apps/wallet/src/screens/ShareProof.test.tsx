@@ -12,6 +12,13 @@ vi.mock("../lib/benzoClient", () => ({
   proveBalanceClientSide: proveMock,
 }));
 
+// Pin the network env to Fuji so the testnet asset label / warning path (env.isTestnet,
+// env.asset) is deterministically exercised instead of leaning on ambient default state.
+vi.mock("../lib/networkEnv", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/networkEnv")>();
+  return { ...actual, useNetworkEnv: () => actual.getNetworkEnv("fuji") };
+});
+
 function renderProof() {
   render(
     <MemoryRouter>

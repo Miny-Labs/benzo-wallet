@@ -47,7 +47,16 @@ export function ShareProof() {
   const valid = Number(min) > 0;
   const assetLabel = env.isTestnet ? `Test ${env.asset}` : env.asset;
   const who = recipient.trim() || "The recipient";
-  const threshold = valid ? fmtUsdc(usdcToBaseUnits(min).toString()) : `0.00 ${env.asset}`;
+  // `usdcToBaseUnits` throws on an over-precise input (e.g. "10.1234567"); the user
+  // types freely, so guard it — a bad in-progress value shows 0.00, never crashes.
+  const threshold = (() => {
+    if (!valid) return `0.00 ${env.asset}`;
+    try {
+      return fmtUsdc(usdcToBaseUnits(min).toString());
+    } catch {
+      return `0.00 ${env.asset}`;
+    }
+  })();
   const expiryNote = EXPIRY.find((e) => e.id === expiry)?.note ?? "does not expire";
 
   async function generate() {
@@ -188,9 +197,9 @@ export function ShareProof() {
               <span className="font-semibold text-ink">{who}</span> will learn only that your balance clears this amount —
               never the exact figure or your payment history.
             </div>
-            {onDevice ? (
+            {onDevice && onChain ? (
               <div className="inline-flex items-center gap-1.5 rounded-full bg-pos/10 px-3 py-1 text-[12px] font-semibold text-pos" data-testid="proof-self-verified">
-                <Smartphone size={13} /> {onChain ? "Proved on your device, verified on-chain" : "Proved on your device"}
+                <Smartphone size={13} /> Proved on your device, verified on-chain
               </div>
             ) : null}
             {!onChain ? (
