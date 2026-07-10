@@ -8,7 +8,7 @@
  * The context defaults to a no-op so a screen rendered in isolation (unit tests,
  * Storybook) can call the hook without a provider and simply do nothing.
  */
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 interface ShellContextValue {
   bottomNavHidden: boolean;
@@ -21,8 +21,15 @@ const ShellCtx = createContext<ShellContextValue>({
 });
 
 export function ShellProvider({ children }: { children: ReactNode }) {
-  const [bottomNavHidden, setBottomNavHidden] = useState(false);
-  const value = useMemo<ShellContextValue>(() => ({ bottomNavHidden, setBottomNavHidden }), [bottomNavHidden]);
+  // Ref-count hide requests, not a single boolean: if two screens both hide the
+  // nav (e.g. an overlay opened over the send flow), the nav stays hidden until
+  // BOTH release — otherwise the first unmount reveals it under the second.
+  const [hideCount, setHideCount] = useState(0);
+  const setBottomNavHidden = useCallback((hidden: boolean) => {
+    setHideCount((n) => Math.max(0, n + (hidden ? 1 : -1)));
+  }, []);
+  const bottomNavHidden = hideCount > 0;
+  const value = useMemo<ShellContextValue>(() => ({ bottomNavHidden, setBottomNavHidden }), [bottomNavHidden, setBottomNavHidden]);
   return <ShellCtx.Provider value={value}>{children}</ShellCtx.Provider>;
 }
 

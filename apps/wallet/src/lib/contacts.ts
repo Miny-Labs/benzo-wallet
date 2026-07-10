@@ -69,6 +69,14 @@ export function removeLocalContact(handle: string): Contact[] {
   return cs;
 }
 
+/**
+ * Merge the user's locally-saved contacts with any contacts the BFF returned,
+ * deduped by handle. Local wins (they're the user's own edits/renames); BFF
+ * entries not already saved locally are appended. In the local-first wallet
+ * `bff` is usually empty, but a running BFF must not be silently dropped.
+ */
 export function mergeContacts(bff: Contact[]): Contact[] {
-  return listLocal();
+  const local = listLocal();
+  const seen = new Set(local.map((c) => c.handle));
+  return [...local, ...bff.filter((c) => c && c.handle && !seen.has(c.handle))];
 }
