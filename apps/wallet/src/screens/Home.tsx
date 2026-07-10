@@ -4,15 +4,17 @@
  * action), and a plain-English activity preview. No tx hashes, gas, or "connect
  * wallet". A blocking banner appears only when the BFF isn't live.
  */
-import { ArrowDownLeft, ArrowUpRight, Clock } from "lucide-react";
+import { ArrowDownLeft, Clock } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useWallet } from "../lib/store";
 import { Screen, Stagger } from "../ui/motion";
 import { TopBar } from "../ui/chrome";
-import { BalanceHero } from "../ui/money";
+import { BalanceHero, BalanceDenomination } from "../ui/money";
 import { PrivateChip } from "../ui/privacy";
 import { Card } from "../ui/primitives";
+import { SendGlyph } from "../ui/icons";
+import { COPY } from "../lib/copy";
 import { ActivityItem } from "../ui/ActivityItem";
 
 function ActionPill({
@@ -66,8 +68,10 @@ export function Home() {
           <Card className="relative overflow-hidden p-6">
             <div className="text-[13px] font-medium text-muted">Balance</div>
             <BalanceHero baseUnits={balance?.baseUnits ?? "0"} hidden={hidden} loading={loading} arrived={justSent} />
+            {/* Denomination / "not real money" context — load-bearing on testnet. */}
+            <BalanceDenomination className="mt-1.5" />
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <PrivateChip label="Only you can see this" />
+              <PrivateChip label={COPY.privateOnChain} />
               {balance?.syncing ? (
                 <span
                   className="inline-flex items-center gap-1.5 rounded-full bg-amber/12 px-2.5 py-1 text-[11.5px] font-semibold text-[#9a6b12]"
@@ -84,7 +88,7 @@ export function Home() {
         {/* Action row */}
         <Stagger.Item index={1}>
           <div className="mt-4 flex gap-2.5">
-            <ActionPill label="Send" testid="action-send" primary icon={<ArrowUpRight size={18} />} onClick={() => nav("/send")} />
+            <ActionPill label="Send" testid="action-send" primary icon={<SendGlyph size={18} />} onClick={() => nav("/send")} />
             <ActionPill label="Receive" testid="action-receive" icon={<ArrowDownLeft size={18} />} onClick={() => nav("/deposit")} />
             <ActionPill label="Activity" testid="action-activity" icon={<Clock size={18} />} onClick={() => nav("/activity")} />
           </div>

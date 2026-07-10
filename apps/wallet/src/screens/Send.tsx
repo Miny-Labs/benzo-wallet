@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { AlertTriangle, AtSign, Send as SendIcon, ShieldCheck, Smartphone, UserPlus } from "lucide-react";
+import { AlertTriangle, AtSign, ShieldCheck, Smartphone, UserPlus } from "lucide-react";
 import type { ProverKind } from "../lib/api";
 import { proverPlan } from "../lib/proverPolicy";
 import { useSendStream } from "../lib/useSendStream";
@@ -9,11 +9,14 @@ import { mergeContacts } from "../lib/contacts";
 import { needsStepUp, stepUpMessage, sendCapUsd } from "../lib/tiers";
 import { useWallet } from "../lib/store";
 import { fmtUsd, USDC_BASE_UNITS, usdcToBaseUnits } from "../lib/format";
+import { COPY } from "../lib/copy";
 import { isValidEvmAddress, shortAddress } from "../lib/address";
 import { isRegisteredOnEerc } from "../lib/handleRegistry";
 import { classifyRecipientInput, looksLikeEvmAddressInput, type RecipientKind } from "../lib/recipient";
 import { Screen, motion } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
+import { useHideBottomNav } from "../ui/shell";
+import { SendGlyph } from "../ui/icons";
 import { AmountField, Avatar, Button, Input } from "../ui/primitives";
 import { PrivateChip } from "../ui/privacy";
 import { SendCeremony, type SendReceipt } from "../ui/send/SendCeremony";
@@ -131,6 +134,9 @@ export function Send() {
   const valid = recipientReady && !checkingPrivateBalance && !lowPrivate;
 
   const inFlight = state.phase !== "idle";
+  // Send is a floating action, not a tab — drop the BottomNav for the focused flow
+  // (review → passkey → processing → success/failure). The form step keeps it.
+  useHideBottomNav(step === "confirm" || inFlight);
 
   const view: SendReceipt = {
     amount: receipt?.amount ?? amountBaseUnits,
@@ -181,7 +187,7 @@ export function Send() {
               <label htmlFor="send-to" className="text-sm font-semibold text-ink">
                 To
               </label>
-              <div className="mt-1.5 flex items-center gap-1 rounded-2xl border border-hair bg-canvas/60 px-4 py-3 transition focus-within:border-accent focus-within:bg-card focus-within:ring-4 focus-within:ring-accent/15">
+              <div className="mt-1.5 flex items-center gap-1 rounded-[var(--radius-input)] border border-hair bg-canvas px-4 py-3 transition focus-within:border-accent focus-within:bg-card focus-within:ring-4 focus-within:ring-accent/15">
                 {showAtAdornment ? (
                   <span className="select-none text-[15px] font-semibold text-muted" aria-hidden data-testid="send-handle-at">
                     @
@@ -467,7 +473,7 @@ function ConfirmStep({
         </div>
         {memo ? <div className="mt-3 rounded-xl bg-canvas/70 px-3 py-2 text-center text-sm text-ink">"{memo}"</div> : null}
         <div className="mt-4 flex justify-center">
-          <PrivateChip label={`Only you and ${display} can see this`} />
+          <PrivateChip label={COPY.privateOnChain} />
         </div>
       </div>
 
@@ -480,7 +486,7 @@ function ConfirmStep({
         </div>
       ) : (
         <div className="mt-3 text-center text-sm text-muted">
-          Sends instantly and can't be undone.
+          {COPY.irreversible}
         </div>
       )}
 
@@ -494,7 +500,7 @@ function ConfirmStep({
           Back
         </Button>
         <Button full size="lg" loading={firing} disabled={firing} onClick={onSend} data-testid="send-confirm">
-          <SendIcon size={17} className="flex-none" />
+          <SendGlyph size={18} className="flex-none" />
           <span className="truncate">Send {fmtUsd(amount)}</span>
         </Button>
       </div>

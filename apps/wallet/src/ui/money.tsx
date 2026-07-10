@@ -5,7 +5,8 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { fmtUsd, splitAmount, USDC_BASE_UNITS } from "../lib/format";
+import { fmtUsd, fmtUsdc, fmtUsdcApproxUsd, splitAmount, USDC_BASE_UNITS } from "../lib/format";
+import { useNetworkEnv } from "../lib/networkEnv";
 
 /** Smoothly count a number up to its target (skipped under reduced-motion). */
 function useCountUp(target: number, durationMs = 900): number {
@@ -94,6 +95,41 @@ function ArrivingCoin() {
       animate={{ y: 6, scale: 0.35, opacity: [0, 1, 1, 0] }}
       transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1], times: [0, 0.35, 0.7, 1] }}
     />
+  );
+}
+
+/**
+ * The denomination / context line under the hero balance. On a testnet this is the
+ * load-bearing "this is NOT real money" cue: "Test USDC · Fuji Testnet · No real
+ * value". On mainnet it's a plain "USDC · Avalanche". Reads the active network-env.
+ */
+export function BalanceDenomination({ className = "" }: { className?: string }) {
+  const env = useNetworkEnv();
+  return (
+    <div className={`text-[12px] font-medium text-muted ${className}`} data-testid="balance-denomination">
+      {env.denomination}
+    </div>
+  );
+}
+
+/**
+ * Inline, unit-explicit amount so USDC is never mistaken for a raw dollar figure.
+ * `approxUsd` renders the review form "10.00 USDC ≈ $10.00"; otherwise "10.00 USDC".
+ */
+export function AmountUsdc({
+  baseUnits,
+  approxUsd = false,
+  className = "",
+}: {
+  baseUnits: string | bigint;
+  approxUsd?: boolean;
+  className?: string;
+}) {
+  const text = approxUsd ? fmtUsdcApproxUsd(baseUnits) : fmtUsdc(baseUnits);
+  return (
+    <span className={`tnum ${className}`} data-testid="amount-usdc">
+      {text}
+    </span>
   );
 }
 

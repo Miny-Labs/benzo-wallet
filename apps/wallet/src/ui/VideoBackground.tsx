@@ -39,8 +39,16 @@ export function VideoBackground({ tint = "#f2f2ee", src = "/bg.mp4" }: { tint?: 
         playsInline
         preload="auto"
       />
-      {/* Legibility scrim - keeps the brand tint + lets dark text read over the video. */}
-      <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, ${tint}66 0%, ${tint}26 30%, ${tint}40 100%)` }} />
+      {/* Legibility scrim. The sky is a HERO backdrop, not a reading surface: it
+          shows through the upper third, then fades to a near-solid off-white
+          canvas so long lists / forms / settings sit on a calm surface (text +
+          buttons never land on a bright cloud edge). */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background: `linear-gradient(180deg, ${tint}40 0%, ${tint}12 16%, transparent 30%, var(--color-canvas) 78%, var(--color-canvas) 100%)`,
+        }}
+      />
     </div>
   );
 }

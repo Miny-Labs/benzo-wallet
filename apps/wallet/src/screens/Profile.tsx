@@ -9,6 +9,8 @@ import { useNavigate } from "react-router-dom";
 import { useWallet } from "../lib/store";
 import { getChainStatus } from "../lib/chain";
 import { useNetwork } from "../lib/networkContext";
+import { getNetworkEnv, NETWORK_TONE_CHIP } from "../lib/networkEnv";
+import { COPY } from "../lib/copy";
 import { AvalancheMark, NetworkMark } from "../ui/Logo";
 import { getLockSettings, setLockSettings, lockCapable, requireUnlock } from "../lib/lock";
 import { tierInfo, sendCapUsd } from "../lib/tiers";
@@ -19,7 +21,8 @@ import { deleteWallet, exportWallet, getLocalAccountSummary, getLocalRecoverySta
 export function Profile() {
   const nav = useNavigate();
   const { session, balance, publicBalance, hidden, toggleHidden } = useWallet();
-  const { network, setNetwork, theme, options } = useNetwork();
+  const { network, setNetwork, options } = useNetwork();
+  const env = getNetworkEnv(network);
   const toast = useToast();
   const live = session?.live;
   const summary = getLocalAccountSummary();
@@ -123,9 +126,9 @@ export function Profile() {
   return (
     <Screen>
       <div className="px-5 pb-2 pt-6">
-        <h1 className="font-display text-2xl">Profile</h1>
+        <h1 className="font-display text-page-title">Profile</h1>
       </div>
-      <Stagger className="space-y-4 px-5 pb-28">
+      <Stagger className="space-y-4 px-5 pb-4">
         <Stagger.Item index={0}>
           <Card className="flex items-center gap-3 p-5">
             <Avatar name={session?.profile.name ?? "You"} tone="accent" size={52} />
@@ -204,15 +207,25 @@ export function Profile() {
                 </button>
               }
             />
+            {/* Testnet must never look live. The env model tones this pill — amber
+                for Fuji/BenzoNet ("test funds"), green only for mainnet. No more
+                green "Live · Avalanche Fuji". */}
             <Row
               icon={<Sparkles size={18} />}
-              label="Mode"
-              right={<span className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${live ? "bg-pos/12 text-pos" : "bg-amber/12 text-[#9a6b12]"}`} data-testid="profile-mode">{live ? `Live · ${theme.label}` : "Chain unavailable"}</span>}
+              label={COPY.networkLabel}
+              right={
+                <span
+                  className={`rounded-full px-2.5 py-1 text-[12px] font-semibold ${live ? NETWORK_TONE_CHIP[env.tone] : "bg-amber/12 text-[#9a6b12]"}`}
+                  data-testid="profile-mode"
+                >
+                  {live ? env.name : "Chain unavailable"}
+                </span>
+              }
             />
             <Row
               icon={<ShieldCheck size={18} />}
               label="Proofs run"
-              right={<span className="text-[13px] text-muted">Local only</span>}
+              right={<span className="text-[13px] text-muted">On this device</span>}
             />
             <Row
               icon={<KeyRound size={18} />}

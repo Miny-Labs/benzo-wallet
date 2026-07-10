@@ -31,6 +31,17 @@ export function fmtUsd(minor: string | bigint): string {
   return s.startsWith("-") ? `-$${s.slice(1)}` : `$${s}`;
 }
 
+/** "10.00 USDC" — the inline, unit-explicit form for send/review/rows so an amount
+ *  is never mistaken for a raw dollar figure. */
+export function fmtUsdc(minor: string | bigint): string {
+  return `${usdFromBaseUnits(minor)} USDC`;
+}
+
+/** "10.00 USDC ≈ $10.00" — the review form (USDC is the asset; $ is the reference). */
+export function fmtUsdcApproxUsd(minor: string | bigint): string {
+  return `${usdFromBaseUnits(minor)} USDC ≈ ${fmtUsd(minor)}`;
+}
+
 /** Signed, with explicit + for credits: "+$200.00" / "−$50.00" (true minus glyph). */
 export function fmtSigned(minor: string | bigint, direction: "in" | "out"): string {
   const s = usdFromBaseUnits(typeof minor === "bigint" ? (minor < 0n ? -minor : minor) : minor.replace(/^-/, ""));

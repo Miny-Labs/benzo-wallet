@@ -4,11 +4,13 @@
  * route transitions, and a tab bar with a sliding active indicator + center FAB.
  */
 import { AnimatePresence, motion } from "framer-motion";
-import { Clock, Home as HomeIcon, QrCode, ArrowUpRight, User } from "lucide-react";
+import { Clock, Home as HomeIcon, QrCode, User } from "lucide-react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { VideoBackground } from "./ui/VideoBackground";
 import { StageVideo } from "./ui/StageVideo";
 import { LockGate } from "./ui/LockGate";
+import { SendGlyph } from "./ui/icons";
+import { ShellProvider, useShell } from "./ui/shell";
 import { spring } from "./ui/motion";
 import { Component, lazy, Suspense, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { useNetwork } from "./lib/networkContext";
@@ -57,7 +59,7 @@ function BottomNav() {
         data-testid="fab-send"
         className="-mt-7 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-[var(--shadow-glow)] outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
       >
-        <ArrowUpRight size={26} />
+        <SendGlyph size={24} className="text-white" />
       </motion.button>
       {TABS.slice(2).map((t) => (
         <NavBtn key={t.to} {...t} on={active(t.to)} onClick={() => nav(t.to)} />
@@ -97,6 +99,23 @@ function useIsDesktop() {
     return () => mq.removeEventListener("change", on);
   }, []);
   return isDesktop;
+}
+
+/**
+ * The mounted shell body: the scrollable route viewport + BottomNav. Lives inside
+ * <ShellProvider> so a screen can call `useHideBottomNav()` to drop the nav for a
+ * focused flow (Send: review → passkey → processing → success/failure). `main`
+ * carries the `.pb-nav` inset so the nav (and its protruding FAB) never covers
+ * content — Profile used to get clipped at the bottom.
+ */
+function Shell({ children }: { children: ReactNode }) {
+  const { bottomNavHidden } = useShell();
+  return (
+    <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
+      <main className="no-scrollbar flex-1 overflow-y-auto pb-nav">{children}</main>
+      {bottomNavHidden ? null : <BottomNav />}
+    </div>
+  );
 }
 
 /**
@@ -196,8 +215,8 @@ export function App() {
           <AnimatePresence>{onboarded && locked ? <LockGate onUnlock={() => setLocked(false)} /> : null}</AnimatePresence>
           <AnimatePresence>{!onboarded ? <Onboarding onDone={finishOnboarding} /> : null}</AnimatePresence>
           {showShell ? (
-          <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
-            <main className="no-scrollbar flex-1 overflow-y-auto">
+          <ShellProvider>
+            <Shell>
               <RouteErrorBoundary>
               <Suspense
                 fallback={
@@ -224,9 +243,8 @@ export function App() {
               </Routes>
               </Suspense>
               </RouteErrorBoundary>
-            </main>
-            <BottomNav />
-          </div>
+            </Shell>
+          </ShellProvider>
           ) : null}
         </div>
       </div>

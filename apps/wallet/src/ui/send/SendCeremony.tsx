@@ -27,7 +27,9 @@ import { type PaymentPhase, type PaymentState } from "@benzo/ui/payment-state";
 import { EASE } from "../motion";
 import { Button, SuccessCheck } from "../primitives";
 import { copyTextToClipboard } from "../../lib/clipboard";
-import { fmtUsd } from "../../lib/format";
+import { fmtUsdcApproxUsd } from "../../lib/format";
+import { COPY } from "../../lib/copy";
+import { useNetworkEnv } from "../../lib/networkEnv";
 import { explorerTx } from "../OnChainDetails";
 
 export interface SendReceipt {
@@ -57,6 +59,25 @@ const PHASE_TO_PAYMENT: Record<CeremonyPhase, PaymentPhase> = {
   error: "failed",
 };
 
+/**
+ * Consumer-facing stage copy for whatever phase is on screen. Plain English only —
+ * "Preparing your private payment" → "Waiting for confirmation" → "Payment
+ * complete". The settle sub is network-aware ("Fuji Testnet is confirming"); the
+ * error sub is the real message off the state machine.
+ */
+function ceremonyCopy(phase: CeremonyPhase, networkName: string, errorSub: string): { title: string; sub: string } {
+  switch (phase) {
+    case "encrypt":
+      return COPY.ceremony.preparing;
+    case "settle":
+      return { title: COPY.ceremony.confirming.title, sub: COPY.ceremony.confirming.sub(networkName) };
+    case "verify":
+      return COPY.ceremony.complete;
+    case "error":
+      return { title: COPY.ceremony.failed.title, sub: errorSub };
+  }
+}
+
 export function SendCeremony({
   state,
   receipt,
@@ -69,11 +90,15 @@ export function SendCeremony({
   onRetry: () => void;
 }) {
   const reduce = useReducedMotion() ?? false;
+  const env = useNetworkEnv();
   const target = sendCeremonyView(state, { prover: receipt.prover, reducedMotion: reduce }).phase;
   const { phase, step } = useFlooredCeremonyPhase(target, reduce);
 
-  // Honest copy for whatever phase is actually on screen (respects the floor hold).
+  // The honest state machine still decides WHICH phase is on screen; `shown` only
+  // carries the real error message for the failure state. Everything else uses the
+  // consumer-facing stage copy (crypto detail is deferred to Advanced details).
   const shown = sendCeremonyView({ ...state, phase: PHASE_TO_PAYMENT[phase] }, { prover: receipt.prover, reducedMotion: reduce });
+  const stageCopy = ceremonyCopy(phase, env.name, shown.sub);
 
   if (state.phase === "idle") return null;
 
@@ -111,10 +136,10 @@ export function SendCeremony({
       <div className="relative z-10 w-full">
         <div className="mb-6">
           <div className="font-display text-2xl" data-testid="ceremony-title">
-            {shown.title}
+            {stageCopy.title}
           </div>
           <div className="mt-1 text-sm text-muted" data-testid="ceremony-sub">
-            {shown.sub}
+            {stageCopy.sub}
           </div>
         </div>
 
@@ -529,7 +554,7 @@ function VerifyReveal({ receipt, reduce }: { receipt: SendReceipt; reduce: boole
   const [showDetails, setShowDetails] = useState(false);
   const rows: Array<{ label: string; value: React.ReactNode }> = [
     { label: "To", value: receipt.recipient },
-    { label: "Amount", value: fmtUsd(receipt.amount) },
+    { label: "Amount", value: fmtUsdcApproxUsd(receipt.amount) },
   ];
   if (receipt.memo) rows.push({ label: "Note", value: receipt.memo });
 
@@ -558,7 +583,7 @@ function VerifyReveal({ receipt, reduce }: { receipt: SendReceipt; reduce: boole
             className="inline-flex items-center gap-1 text-[12px] font-semibold text-muted hover:text-ink"
             data-testid="receipt-details-toggle"
           >
-            {showDetails ? "Hide details" : "Receipt details"}
+            {showDetails ? "Hide details" : COPY.ceremony.advancedDetails}
             <ChevronDown size={13} className={`transition-transform ${showDetails ? "rotate-180" : ""}`} />
           </button>
           <AnimatePresence initial={false}>
@@ -568,7 +593,11 @@ function VerifyReveal({ receipt, reduce }: { receipt: SendReceipt; reduce: boole
                 animate={{ opacity: 1, y: 0 }}
                 exit={reduce ? undefined : { opacity: 0, y: -4 }}
                 className="mt-2 flex flex-wrap items-center justify-center gap-2"
+                data-testid="receipt-advanced"
               >
+                {/* Cryptographic detail lives here — witness/prover/proof-time —
+                    never in the everyday stage copy above. */}
+                <span className="rounded-full bg-ink/[0.05] px-2.5 py-1 text-[11px] font-semibold text-muted">{COPY.proofOnDevice}</span>
                 {typeof receipt.provingMs === "number" ? (
                   <span className="rounded-full bg-ink/[0.05] px-2.5 py-1 text-[11px] font-semibold text-muted">Proved in {(receipt.provingMs / 1000).toFixed(1)}s</span>
                 ) : null}
@@ -589,7 +618,7 @@ function VerifyReveal({ receipt, reduce }: { receipt: SendReceipt; reduce: boole
           </AnimatePresence>
         </div>
       </div>
-      <p className="text-[12px] text-muted">Only you and {receipt.recipient} can see this.</p>
+      <p className="text-[12px] text-muted">{COPY.paymentPrivacy(receipt.recipient)}</p>
     </div>
   );
 }

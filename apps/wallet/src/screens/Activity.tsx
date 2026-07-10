@@ -3,17 +3,16 @@
  * empty + skeleton states; everything in plain English.
  */
 import { useMemo } from "react";
-import { ChevronLeft, Clock } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Clock } from "lucide-react";
 import { useWallet } from "../lib/store";
 import { dayBucket } from "../lib/format";
 import { Screen, Stagger } from "../ui/motion";
-import { EmptyState, IconButton } from "../ui/primitives";
+import { ScreenHeader } from "../ui/chrome";
+import { EmptyState } from "../ui/primitives";
 import { ActivityItem } from "../ui/ActivityItem";
 import type { ActivityRow } from "../lib/api";
 
 export function Activity() {
-  const nav = useNavigate();
   const { history, loading, hidden } = useWallet();
 
   const groups = useMemo(() => {
@@ -27,15 +26,9 @@ export function Activity() {
 
   return (
     <Screen>
-      {/* Activity is both a bottom-nav tab and a push from Home's "Activity"
-          button — either way Home is the sensible parent, so the chevron always
-          returns there rather than an ambiguous history pop. */}
-      <div className="flex items-center gap-2 px-5 pb-1 pt-5">
-        <IconButton onClick={() => nav("/")} aria-label="Back to home" data-testid="activity-back">
-          <ChevronLeft size={20} />
-        </IconButton>
-        <h1 className="font-display text-2xl">Activity</h1>
-      </div>
+      {/* Activity is a top-level tab (reachable from the BottomNav and Home's
+          "Activity" button) — a top-level destination shows no back button. */}
+      <ScreenHeader title="Activity" back={false} />
       <div className="px-5">
         {loading ? (
           <div className="space-y-3 px-2 pt-3">

@@ -13,6 +13,7 @@ import { motion } from "framer-motion";
 import { Check, ExternalLink, FileSearch, ShieldCheck, X } from "lucide-react";
 import { useWallet } from "../lib/store";
 import { fullDateTime } from "../lib/format";
+import { COPY } from "../lib/copy";
 import { Screen } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
 import { Avatar, Button, EmptyState } from "../ui/primitives";
@@ -125,7 +126,7 @@ export function TxDetail() {
             {failed ? (
               <PrivateChip label="No on-chain transfer recorded" />
             ) : (
-              <PrivateChip label={row.direction === "in" ? "Only you can see this" : `Only you and ${row.name} can see this`} />
+              <PrivateChip label={COPY.privateOnChain} />
             )}
           </div>
         </div>
