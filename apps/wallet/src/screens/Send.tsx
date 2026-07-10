@@ -290,7 +290,7 @@ export function Send() {
               </div>
             </div>
 
-            <Input className="mt-6" label="Note (optional)" placeholder="What's it for?" value={memo} onChange={(e) => setMemo(e.target.value)} data-testid="send-memo" />
+            <Input className="mt-8" label="Note (optional)" placeholder="What's it for?" value={memo} onChange={(e) => setMemo(e.target.value)} data-testid="send-memo" />
 
             {kind === "invite" && recipient && !badAddress ? (
               <div className="mt-6 flex items-center gap-3 rounded-2xl bg-accent/[0.06] p-4">
@@ -456,7 +456,7 @@ function ConfirmStep({
     <div>
       <div className="mt-2 rounded-[var(--radius-card)] bg-card p-5 shadow-[var(--shadow-card)]">
         <div className="text-center">
-          <div className="font-display tnum text-4xl text-ink">{fmtUsd(amount)}</div>
+          <div className="font-display text-4xl text-ink">{fmtUsd(amount)}</div>
           {kind === "address" && address ? (
             <div className="mx-auto mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-canvas px-3 py-1 font-mono text-[13px] text-ink" data-testid="confirm-address">
               <ShieldCheck size={12} className="flex-none text-accent" /> {shortAddress(address)}

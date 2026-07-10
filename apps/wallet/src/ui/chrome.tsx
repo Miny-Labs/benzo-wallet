@@ -52,7 +52,7 @@ function NetworkGlobe() {
             transition={spring}
             role="menu"
             data-testid="home-network-menu"
-            className="absolute right-0 top-full z-50 mt-2 w-64 origin-top-right rounded-2xl border border-hair bg-card p-3 shadow-[var(--shadow-card)]"
+            className="absolute right-0 top-full z-50 mt-2 w-56 max-w-[calc(100vw-2.5rem)] origin-top-right rounded-2xl border border-hair bg-card p-3 shadow-[var(--shadow-card)]"
           >
             <div className="mb-2 flex items-center gap-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/10 text-accent">

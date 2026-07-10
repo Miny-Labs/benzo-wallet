@@ -179,7 +179,7 @@ export function Claim() {
                 <Gift size={36} />
               </div>
               <div>
-                <div className="font-display text-3xl tnum">{claimAmount ? fmtUsd(claimAmount) : "Money"}</div>
+                <div className="font-display text-3xl">{claimAmount ? fmtUsd(claimAmount) : "Money"}</div>
                 <div className="mt-1 text-[15px] text-muted">is waiting for you</div>
               </div>
               <p className="max-w-[280px] text-[13px] text-muted">Claim it into your private Benzo wallet. Only you'll be able to see it.</p>
@@ -300,7 +300,7 @@ function PayRequest({ link }: { link: Extract<BenzoLink, { type: "request" }> })
       <div className="flex flex-1 flex-col items-center justify-center px-7 pb-10 text-center" data-testid="pay-request">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent/10 text-accent"><ArrowRight size={28} /></div>
         <div className="mt-4">
-          <div className="font-display text-3xl tnum">{link.amount ? fmtUsd(link.amount) : "Any amount"}</div>
+          <div className="font-display text-3xl">{link.amount ? fmtUsd(link.amount) : "Any amount"}</div>
           <div className="mt-1 text-[15px] text-muted">{who} requested {link.amount ? "this" : "a payment"}</div>
           {link.memo ? <div className="mt-1 text-[13px] text-muted">"{link.memo}"</div> : null}
         </div>

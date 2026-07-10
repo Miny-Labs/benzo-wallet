@@ -135,7 +135,7 @@ export function InviteExternal() {
             <Card className="divide-y divide-hair/60 p-0">
               {invites.slice(0, 8).map((inv) => (
                 <div key={inv.localId} className="flex items-center gap-3 px-4 py-3 text-[13.5px]" data-testid="invite-row">
-                  <span className="font-display tnum w-20 flex-none text-ink">{fmtUsd(inv.amount)}</span>
+                  <span className="font-display w-20 flex-none text-ink">{fmtUsd(inv.amount)}</span>
                   <span className="min-w-0 flex-1 truncate text-muted">{inv.note ?? "Invite"}</span>
                   <StatusPill status={inv.status} />
                   {inv.status === "pending" || inv.status === "expired" ? (

@@ -231,7 +231,7 @@ export function AmountField({
         }}
         placeholder="0"
         aria-label="Amount"
-        className="font-display tnum w-full max-w-[260px] bg-transparent text-center text-5xl text-ink outline-none placeholder:text-ink/25"
+        className="font-display w-full max-w-[260px] bg-transparent text-center text-5xl text-ink outline-none placeholder:text-ink/25"
       />
     </div>
   );

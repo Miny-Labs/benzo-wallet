@@ -114,7 +114,7 @@ export function AmountText({
     <motion.span
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className={`font-display tnum ${color} ${className}`}
+      className={`font-display ${color} ${className}`}
     >
       {sign}
       {s}

@@ -54,7 +54,7 @@ export function ActivityItem({ row, hidden, last }: { row: ActivityRow; hidden?:
       <div className="flex items-center gap-1">
         <div className="flex flex-col items-end">
           {hidden ? (
-            <span className="font-display tnum text-base text-ink/70" aria-label="Amount hidden">
+            <span className="font-display text-base text-ink/70" aria-label="Amount hidden">
               ••••
             </span>
           ) : (
