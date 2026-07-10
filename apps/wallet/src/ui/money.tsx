@@ -5,7 +5,8 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { fmtUsd, splitAmount, USDC_BASE_UNITS } from "../lib/format";
+import { fmtUsd, fmtUsdc, fmtUsdcApproxUsd, splitAmount, USDC_BASE_UNITS } from "../lib/format";
+import { useNetworkEnv } from "../lib/networkEnv";
 
 /** Smoothly count a number up to its target (skipped under reduced-motion). */
 function useCountUp(target: number, durationMs = 900): number {
@@ -67,8 +68,13 @@ export function BalanceHero({
   return (
     <div className="relative">
       {arrived ? <ArrivingCoin /> : null}
-      <div className="font-display tnum text-hero mt-1.5 flex items-baseline tracking-tight" aria-label={fmtUsd(baseUnits)}>
-        <span className="text-hero-sub font-semibold">$</span>
+      {/* One tight figure: `$4,820.50`. `tnum` (tabular-nums) forced the comma and
+          the decimal point to a full digit-width advance, which read as gaps
+          around the `$`, the thousands comma, and the cents — proportional
+          figures keep the separators snug. The count-up changes the digit COUNT
+          frame-to-frame anyway, so tabular alignment bought nothing here. */}
+      <div className="font-display text-hero mt-1.5 flex items-baseline tracking-tight" aria-label={fmtUsd(baseUnits)}>
+        <span className="text-hero-sub mr-px font-semibold">$</span>
         <span>{dollars.replace(/^\$/, "")}</span>
         <span className="text-hero-sub text-muted">.{cents}</span>
       </div>
@@ -92,6 +98,41 @@ function ArrivingCoin() {
   );
 }
 
+/**
+ * The denomination / context line under the hero balance. On a testnet this is the
+ * load-bearing "this is NOT real money" cue: "Test USDC · Fuji Testnet · No real
+ * value". On mainnet it's a plain "USDC · Avalanche". Reads the active network-env.
+ */
+export function BalanceDenomination({ className = "" }: { className?: string }) {
+  const env = useNetworkEnv();
+  return (
+    <div className={`text-[12px] font-medium text-muted ${className}`} data-testid="balance-denomination">
+      {env.denomination}
+    </div>
+  );
+}
+
+/**
+ * Inline, unit-explicit amount so USDC is never mistaken for a raw dollar figure.
+ * `approxUsd` renders the review form "10.00 USDC ≈ $10.00"; otherwise "10.00 USDC".
+ */
+export function AmountUsdc({
+  baseUnits,
+  approxUsd = false,
+  className = "",
+}: {
+  baseUnits: string | bigint;
+  approxUsd?: boolean;
+  className?: string;
+}) {
+  const text = approxUsd ? fmtUsdcApproxUsd(baseUnits) : fmtUsdc(baseUnits);
+  return (
+    <span className={`tnum ${className}`} data-testid="amount-usdc">
+      {text}
+    </span>
+  );
+}
+
 /** Inline amount for activity rows / sheets. `direction` colors + signs it. */
 export function AmountText({
   baseUnits,
@@ -109,7 +150,7 @@ export function AmountText({
     <motion.span
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className={`font-display tnum ${color} ${className}`}
+      className={`font-display ${color} ${className}`}
     >
       {sign}
       {s}

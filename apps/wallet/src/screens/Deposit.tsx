@@ -8,6 +8,7 @@ import { Check, Copy } from "lucide-react";
 import { copyTextToClipboard } from "../lib/clipboard";
 import { getLocalAccountSummary } from "../lib/localWallet";
 import { NETWORK_LABEL } from "../lib/network";
+import { COPY } from "../lib/copy";
 import { Screen } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
 import { PrivateChip } from "../ui/privacy";
@@ -25,7 +26,8 @@ export function Deposit() {
 
   return (
     <Screen>
-      <ScreenHeader title="Receive" />
+      {/* Receive is a top-level tab (BottomNav) — no back button. */}
+      <ScreenHeader title="Receive" back={false} />
       <div className="px-5 pt-2">
         <p className="text-center text-[13.5px] text-muted">
           Share this address or QR code to receive USDC into your Benzo wallet.
@@ -68,7 +70,7 @@ export function Deposit() {
         </div>
 
         <div className="mt-5 flex justify-center">
-          <PrivateChip label="Received balance stays private" />
+          <PrivateChip label={COPY.receivedPrivate} />
         </div>
       </div>
     </Screen>

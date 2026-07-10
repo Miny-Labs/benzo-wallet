@@ -163,7 +163,7 @@ export function Request() {
               {requests.map((r) => (
                 <Card key={r.id} className="flex items-center gap-3 p-3.5" data-testid="request-row">
                   <div className="min-w-0 flex-1">
-                    <div className="tnum text-sm font-semibold">{r.amount ? fmtUsd(r.amount) : "Any amount"}{r.to ? ` · ${r.to}` : ""}</div>
+                    <div className="text-sm font-semibold">{r.amount ? fmtUsd(r.amount) : "Any amount"}{r.to ? ` · ${r.to}` : ""}</div>
                     <div className="truncate text-xs text-muted">{r.memo || "Payment request"}</div>
                   </div>
                   <ReqStatus status={r.status} />
