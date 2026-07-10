@@ -46,16 +46,13 @@ describe("wallet deployment drift guard", () => {
     expect(VERIFIER_ID).toBe(DEPLOYMENT.contracts.verifiers.transfer);
   });
 
-  it("selects BenzoNet without changing its deployed addresses", async () => {
-    const { ACTIVE_CHAIN, DEPLOYMENT, NETWORK, RPC_URL } = await loadNetwork({ VITE_BENZO_NETWORK: "benzonet" });
+  it("folds a benzonet build back to Fuji — the consumer wallet ships only public chains", async () => {
+    // BenzoNet is the permissioned business L1 (console-only). The wallet must never
+    // resolve to it, even if a build env asks for it.
+    const { ACTIVE_CHAIN, NETWORK } = await loadNetwork({ VITE_BENZO_NETWORK: "benzonet" });
 
-    expect(NETWORK).toBe("benzonet");
-    expect(ACTIVE_CHAIN.id).toBe(68420);
-    expect(RPC_URL).toBe("http://127.0.0.1:9650/ext/bc/21iisL1nkpM2AauUadAz7p1gK3waRBZLEJme3LU3gsWpaxy792/rpc");
-    expect(DEPLOYMENT.contracts.EncryptedERC).toBe("0x790Dd53099E5009a9Cf572769a5A663cCb7EfAcE");
-    expect(DEPLOYMENT.contracts.Registrar).toBe("0xdfB9b7d958539FC4A1e31C9b813833Fb972B30Ff");
-    expect(DEPLOYMENT.contracts.tUSDC).toBe("0x85546bE3564d503F6ED77a4DA44BEF32EcAEd034");
-    expect(DEPLOYMENT.contracts.verifiers.transfer).toBe("0xa1d0f50D5f479a2aeC3C67A38a6fa5c735CcC313");
+    expect(NETWORK).toBe("fuji");
+    expect(ACTIVE_CHAIN.id).toBe(43113);
   });
 
   it("selects Avalanche mainnet from VITE_BENZO_NETWORK", async () => {

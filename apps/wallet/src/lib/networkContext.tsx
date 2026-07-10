@@ -53,9 +53,11 @@ export const NETWORK_THEME: Record<DeploymentNetwork, NetworkTheme> = {
   },
 };
 
+// The consumer wallet ships only the PUBLIC Avalanche chains: Fuji to try it
+// risk-free, C-Chain mainnet for real money. The permissioned BenzoNet L1 is a
+// business network (validator/participant allowlists) — it lives in the console.
 export const NETWORK_OPTIONS: ReadonlyArray<{ network: DeploymentNetwork; label: string }> = [
-  { network: "fuji", label: "Fuji" },
-  { network: "benzonet", label: "BenzoNet" },
+  { network: "fuji", label: "Testnet" },
   { network: "avalanche", label: "Mainnet" },
 ];
 
