@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { AlertTriangle, AtSign, Send as SendIcon, ShieldCheck, Smartphone, UserPlus } from "lucide-react";
+import { AlertTriangle, AtSign, ShieldCheck, Smartphone, UserPlus } from "lucide-react";
 import type { ProverKind } from "../lib/api";
 import { proverPlan } from "../lib/proverPolicy";
 import { useSendStream } from "../lib/useSendStream";
@@ -9,11 +9,14 @@ import { mergeContacts } from "../lib/contacts";
 import { needsStepUp, stepUpMessage, sendCapUsd } from "../lib/tiers";
 import { useWallet } from "../lib/store";
 import { fmtUsd, USDC_BASE_UNITS, usdcToBaseUnits } from "../lib/format";
+import { COPY } from "../lib/copy";
 import { isValidEvmAddress, shortAddress } from "../lib/address";
 import { isRegisteredOnEerc } from "../lib/handleRegistry";
 import { classifyRecipientInput, looksLikeEvmAddressInput, type RecipientKind } from "../lib/recipient";
 import { Screen, motion } from "../ui/motion";
 import { ScreenHeader } from "../ui/chrome";
+import { useHideBottomNav } from "../ui/shell";
+import { SendGlyph } from "../ui/icons";
 import { AmountField, Avatar, Button, Input } from "../ui/primitives";
 import { PrivateChip } from "../ui/privacy";
 import { SendCeremony, type SendReceipt } from "../ui/send/SendCeremony";
@@ -23,6 +26,27 @@ type Step = "form" | "confirm";
 type Kind = RecipientKind;
 
 const INVALID_AMOUNT = "Enter an amount above $0.";
+
+/** A bare word (letters/digits/underscore, no `0x`/`bzr_`/`@`/pure-number
+ *  scheme) reads as a handle-in-progress — we show an `@` adornment and treat it
+ *  as `@handle`, so a typed "mansi" matches the saved "@mansi" contact and
+ *  classifies as a private send, exactly like tapping the chip. */
+function looksLikeBareHandle(raw: string): boolean {
+  const t = raw.trim();
+  return t.length > 0 && t.length <= 20 && /^[a-z0-9_]+$/i.test(t) && !/^0x/i.test(t) && !t.startsWith("bzr_") && !/^\d+$/.test(t);
+}
+
+function normalizeRecipientInput(raw: string): string {
+  const t = raw.trim();
+  return looksLikeBareHandle(t) ? `@${t}` : t;
+}
+
+/** Compact, human label for a handle/address/receive-code in chips + dropdown. */
+function contactHandleLabel(handle: string): string {
+  if (handle.startsWith("bzr_")) return `${handle.slice(0, 10)}…${handle.slice(-8)}`;
+  if (handle.length > 24) return `${handle.slice(0, 8)}…${handle.slice(-8)}`;
+  return handle;
+}
 
 function parsePositiveAmount(amount: string): { valid: boolean; value: bigint; baseUnits: string; error: string | null } {
   const raw = amount.trim();
@@ -46,11 +70,17 @@ export function Send() {
   const { contacts: bffContacts, session, balance, refresh, refreshBalance } = useWallet();
   const contacts = useMemo(() => mergeContacts(bffContacts), [bffContacts]);
   const { state, receipt, run, reset } = useSendStream();
-  const [to, setTo] = useState(() => params.get("to") ?? "");
+  // A saved handle prefills as bare text ("mansi") so the `@` adornment shows it
+  // the same way typing does; addresses / receive codes keep their scheme prefix.
+  const [to, setTo] = useState(() => {
+    const t = params.get("to") ?? "";
+    return t.startsWith("@") ? t.slice(1) : t;
+  });
   const [amount, setAmount] = useState(() => params.get("amount") ?? "");
   const [memo, setMemo] = useState(() => params.get("memo") ?? "");
   const requestId = params.get("requestId") ?? undefined;
   const [step, setStep] = useState<Step>("form");
+  const [toFocused, setToFocused] = useState(false);
   const [stepUp, setStepUp] = useState(false);
   const [unregistered, setUnregistered] = useState(false);
   const [firing, setFiring] = useState(false);
@@ -60,8 +90,9 @@ export function Send() {
   const overCap = needsStepUp(amountUsd, session?.kycTier);
 
   const plan = useMemo(() => proverPlan(), []);
-  const recipient = to.trim();
+  const recipient = normalizeRecipientInput(to);
   const kind = useMemo(() => (recipient ? classifyRecipientInput(recipient) : null), [recipient]);
+  const showAtAdornment = looksLikeBareHandle(to);
 
   const badAddress = useMemo(() => looksLikeEvmAddressInput(recipient) && !isValidEvmAddress(recipient), [recipient]);
   useEffect(() => {
@@ -69,6 +100,23 @@ export function Send() {
   }, [refreshBalance]);
 
   const known = useMemo(() => contacts.find((c) => c.handle === recipient), [contacts, recipient]);
+
+  // Live recipient autocomplete: filter saved contacts by name OR handle as the
+  // user types, and hide once they've landed on an exact contact.
+  const contactQuery = to.trim().replace(/^@/, "").toLowerCase();
+  const contactMatches = useMemo(() => {
+    if (!contactQuery) return [];
+    return contacts.filter((c) => c.name.toLowerCase().includes(contactQuery) || c.handle.replace(/^@/, "").toLowerCase().includes(contactQuery));
+  }, [contacts, contactQuery]);
+  const exactContact = useMemo(() => contacts.some((c) => c.handle === recipient), [contacts, recipient]);
+  const showContactDropdown = toFocused && contactQuery.length > 0 && contactMatches.length > 0 && !exactContact;
+
+  function selectRecipient(handle: string) {
+    // Store handles bare so the `@` shows as an adornment (matches typed input);
+    // addresses / receive codes carry no scheme prefix and are stored verbatim.
+    setTo(handle.startsWith("@") ? handle.slice(1) : handle);
+    setToFocused(false);
+  }
   const display = useMemo(() => {
     if (known) return known.name;
     if (recipient.startsWith("bzr_")) return `${recipient.slice(0, 10)}...${recipient.slice(-8)}`;
@@ -86,6 +134,9 @@ export function Send() {
   const valid = recipientReady && !checkingPrivateBalance && !lowPrivate;
 
   const inFlight = state.phase !== "idle";
+  // Send is a floating action, not a tab — drop the BottomNav for the focused flow
+  // (review → passkey → processing → success/failure). The form step keeps it.
+  useHideBottomNav(step === "confirm" || inFlight);
 
   const view: SendReceipt = {
     amount: receipt?.amount ?? amountBaseUnits,
@@ -132,16 +183,54 @@ export function Send() {
       <div className="px-5 pt-2">
         {step === "form" ? (
           <>
-            <Input
-              label="To"
-              placeholder="Address or Receive Code"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              data-testid="send-handle"
-              autoCapitalize="off"
-              autoCorrect="off"
-              spellCheck={false}
-            />
+            <div className="relative">
+              <label htmlFor="send-to" className="text-sm font-semibold text-ink">
+                To
+              </label>
+              <div className="mt-1.5 flex items-center gap-1 rounded-[var(--radius-input)] border border-hair bg-canvas px-4 py-3 transition focus-within:border-accent focus-within:bg-card focus-within:ring-4 focus-within:ring-accent/15">
+                {showAtAdornment ? (
+                  <span className="select-none text-[15px] font-semibold text-muted" aria-hidden data-testid="send-handle-at">
+                    @
+                  </span>
+                ) : null}
+                <input
+                  id="send-to"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                  onFocus={() => setToFocused(true)}
+                  onBlur={() => setToFocused(false)}
+                  data-testid="send-handle"
+                  placeholder="Name, @handle, address, or Receive Code"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-muted"
+                />
+              </div>
+
+              {/* Autocomplete: matching contacts drop down over the chips as you type. */}
+              {showContactDropdown ? (
+                <div className="absolute inset-x-0 top-full z-20 mt-1.5 overflow-hidden rounded-2xl border border-hair bg-card shadow-[var(--shadow-card)]" data-testid="send-contact-dropdown">
+                  {contactMatches.slice(0, 5).map((c) => (
+                    <button
+                      key={c.handle}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => selectRecipient(c.handle)}
+                      data-testid="send-contact-option"
+                      className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition outline-none hover:bg-canvas focus-visible:bg-canvas"
+                    >
+                      <Avatar name={c.name} tone={c.tone} size={30} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[14px] font-semibold">{c.name}</div>
+                        <div className="truncate text-[12px] text-muted">{contactHandleLabel(c.handle)}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
             {recipient && !badAddress ? <KindChip key={kind} kind={kind!} /> : null}
             {badAddress ? (
               <div className="mt-2 flex items-center gap-1.5 rounded-full bg-danger/10 px-2.5 py-1 text-[11.5px] font-semibold text-danger" data-testid="send-bad-address">
@@ -149,22 +238,24 @@ export function Send() {
               </div>
             ) : null}
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              {contacts.map((c) => (
-                <button
-                  key={c.handle}
-                  onClick={() => setTo(c.handle)}
-                  className={`flex max-w-[10rem] items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-[13px] font-semibold transition outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-                    recipient === c.handle ? "border-accent bg-accent/10 text-accent" : "border-hair bg-card text-ink hover:bg-canvas"
-                  }`}
-                >
-                  <Avatar name={c.name} tone={c.tone} size={26} />
-                  <span className="min-w-0 truncate">
-                    {c.handle.startsWith("bzr_") ? `${c.handle.slice(0, 8)}...${c.handle.slice(-6)}` : c.handle.length > 20 ? `${c.handle.slice(0, 6)}...${c.handle.slice(-6)}` : c.handle}
-                  </span>
-                </button>
-              ))}
-            </div>
+            {/* Just the top few saved people as quick chips — the dropdown handles
+                the long tail once you start typing. */}
+            {contacts.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-2" data-testid="send-quick-contacts">
+                {contacts.slice(0, 3).map((c) => (
+                  <button
+                    key={c.handle}
+                    onClick={() => selectRecipient(c.handle)}
+                    className={`flex max-w-[10rem] items-center gap-2 rounded-full border py-1 pl-1 pr-3 text-[13px] font-semibold transition outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                      recipient === c.handle ? "border-accent bg-accent/10 text-accent" : "border-hair bg-card text-ink hover:bg-canvas"
+                    }`}
+                  >
+                    <Avatar name={c.name} tone={c.tone} size={26} />
+                    <span className="min-w-0 truncate">{contactHandleLabel(c.handle)}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
             <div className="mt-6">
               <AmountField value={amount} onChange={setAmount} autoFocus />
@@ -205,7 +296,7 @@ export function Send() {
               </div>
             </div>
 
-            <Input className="mt-6" label="Note (optional)" placeholder="What's it for?" value={memo} onChange={(e) => setMemo(e.target.value)} data-testid="send-memo" />
+            <Input className="mt-8" label="Note (optional)" placeholder="What's it for?" value={memo} onChange={(e) => setMemo(e.target.value)} data-testid="send-memo" />
 
             {kind === "invite" && recipient && !badAddress ? (
               <div className="mt-6 flex items-center gap-3 rounded-2xl bg-accent/[0.06] p-4">
@@ -371,7 +462,7 @@ function ConfirmStep({
     <div>
       <div className="mt-2 rounded-[var(--radius-card)] bg-card p-5 shadow-[var(--shadow-card)]">
         <div className="text-center">
-          <div className="font-display tnum text-4xl text-ink">{fmtUsd(amount)}</div>
+          <div className="font-display text-4xl text-ink">{fmtUsd(amount)}</div>
           {kind === "address" && address ? (
             <div className="mx-auto mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-canvas px-3 py-1 font-mono text-[13px] text-ink" data-testid="confirm-address">
               <ShieldCheck size={12} className="flex-none text-accent" /> {shortAddress(address)}
@@ -382,7 +473,7 @@ function ConfirmStep({
         </div>
         {memo ? <div className="mt-3 rounded-xl bg-canvas/70 px-3 py-2 text-center text-sm text-ink">"{memo}"</div> : null}
         <div className="mt-4 flex justify-center">
-          <PrivateChip label={`Only you and ${display} can see this`} />
+          <PrivateChip label={COPY.privateOnChain} />
         </div>
       </div>
 
@@ -395,7 +486,7 @@ function ConfirmStep({
         </div>
       ) : (
         <div className="mt-3 text-center text-sm text-muted">
-          Sends instantly and can't be undone.
+          {COPY.irreversible}
         </div>
       )}
 
@@ -409,7 +500,7 @@ function ConfirmStep({
           Back
         </Button>
         <Button full size="lg" loading={firing} disabled={firing} onClick={onSend} data-testid="send-confirm">
-          <SendIcon size={17} className="flex-none" />
+          <SendGlyph size={18} className="flex-none" />
           <span className="truncate">Send {fmtUsd(amount)}</span>
         </Button>
       </div>

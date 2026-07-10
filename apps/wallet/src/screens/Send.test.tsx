@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Send } from "./Send";
@@ -63,9 +63,23 @@ vi.mock("../lib/useSendStream", () => ({
   }),
 }));
 
+const CONTACTS_LS_KEY = "benzo.contacts.local.v1";
+function seedContacts() {
+  localStorage.setItem(
+    CONTACTS_LS_KEY,
+    JSON.stringify([
+      { handle: "@mansi", name: "Mansi", tone: "accent" },
+      { handle: "@alex", name: "Alex Chen", tone: "amber" },
+      { handle: "@sam", name: "Sam", tone: "neutral" },
+      { handle: "@priya", name: "Priya", tone: "accent" },
+    ]),
+  );
+}
+
 describe("Send", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     walletState.balance = { baseUnits: "1001000000", live: true };
     walletState.refresh.mockResolvedValue(true);
     walletState.refreshBalance.mockResolvedValue(undefined);
@@ -191,5 +205,60 @@ describe("Send", () => {
     expect(screen.getByTestId("send-low-private")).toHaveTextContent("Not enough private USDC");
     expect(screen.getByTestId("send-submit")).toBeDisabled();
     expect(streamMocks.run).not.toHaveBeenCalled();
+  });
+
+  it("shows only the top few saved contacts as quick chips", () => {
+    seedContacts();
+
+    render(
+      <MemoryRouter initialEntries={["/send"]}>
+        <Send />
+      </MemoryRouter>,
+    );
+
+    const chips = screen.getByTestId("send-quick-contacts");
+    expect(within(chips).getAllByRole("button")).toHaveLength(3);
+    expect(within(chips).getByText("@mansi")).toBeInTheDocument();
+    expect(within(chips).queryByText("@priya")).not.toBeInTheDocument();
+  });
+
+  it("filters saved contacts into a dropdown and selecting one fills the recipient", () => {
+    seedContacts();
+
+    render(
+      <MemoryRouter initialEntries={["/send"]}>
+        <Send />
+      </MemoryRouter>,
+    );
+
+    const input = screen.getByTestId("send-handle");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "pri" } });
+
+    const dropdown = screen.getByTestId("send-contact-dropdown");
+    expect(within(dropdown).getByText("Priya")).toBeInTheDocument();
+    expect(within(dropdown).queryByText("Mansi")).not.toBeInTheDocument();
+
+    fireEvent.click(within(dropdown).getByTestId("send-contact-option"));
+
+    // The `@` adornment shows the handle is understood, and it classifies private.
+    expect(screen.getByTestId("send-handle-at")).toBeInTheDocument();
+    expect(screen.getByTestId("send-kind")).toHaveTextContent("Send privately");
+    expect(screen.queryByTestId("send-contact-dropdown")).not.toBeInTheDocument();
+  });
+
+  it("treats a typed bare word as an @handle (adornment + private classification)", () => {
+    seedContacts();
+
+    render(
+      <MemoryRouter initialEntries={["/send"]}>
+        <Send />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByTestId("send-handle"), { target: { value: "mansi" } });
+
+    expect(screen.getByTestId("send-handle-at")).toBeInTheDocument();
+    expect(screen.getByTestId("send-kind")).toHaveTextContent("Send privately");
   });
 });
