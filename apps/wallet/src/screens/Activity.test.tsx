@@ -48,6 +48,7 @@ describe("Activity filters", () => {
     fireEvent.click(screen.getByTestId("activity-filter-deposit"));
     expect(screen.getByText("Made private")).toBeInTheDocument();
     expect(screen.queryByText("Mansi")).not.toBeInTheDocument();
+    expect(screen.queryByText("Alex")).not.toBeInTheDocument();
   });
 
   it("searches by name or note", () => {

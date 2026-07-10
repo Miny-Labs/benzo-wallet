@@ -69,7 +69,9 @@ export function splitAmount(minor: string | bigint): { dollars: string; cents: s
 export function relativeTime(tsSeconds: number, nowMs = Date.now()): string {
   const diff = Math.floor(nowMs / 1000) - tsSeconds;
   if (diff < 45) return "now";
-  if (diff < 3600) return `${Math.max(1, Math.round(diff / 60))} min ago`;
+  // floor, not round — otherwise 3570–3599s rounds up to "60 min ago" right before
+  // the ≥3600 branch takes over, so the minutes reading never reaches 60.
+  if (diff < 3600) return `${Math.max(1, Math.floor(diff / 60))} min ago`;
   if (diff < 86_400) return `${Math.round(diff / 3600)}h ago`;
   if (diff < 7 * 86_400) return `${Math.round(diff / 86_400)}d ago`;
   return new Date(tsSeconds * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -84,7 +86,9 @@ export function relativeTime(tsSeconds: number, nowMs = Date.now()): string {
 export function activityRowTime(tsSeconds: number, nowMs = Date.now()): string {
   const diff = Math.floor(nowMs / 1000) - tsSeconds;
   if (diff < 45) return "now";
-  if (diff < 3600) return `${Math.max(1, Math.round(diff / 60))} min ago`;
+  // floor, not round — otherwise 3570–3599s rounds up to "60 min ago" right before
+  // the ≥3600 branch takes over, so the minutes reading never reaches 60.
+  if (diff < 3600) return `${Math.max(1, Math.floor(diff / 60))} min ago`;
   const d = new Date(tsSeconds * 1000);
   const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   const today = new Date(nowMs);
