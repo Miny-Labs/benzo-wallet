@@ -22,6 +22,8 @@ import {
 import { claimHandleOnChain } from "./handleRegistry";
 import { activatePrivateBalance, getLocalAccount } from "./localWallet";
 import { USDC_TOKEN_ADDRESS } from "./network";
+import { DEMO_MODE } from "../demo/flag";
+import { demoProveBalance } from "../demo/registry";
 
 // Gift links escrow the sender's public USDC on-chain for 30 days; unclaimed
 // funds are refundable to the sender after expiry.
@@ -104,6 +106,7 @@ export async function readPublicBalanceClientSide(): Promise<string | null> {
 export async function proveBalanceClientSide(
   _minBaseUnits: string,
 ): Promise<{ holds: boolean; onChain: boolean; provingMs?: number; verifyMs?: number } | null> {
+  if (DEMO_MODE) return demoProveBalance();
   return null;
 }
 

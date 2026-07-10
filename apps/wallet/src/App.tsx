@@ -29,6 +29,7 @@ const InviteExternal = lazy(() => import("./screens/InviteExternal").then((m) =>
 const Claim = lazy(() => import("./screens/Claim").then((m) => ({ default: m.Claim })));
 import { Onboarding } from "./screens/Onboarding";
 import { walletExists, isWalletUnlocked } from "./lib/localWallet";
+import { DEMO_MODE } from "./demo/flag";
 
 const TABS = [
   { to: "/", label: "Home", icon: HomeIcon },
@@ -131,11 +132,14 @@ export function App() {
   const loc = useLocation();
   const isDesktop = useIsDesktop();
   const { theme } = useNetwork();
-  const [onboarded, setOnboarded] = useState(false);
-  const [locked, setLocked] = useState(true);
-  const [checking, setChecking] = useState(true);
+  // DEMO MODE boots straight into an unlocked shell — no onboarding, no lock,
+  // no passkey. (These initializers fold to `false/true/true` in normal builds.)
+  const [onboarded, setOnboarded] = useState(DEMO_MODE);
+  const [locked, setLocked] = useState(!DEMO_MODE);
+  const [checking, setChecking] = useState(!DEMO_MODE);
 
   useEffect(() => {
+    if (DEMO_MODE) return;
     async function checkWallet() {
       const exists = await walletExists();
       setOnboarded(exists);
