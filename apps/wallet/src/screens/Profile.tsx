@@ -71,7 +71,11 @@ export function Profile() {
   const address = summary?.address ?? "";
   const displayHandle = address ? shortAddress(address, 6) : "Local Wallet";
 
-  const tier = tierOf(session?.kycTier);
+  // An unauthenticated / not-yet-tiered wallet is tier 0 ("Not verified") — never
+  // default to tier 1 (which would falsely read "Basic verification"). Label and
+  // limit derive from the same clamped tier so they can't disagree.
+  const kyc = session?.kycTier ?? 0;
+  const tier = tierOf(kyc);
   const verify = VERIFY[tier];
   const [verifyOpen, setVerifyOpen] = useState(false);
 
@@ -191,8 +195,10 @@ export function Profile() {
     setDeleting(true);
     setDeleteErr(null);
     try {
-      // Re-authenticate at the moment of destruction.
-      if (!(await requireUnlock())) {
+      // If a device passkey gates this wallet, re-authenticate at the moment of
+      // destruction. Without a configured passkey requireUnlock() is a no-op, so
+      // the confirmed-backup + typed-DELETE guards are the primary protection here.
+      if (secured && !(await requireUnlock())) {
         setDeleteErr("Unlock cancelled.");
         return;
       }
@@ -239,7 +245,7 @@ export function Profile() {
                 <div className="min-w-0 flex-1">
                   <div className="text-[15px] font-semibold" data-testid="tier-label">{verify.label}</div>
                   <div className="text-[13px] text-muted">
-                    Send up to <span className="font-semibold text-ink">${sendCapUsd(session?.kycTier).toLocaleString()}</span> / 30 days · receiving is always unlimited and private
+                    Send up to <span className="font-semibold text-ink">${sendCapUsd(kyc).toLocaleString()}</span> / 30 days · receiving is always unlimited and private
                   </div>
                 </div>
               </div>
@@ -561,7 +567,7 @@ function NetworkSection() {
             </div>
           </div>
         ) : (
-          <div className="space-y-2" role="listbox" aria-label="Networks">
+          <div className="space-y-2 outline-none" role="listbox" aria-label="Networks" tabIndex={0}>
             {options.map((opt) => {
               const n = opt.network;
               const e = getNetworkEnv(n);
