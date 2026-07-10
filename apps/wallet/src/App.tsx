@@ -19,6 +19,7 @@ import { useNetwork } from "./lib/networkContext";
 // so each import() is mapped to a `default` for React.lazy.)
 const Home = lazy(() => import("./screens/Home").then((m) => ({ default: m.Home })));
 const Send = lazy(() => import("./screens/Send").then((m) => ({ default: m.Send })));
+const Shield = lazy(() => import("./screens/Shield").then((m) => ({ default: m.Shield })));
 const Request = lazy(() => import("./screens/Request").then((m) => ({ default: m.Request })));
 const Activity = lazy(() => import("./screens/Activity").then((m) => ({ default: m.Activity })));
 const TxDetail = lazy(() => import("./screens/TxDetail").then((m) => ({ default: m.TxDetail })));
@@ -228,6 +229,7 @@ export function App() {
               <Routes location={loc} key={loc.pathname}>
                 <Route path="/" element={<Home />} />
                 <Route path="/send" element={<Send />} />
+                <Route path="/shield" element={<Shield />} />
                 <Route path="/request" element={<Request />} />
                 <Route path="/activity" element={<Activity />} />
                 <Route path="/activity/:id" element={<TxDetail />} />

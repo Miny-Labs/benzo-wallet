@@ -51,4 +51,9 @@ describe("Deposit / Receive", () => {
     expect(screen.getByTestId("receive-privacy")).toHaveTextContent(/arrives\s+public/i);
     expect(screen.queryByText("Received balance stays private")).not.toBeInTheDocument();
   });
+
+  it("offers a make-private action from Receive", () => {
+    renderDeposit();
+    expect(screen.getByTestId("deposit-make-private")).toHaveTextContent("Make private");
+  });
 });

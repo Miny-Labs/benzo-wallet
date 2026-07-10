@@ -8,7 +8,7 @@
  * (critique #52 — dedupe Send). The quick-action row carries the affordances the
  * FAB doesn't: Receive, Request, and the Benzo differentiator, Prove.
  */
-import { ArrowDownLeft, HandCoins, ShieldCheck } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, HandCoins, ShieldCheck } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useWallet } from "../lib/store";
@@ -82,6 +82,24 @@ export function Home() {
                   Syncing chain
                 </span>
               ) : null}
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => nav("/shield?mode=shield")}
+                data-testid="home-make-private"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-accent px-3 py-2 text-[13px] font-semibold text-white shadow-[var(--shadow-glow)] transition outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-accent/50"
+              >
+                <ArrowDownLeft size={15} /> Make private
+              </button>
+              <button
+                type="button"
+                onClick={() => nav("/shield?mode=unshield")}
+                data-testid="home-cash-out"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-canvas px-3 py-2 text-[13px] font-semibold text-ink transition outline-none hover:bg-ink/[0.05] focus-visible:ring-2 focus-visible:ring-accent/40"
+              >
+                <ArrowUpRight size={15} /> Cash out
+              </button>
             </div>
           </Card>
         </Stagger.Item>

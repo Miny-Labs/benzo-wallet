@@ -105,11 +105,12 @@ export function Deposit() {
             ) : null}
           </div>
 
-          {/* Copy · Share · Request */}
-          <div className="grid w-full grid-cols-3 gap-2">
+          {/* Copy · Share · Request · Make private */}
+          <div className="grid w-full grid-cols-4 gap-2">
             <ActionBtn onClick={copy} disabled={!address} testid="deposit-copy" icon={copyState === "copied" ? <Check size={16} className="text-pos" /> : <Copy size={16} />} label={copyState === "copied" ? "Copied" : "Copy"} />
             <ActionBtn onClick={share} disabled={!address} testid="deposit-share" icon={<Share2 size={16} />} label="Share" />
             <ActionBtn onClick={() => nav("/request")} testid="deposit-request" icon={<HandCoins size={16} />} label="Request" />
+            <ActionBtn onClick={() => nav("/shield?mode=shield")} disabled={!address} testid="deposit-make-private" icon={<ShieldCheck size={16} />} label="Make private" />
           </div>
           {copyState === "blocked" ? (
             <div role="status" aria-live="polite" className="w-full text-center text-[11.5px] font-semibold text-danger" data-testid="deposit-copy-status">
@@ -144,7 +145,7 @@ function ActionBtn({ onClick, disabled, icon, label, testid }: { onClick: () => 
       onClick={onClick}
       disabled={disabled}
       data-testid={testid}
-      className="flex flex-col items-center justify-center gap-1.5 rounded-xl bg-canvas py-3 text-[12px] font-semibold text-ink transition outline-none hover:bg-ink/[0.05] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-accent/40"
+      className="flex min-h-[74px] flex-col items-center justify-center gap-1.5 rounded-xl bg-canvas px-1 py-3 text-center text-[12px] font-semibold leading-tight text-ink transition outline-none hover:bg-ink/[0.05] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-accent/40"
     >
       <span className="text-accent">{icon}</span>
       {label}

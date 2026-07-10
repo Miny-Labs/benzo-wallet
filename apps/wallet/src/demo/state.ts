@@ -88,3 +88,35 @@ export function applyDemoSend(opts: {
   s.history = [row, ...s.history.filter((r) => r.id !== row.id)];
   notify();
 }
+
+export function applyDemoShield(opts: {
+  amountBaseUnits: string;
+  memo?: string;
+  mode: "shield" | "unshield";
+  txHash: string;
+}): void {
+  const s = ensure();
+  const amount = BigInt(opts.amountBaseUnits || "0");
+  const privateCurrent = BigInt(s.balance.baseUnits || "0");
+  const publicCurrent = BigInt(s.publicBalance.baseUnits || "0");
+  if (opts.mode === "shield") {
+    s.publicBalance = { ...s.publicBalance, baseUnits: publicCurrent > amount ? (publicCurrent - amount).toString() : "0" };
+    s.balance = { ...s.balance, baseUnits: (privateCurrent + amount).toString() };
+  } else {
+    s.balance = { ...s.balance, baseUnits: privateCurrent > amount ? (privateCurrent - amount).toString() : "0" };
+    s.publicBalance = { ...s.publicBalance, baseUnits: (publicCurrent + amount).toString() };
+  }
+  const row: ActivityRow = {
+    id: opts.txHash,
+    type: opts.mode,
+    name: opts.mode === "shield" ? "Made private" : "Cash out",
+    note: opts.memo || (opts.mode === "shield" ? "Public USDC to private balance" : "Private USDC to public balance"),
+    amount: opts.amountBaseUnits,
+    direction: opts.mode === "shield" ? "in" : "out",
+    status: "settled",
+    timestamp: Math.floor(Date.now() / 1000),
+    txHash: opts.txHash,
+  };
+  s.history = [row, ...s.history.filter((r) => r.id !== row.id)];
+  notify();
+}

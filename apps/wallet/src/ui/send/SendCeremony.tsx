@@ -32,9 +32,13 @@ import { COPY } from "../../lib/copy";
 import { useNetworkEnv } from "../../lib/networkEnv";
 import { explorerTx } from "../OnChainDetails";
 
+export type CeremonyKind = "send" | "shield" | "unshield";
+
 export interface SendReceipt {
   amount: string; // USDC base units
   recipient: string; // @handle or display name
+  counterpartyLabel?: string;
+  kind?: CeremonyKind;
   memo?: string;
   txHash?: string;
   onChain: boolean;
@@ -65,16 +69,42 @@ const PHASE_TO_PAYMENT: Record<CeremonyPhase, PaymentPhase> = {
  * complete". The settle sub is network-aware ("Fuji Testnet is confirming"); the
  * error sub is the real message off the state machine.
  */
-function ceremonyCopy(phase: CeremonyPhase, networkName: string, errorSub: string): { title: string; sub: string } {
+const KIND_COPY: Record<
+  CeremonyKind,
+  {
+    preparing: { title: string; sub: string };
+    complete: { title: string; sub: string };
+    failedTitle: string;
+  }
+> = {
+  send: {
+    preparing: COPY.ceremony.preparing,
+    complete: COPY.ceremony.complete,
+    failedTitle: COPY.ceremony.failed.title,
+  },
+  shield: {
+    preparing: { title: "Making USDC private", sub: "Creating your proof on this device" },
+    complete: { title: "Money made private", sub: "Private balance updated" },
+    failedTitle: "Couldn't make private",
+  },
+  unshield: {
+    preparing: { title: "Preparing cash out", sub: "Creating your proof on this device" },
+    complete: { title: "Cash out complete", sub: "Public USDC updated" },
+    failedTitle: "Couldn't cash out",
+  },
+};
+
+function ceremonyCopy(kind: CeremonyKind, phase: CeremonyPhase, networkName: string, errorSub: string): { title: string; sub: string } {
+  const copy = KIND_COPY[kind];
   switch (phase) {
     case "encrypt":
-      return COPY.ceremony.preparing;
+      return copy.preparing;
     case "settle":
       return { title: COPY.ceremony.confirming.title, sub: COPY.ceremony.confirming.sub(networkName) };
     case "verify":
-      return COPY.ceremony.complete;
+      return copy.complete;
     case "error":
-      return { title: COPY.ceremony.failed.title, sub: errorSub };
+      return { title: copy.failedTitle, sub: errorSub };
   }
 }
 
@@ -91,6 +121,7 @@ export function SendCeremony({
 }) {
   const reduce = useReducedMotion() ?? false;
   const env = useNetworkEnv();
+  const kind = receipt.kind ?? "send";
   const target = sendCeremonyView(state, { prover: receipt.prover, reducedMotion: reduce }).phase;
   const { phase, step } = useFlooredCeremonyPhase(target, reduce);
 
@@ -98,7 +129,7 @@ export function SendCeremony({
   // carries the real error message for the failure state. Everything else uses the
   // consumer-facing stage copy (crypto detail is deferred to Advanced details).
   const shown = sendCeremonyView({ ...state, phase: PHASE_TO_PAYMENT[phase] }, { prover: receipt.prover, reducedMotion: reduce });
-  const stageCopy = ceremonyCopy(phase, env.name, shown.sub);
+  const stageCopy = ceremonyCopy(kind, phase, env.name, shown.sub);
 
   if (state.phase === "idle") return null;
 
@@ -553,10 +584,23 @@ function ConfettiOverdrive() {
 function VerifyReveal({ receipt, reduce }: { receipt: SendReceipt; reduce: boolean }) {
   const [showDetails, setShowDetails] = useState(false);
   const rows: Array<{ label: string; value: React.ReactNode }> = [
-    { label: "To", value: receipt.recipient },
+    { label: receipt.counterpartyLabel ?? "To", value: receipt.recipient },
     { label: "Amount", value: fmtUsdcApproxUsd(receipt.amount) },
   ];
   if (receipt.memo) rows.push({ label: "Note", value: receipt.memo });
+  const kind = receipt.kind ?? "send";
+  const statusLabel =
+    kind === "send"
+      ? `Private payment${receipt.onChain ? "" : " · not verified on-chain"}`
+      : kind === "shield"
+        ? `Private on-chain${receipt.onChain ? "" : " · not verified on-chain"}`
+        : `Proof verified${receipt.onChain ? "" : " · not verified on-chain"}`;
+  const privacyNote =
+    kind === "send"
+      ? COPY.paymentPrivacy(receipt.recipient)
+      : kind === "shield"
+        ? "This USDC is now in your private balance. Future payments stay private on-chain."
+        : "This cash-out is public USDC at your wallet address. Your remaining private balance stays private on-chain.";
 
   return (
     <div className="flex w-full max-w-[300px] flex-col items-center gap-4" data-testid="ceremony-receipt">
@@ -575,7 +619,7 @@ function VerifyReveal({ receipt, reduce }: { receipt: SendReceipt; reduce: boole
           </motion.div>
         ))}
         <div className="mt-3 flex items-center justify-center gap-1.5 text-[12px] font-medium text-pos">
-          <ShieldCheck size={13} /> Private payment{receipt.onChain ? "" : " · not verified on-chain"}
+          <ShieldCheck size={13} /> {statusLabel}
         </div>
         <div className="mt-2 flex flex-col items-center">
           <button
@@ -618,7 +662,7 @@ function VerifyReveal({ receipt, reduce }: { receipt: SendReceipt; reduce: boole
           </AnimatePresence>
         </div>
       </div>
-      <p className="text-[12px] text-muted">{COPY.paymentPrivacy(receipt.recipient)}</p>
+      <p className="text-[12px] text-muted">{privacyNote}</p>
     </div>
   );
 }

@@ -8,7 +8,8 @@ import { shouldLockOnSend, requireUnlock } from "../lib/lock";
 import { mergeContacts } from "../lib/contacts";
 import { needsStepUp, stepUpMessage, sendCapUsd } from "../lib/tiers";
 import { useWallet } from "../lib/store";
-import { fmtUsd, USDC_BASE_UNITS, usdcToBaseUnits } from "../lib/format";
+import { fmtUsd, USDC_BASE_UNITS } from "../lib/format";
+import { parsePositiveUsdcAmount } from "../lib/amount";
 import { COPY } from "../lib/copy";
 import { isValidEvmAddress, shortAddress } from "../lib/address";
 import { isRegisteredOnEerc } from "../lib/handleRegistry";
@@ -24,8 +25,6 @@ import { INSUFFICIENT_PRIVATE_USDC_ERROR } from "../lib/errors";
 
 type Step = "form" | "confirm";
 type Kind = RecipientKind;
-
-const INVALID_AMOUNT = "Enter an amount above $0.";
 
 /** A bare word (letters/digits/underscore, no `0x`/`bzr_`/`@`/pure-number
  *  scheme) reads as a handle-in-progress — we show an `@` adornment and treat it
@@ -48,22 +47,6 @@ function contactHandleLabel(handle: string): string {
   return handle;
 }
 
-function parsePositiveAmount(amount: string): { valid: boolean; value: bigint; baseUnits: string; error: string | null } {
-  const raw = amount.trim();
-  if (!raw) return { valid: false, value: 0n, baseUnits: "0", error: null };
-  const clean = raw.replace(/[$,]/g, "");
-  if (!/^(?:\d+\.?\d*|\.\d+)$/.test(clean)) {
-    return { valid: false, value: 0n, baseUnits: "0", error: INVALID_AMOUNT };
-  }
-  try {
-    const value = usdcToBaseUnits(raw);
-    if (value <= 0n) return { valid: false, value: 0n, baseUnits: "0", error: INVALID_AMOUNT };
-    return { valid: true, value, baseUnits: value.toString(), error: null };
-  } catch (e) {
-    return { valid: false, value: 0n, baseUnits: "0", error: (e as Error).message || INVALID_AMOUNT };
-  }
-}
-
 export function Send() {
   const nav = useNavigate();
   const [params] = useSearchParams();
@@ -84,7 +67,7 @@ export function Send() {
   const [stepUp, setStepUp] = useState(false);
   const [unregistered, setUnregistered] = useState(false);
   const [firing, setFiring] = useState(false);
-  const parsedAmount = useMemo(() => parsePositiveAmount(amount), [amount]);
+  const parsedAmount = useMemo(() => parsePositiveUsdcAmount(amount), [amount]);
   const amountBaseUnits = parsedAmount.baseUnits;
   const amountUsd = parsedAmount.valid ? Number(parsedAmount.value) / Number(USDC_BASE_UNITS) : 0;
   const overCap = needsStepUp(amountUsd, session?.kycTier);

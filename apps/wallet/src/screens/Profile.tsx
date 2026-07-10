@@ -17,6 +17,7 @@
 import { useEffect, useState } from "react";
 import {
   AlertTriangle,
+  ArrowUpRight,
   BadgeCheck,
   Check,
   ChevronDown,
@@ -230,7 +231,12 @@ export function Profile() {
                     {addressCopied ? <Check size={12} className="text-pos" /> : <Copy size={12} />}
                   </button>
                 </div>
-                <Button variant="secondary" size="sm" onClick={() => nav("/deposit")} data-testid="profile-receive">Receive</Button>
+                <div className="flex flex-col gap-1.5">
+                  <Button variant="secondary" size="sm" onClick={() => nav("/deposit")} data-testid="profile-receive">Receive</Button>
+                  <Button variant="secondary" size="sm" onClick={() => nav("/shield?mode=unshield")} data-testid="profile-cash-out">
+                    <ArrowUpRight size={14} /> Cash out
+                  </Button>
+                </div>
               </div>
             </Card>
           </Section>
