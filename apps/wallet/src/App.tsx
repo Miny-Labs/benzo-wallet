@@ -46,7 +46,7 @@ function BottomNav() {
   const nav = useNavigate();
   const active = (to: string) => (to === "/" ? loc.pathname === "/" : loc.pathname.startsWith(to));
   return (
-    <nav className="relative flex items-end justify-between border-t border-hair bg-card px-6 pb-6 pt-2.5" data-testid="bottom-nav">
+    <nav className="safe-nav relative flex items-end justify-between border-t border-hair bg-card pt-2.5" data-testid="bottom-nav">
       {TABS.slice(0, 2).map((t) => (
         <NavBtn key={t.to} {...t} on={active(t.to)} onClick={() => nav(t.to)} />
       ))}

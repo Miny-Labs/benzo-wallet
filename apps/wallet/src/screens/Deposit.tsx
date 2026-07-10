@@ -112,7 +112,7 @@ export function Deposit() {
             <ActionBtn onClick={() => nav("/request")} testid="deposit-request" icon={<HandCoins size={16} />} label="Request" />
           </div>
           {copyState === "blocked" ? (
-            <div className="w-full text-center text-[11.5px] font-semibold text-danger" data-testid="deposit-copy-status">
+            <div role="status" aria-live="polite" className="w-full text-center text-[11.5px] font-semibold text-danger" data-testid="deposit-copy-status">
               Copy blocked. The full address is shown above — select it to copy manually.
             </div>
           ) : null}
