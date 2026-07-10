@@ -34,7 +34,7 @@ export function Notifications() {
       <ScreenHeader title="Notifications" />
       {loading && history.length === 0 ? (
         // Loading skeletons — don't flash "all caught up" before history loads.
-        <div className="space-y-3 px-5 pt-2" data-testid="notifs-loading" aria-hidden="true">
+        <div className="space-y-3 px-5 pt-2" data-testid="notifs-loading" role="status" aria-label="Loading notifications">
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className="flex items-center gap-3 rounded-[var(--radius-card)] bg-card p-3.5 shadow-[var(--shadow-card)]">
               <div className="skeleton h-10 w-10 rounded-full" />

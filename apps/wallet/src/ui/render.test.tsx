@@ -60,8 +60,9 @@ describe("Card", () => {
     render(<Card onClick={onClick}>tap</Card>);
     const card = screen.getByRole("button");
     expect(card).toHaveAttribute("tabindex", "0");
-    fireEvent.keyDown(card, { key: "Enter" });
-    fireEvent.keyDown(card, { key: " " });
+    fireEvent.keyDown(card, { key: "Enter" }); // Enter activates on keydown
+    fireEvent.keyDown(card, { key: " " }); // Space on keydown only prevents scroll…
+    fireEvent.keyUp(card, { key: " " }); // …and activates on keyup (native button)
     fireEvent.click(card);
     expect(onClick).toHaveBeenCalledTimes(3);
   });

@@ -128,10 +128,9 @@ body {
 
 /* ------------------------------------------------------------ safe areas
    The chrome lives edge-to-edge on a real phone, so respect the notch / status
-   bar (top) and the home indicator (bottom). The BottomNav is owned by the app
-   shell, so it's padded from here by its test id rather than reaching into that
-   layout. All env() insets are 0 on desktop, so these are inert there. */
-[data-testid="bottom-nav"] {
+   bar (top) and the home indicator (bottom). All env() insets are 0 on desktop,
+   so these are inert there. */
+.safe-nav {
   padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
   padding-left: max(1.5rem, env(safe-area-inset-left));
   padding-right: max(1.5rem, env(safe-area-inset-right));

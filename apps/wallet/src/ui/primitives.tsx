@@ -112,7 +112,21 @@ export function Card({
       onKeyDown={
         interactive
           ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
+              // Native-button semantics: Enter activates on keydown; Space is
+              // prevented here (so the page doesn't scroll) and activates on keyup.
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onClick?.();
+              } else if (e.key === " ") {
+                e.preventDefault();
+              }
+            }
+          : undefined
+      }
+      onKeyUp={
+        interactive
+          ? (e) => {
+              if (e.key === " ") {
                 e.preventDefault();
                 onClick?.();
               }
