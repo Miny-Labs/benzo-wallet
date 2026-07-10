@@ -53,12 +53,16 @@ export function Button({
   size?: "sm" | "md" | "lg";
 } & MotionButtonProps) {
   const sizes = { sm: "px-3.5 py-2 text-sm", md: "px-5 py-3 text-[15px]", lg: "px-6 py-4 text-base" };
+  // Disabled reads NEUTRAL GRAY (not a faded purple, which looked like a live but
+  // dim CTA). `!` beats the per-variant fill regardless of class order.
+  const disabledCls =
+    "disabled:cursor-not-allowed disabled:!bg-ink/[0.06] disabled:!text-muted disabled:!shadow-none";
   return (
     <motion.button
       whileTap={{ scale: 0.97 }}
       transition={spring}
       disabled={loading || rest.disabled}
-      className={`inline-flex items-center justify-center gap-2 rounded-full font-semibold transition outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-not-allowed disabled:opacity-50 ${BTN[variant]} ${sizes[size]} ${full ? "w-full" : ""} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-[var(--radius-button)] font-semibold transition outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas ${disabledCls} ${BTN[variant]} ${sizes[size]} ${full ? "w-full" : ""} ${className}`}
       {...rest}
     >
       {loading ? <Loader2 size={16} className="animate-spin" /> : null}
@@ -104,6 +108,23 @@ export function Card({
       className={`rounded-[var(--radius-card)] bg-card shadow-[var(--shadow-card)] ${onClick ? "cursor-pointer" : ""} ${className}`}
       {...rest}
     >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * A near-solid off-white reading surface for long lists / forms / settings — so
+ * text and buttons never sit on the bright cloud edges of the sky video. Screens
+ * wrap their scrollable body in a `<Surface>` (or use the `.surface` class).
+ */
+export function Surface({
+  children,
+  className = "",
+  ...rest
+}: { children: ReactNode; className?: string } & HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={`surface rounded-[var(--radius-card)] ${className}`} {...rest}>
       {children}
     </div>
   );
@@ -183,8 +204,10 @@ export function Sheet({
 
 // ----------------------------------------------------------------- fields
 
+// Near-opaque fill: the old `bg-canvas/60` let the sky bleed through and read as a
+// disabled field. A solid canvas fill keeps inputs looking active + editable.
 const fieldCls =
-  "w-full rounded-2xl border border-hair bg-canvas/60 px-4 py-3 text-[15px] text-ink placeholder:text-muted " +
+  "w-full rounded-[var(--radius-input)] border border-hair bg-canvas px-4 py-3 text-[15px] text-ink placeholder:text-muted " +
   "outline-none transition focus:border-accent focus:bg-card focus:ring-4 focus:ring-accent/15";
 
 export function Input({
@@ -231,7 +254,7 @@ export function AmountField({
         }}
         placeholder="0"
         aria-label="Amount"
-        className="font-display tnum w-full max-w-[260px] bg-transparent text-center text-5xl text-ink outline-none placeholder:text-ink/25"
+        className="font-display w-full max-w-[260px] bg-transparent text-center text-5xl text-ink outline-none placeholder:text-ink/25"
       />
     </div>
   );

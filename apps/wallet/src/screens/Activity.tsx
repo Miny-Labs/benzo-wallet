@@ -7,6 +7,7 @@ import { Clock } from "lucide-react";
 import { useWallet } from "../lib/store";
 import { dayBucket } from "../lib/format";
 import { Screen, Stagger } from "../ui/motion";
+import { ScreenHeader } from "../ui/chrome";
 import { EmptyState } from "../ui/primitives";
 import { ActivityItem } from "../ui/ActivityItem";
 import type { ActivityRow } from "../lib/api";
@@ -25,9 +26,9 @@ export function Activity() {
 
   return (
     <Screen>
-      <div className="px-5 pb-1 pt-6">
-        <h1 className="font-display text-2xl">Activity</h1>
-      </div>
+      {/* Activity is a top-level tab (reachable from the BottomNav and Home's
+          "Activity" button) — a top-level destination shows no back button. */}
+      <ScreenHeader title="Activity" back={false} />
       <div className="px-5">
         {loading ? (
           <div className="space-y-3 px-2 pt-3">

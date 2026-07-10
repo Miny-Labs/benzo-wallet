@@ -48,6 +48,27 @@ export function isSaved(address: string): boolean {
   return listLocal().some((c) => c.handle === addr);
 }
 
+/**
+ * Update a locally-saved contact in place, keyed by its exact stored handle.
+ * Unlike `saveContact` (address/receive-code gated), this also handles `@handle`
+ * contacts, so the contact-detail editor can rename or re-point any row.
+ */
+export function upsertLocalContact(prevHandle: string, handle: string, name: string): Contact[] {
+  const nextHandle = handle.trim();
+  if (!nextHandle) return listLocal();
+  const cs = listLocal().filter((c) => c.handle !== prevHandle && c.handle !== nextHandle);
+  cs.unshift({ handle: nextHandle, name: name.trim() || nextHandle });
+  writeLocal(cs);
+  return cs;
+}
+
+/** Remove a locally-saved contact by its exact stored handle (`@handle` too). */
+export function removeLocalContact(handle: string): Contact[] {
+  const cs = listLocal().filter((c) => c.handle !== handle);
+  writeLocal(cs);
+  return cs;
+}
+
 export function mergeContacts(bff: Contact[]): Contact[] {
   return listLocal();
 }

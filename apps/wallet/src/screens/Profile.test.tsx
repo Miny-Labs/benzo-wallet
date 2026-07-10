@@ -219,7 +219,7 @@ describe("Profile network switcher", () => {
       expect(screen.getByTestId("network-option-avalanche")).toHaveAttribute("aria-selected", "true"),
     );
     expect(screen.getByTestId("network-tagline")).toHaveTextContent("real funds");
-    expect(screen.getByTestId("profile-mode")).toHaveTextContent("Avalanche C-Chain");
+    expect(screen.getByTestId("profile-mode")).toHaveTextContent("Avalanche");
 
     // Persisted for reloads + the module bundle now targets C-Chain.
     expect(localStorage.getItem("benzo.network")).toBe("avalanche");

@@ -1,15 +1,19 @@
 /**
  * The privacy chrome - the ONLY crypto vocabulary allowed on screen. Three pieces,
  * and not one of them is a toggle that turns privacy off:
- *   • PrivateChip   - ambient "only you can see this" (privacy is the default state)
+ *   • PrivateChip   - ambient "Private on-chain" (privacy is the default state)
  *   • ProvableChip  - appears only when a real ZK attestation backs the claim
  *   • HideToggle    - masks the *display* of a balance, never the protection
  * No seed phrases, gas, tx hashes, "connect wallet", or proof spinners.
+ *
+ * Precise vocabulary lives in lib/copy (COPY.*). We say "Private on-chain", never
+ * the absolute "Only you can see this".
  */
 import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { motion } from "framer-motion";
+import { COPY } from "../lib/copy";
 
-export function PrivateChip({ label = "Private · only you can see this" }: { label?: string }) {
+export function PrivateChip({ label = COPY.privateOnChain }: { label?: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-2.5 py-1 text-xs font-semibold text-[#4a2fa0]">
       <span className="relative flex h-1.5 w-1.5">

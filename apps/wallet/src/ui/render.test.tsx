@@ -27,7 +27,7 @@ describe("BalanceHero", () => {
 describe("privacy chrome", () => {
   it("PrivateChip is ambient (default copy)", () => {
     render(<PrivateChip />);
-    expect(screen.getByText(/only you can see this/i)).toBeInTheDocument();
+    expect(screen.getByText(/private on-chain/i)).toBeInTheDocument();
   });
   it("ProvableChip surfaces the proof badge", () => {
     render(<ProvableChip />);

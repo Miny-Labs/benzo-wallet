@@ -15,15 +15,25 @@
   --color-accent-soft: oklch(0.945 0.026 293);
   --color-canvas: oklch(0.962 0.005 106);
   --color-card: oklch(0.995 0.004 106);
-  --color-muted: oklch(0.55 0.014 258);
+  /* Darkened one step for legibility where secondary text sits over the sky
+     video (the old 0.55 washed out over bright cloud). */
+  --color-muted: oklch(0.5 0.016 258);
   --color-hair: oklch(0.29 0.028 252 / 0.08);
   --color-pos: oklch(0.66 0.13 159);
   --color-amber: oklch(0.76 0.13 75);
   --color-danger: oklch(0.61 0.18 28);
 
-  --radius-card: 1.6rem;
+  /* Radius scale — pull back the inflation/over-rounding. Main cards 24–28px,
+     compact surfaces 20–24, inputs 14–16, buttons 16–20. */
+  --radius-card: 1.6rem; /* 25.6px */
+  --radius-compact: 1.375rem; /* 22px */
+  --radius-input: 0.875rem; /* 14px */
+  --radius-button: 1.25rem; /* 20px */
   --shadow-card: 0 10px 30px oklch(0.29 0.028 252 / 0.07);
   --shadow-glow: 0 4px 24px oklch(0.553 0.207 292 / 0.28);
+
+  /* Space the BottomNav (and its protruding FAB) never overlaps content. */
+  --nav-inset: 112px;
 }
 
 html,
@@ -47,6 +57,71 @@ body {
 }
 .tnum {
   font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ type scale
+   One consistent ramp so page titles / amounts / rows read the same on every
+   screen (Profile used to run larger than Send/Receive). Sizes are utilities so
+   later screen waves can adopt them without re-deriving px values. */
+.text-page-title {
+  font-size: 2rem; /* 32px */
+  line-height: 2.375rem; /* 38px */
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.text-amount {
+  font-size: 3.125rem; /* 50px */
+  line-height: 3.625rem; /* 58px */
+  letter-spacing: -0.01em;
+}
+.text-section {
+  font-size: 0.8125rem; /* 13px */
+  line-height: 1.125rem; /* 18px */
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.text-card-title {
+  font-size: 1.125rem; /* 18px */
+  line-height: 1.5rem; /* 24px */
+  font-weight: 600;
+}
+.text-row-title {
+  font-size: 1.0625rem; /* 17px */
+  line-height: 1.375rem; /* 22px */
+  font-weight: 600;
+}
+.text-body {
+  font-size: 1rem; /* 16px */
+  line-height: 1.5rem; /* 24px */
+}
+.text-secondary {
+  font-size: 0.9375rem; /* 15px */
+  line-height: 1.375rem; /* 22px */
+}
+.text-nav {
+  font-size: 0.75rem; /* 12px */
+  line-height: 1rem; /* 16px */
+  font-weight: 600;
+}
+.text-status {
+  font-size: 0.8125rem; /* 13px */
+  line-height: 1.0625rem; /* 17px */
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ surfaces
+   The sky video is a hero backdrop, not a reading surface. Long lists / forms /
+   settings sit on a near-solid off-white `.surface` so text + buttons never land
+   on a bright cloud edge. `.pb-nav` reserves clearance for the BottomNav + FAB. */
+.surface {
+  background: var(--color-canvas);
+}
+.surface-raised {
+  background: var(--color-card);
+}
+.pb-nav {
+  padding-bottom: var(--nav-inset);
 }
 /* Balance hero - the single focal figure on Home. One token so the dollars and
    the smaller cents/$ glyphs stay in proportion if the hero is ever retuned. */
