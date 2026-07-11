@@ -10,9 +10,9 @@ import { activatePrivateBalance, createWallet, createWalletAuto, importWallet } 
 type Step = "welcome" | "create_passcode" | "import" | "activating";
 
 const POINTS = [
-  { icon: <ShieldCheck size={18} />, title: "Yours instantly", body: "Your keys are made on this device the moment you tap create. No login, no accounts." },
-  { icon: <KeyRound size={18} />, title: "Self-custody", body: "No usernames, no Google logins, no passwords to remember." },
-  { icon: <Eye size={18} />, title: "Private by default", body: "Zero-knowledge proofs keep your balances and payouts hidden." },
+  { icon: <Eye size={18} />, title: "Private by default", body: "Balances and amounts are sealed on-chain with zero-knowledge proofs." },
+  { icon: <KeyRound size={18} />, title: "Private USDC on Avalanche", body: "Send shielded USDC that settles on-chain in seconds." },
+  { icon: <ShieldCheck size={18} />, title: "Yours in one tap", body: "Self-custody instantly — keys stay on this device, no login." },
 ];
 
 export function Onboarding({ onDone }: { onDone: () => void }) {
@@ -113,33 +113,33 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
     >
       <AnimatePresence mode="wait">
         {step === "welcome" && (
-          <Pane key="welcome">
+          <Pane key="welcome" tight>
             <div className="my-auto flex flex-col items-center text-center w-full">
               <div className="text-accent">
-                <LogoMark size={64} />
+                <LogoMark size={54} />
               </div>
-              <motion.h1 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="font-display mt-6 text-[28px] leading-tight sm:text-[32px]">
+              <motion.h1 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="font-display mt-4 text-[26px] leading-tight sm:text-[30px]">
                 Money you control.
                 <br />
-                Local & Private.
+                Private by default.
               </motion.h1>
-              <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="mt-3 max-w-[280px] text-[15px] text-muted">
-                A secure, local-first web wallet. Secrets stay on your device.
+              <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="mt-2 max-w-[290px] text-[14px] text-muted">
+                Send and receive USDC on Avalanche — balances and amounts encrypted end-to-end.
               </motion.p>
-              <motion.div variants={stagger} initial="hidden" animate="show" className="mt-8 w-full space-y-3">
+              <motion.div variants={stagger} initial="hidden" animate="show" className="mt-5 w-full space-y-2">
                 {POINTS.map((p) => (
-                  <motion.div key={p.title} variants={fadeUp} className="flex items-center gap-3 rounded-2xl bg-card p-4 text-left shadow-[var(--shadow-card)]">
-                    <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-accent/10 text-accent">{p.icon}</div>
+                  <motion.div key={p.title} variants={fadeUp} className="flex items-center gap-3 rounded-2xl bg-card p-3 text-left shadow-[var(--shadow-card)]">
+                    <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accent/10 text-accent">{p.icon}</div>
                     <div>
-                      <div className="text-[15px] font-semibold">{p.title}</div>
-                      <div className="text-[13px] text-muted">{p.body}</div>
+                      <div className="text-[14px] font-semibold">{p.title}</div>
+                      <div className="text-[12.5px] leading-snug text-muted">{p.body}</div>
                     </div>
                   </motion.div>
                 ))}
               </motion.div>
             </div>
-            {err ? <p className="mt-4 text-center text-[13px] text-danger" data-testid="onboarding-error">{err}</p> : null}
-            <div className="mt-6 space-y-3">
+            {err ? <p className="mt-3 text-center text-[13px] text-danger" data-testid="onboarding-error">{err}</p> : null}
+            <div className="mt-5 space-y-2.5">
               <Button full size="lg" loading={busy} onClick={handleCreate} data-testid="onboarding-create">
                 Create new wallet
               </Button>
@@ -161,7 +161,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
               </div>
               <h1 className="font-display mt-5 text-center text-[24px] leading-tight">Set a passcode</h1>
               <p className="mt-2 text-center text-[14px] text-muted max-w-[290px] mx-auto">
-                This device has no passkey, so your wallet keys are encrypted with a passcode you choose.
+                Optional: encrypt your wallet with a passcode you enter to unlock. Skip it and your wallet just opens instantly.
               </p>
 
               {err ? <p className="mt-4 text-center text-[13px] text-danger" data-testid="onboarding-error">{err}</p> : null}
@@ -278,10 +278,10 @@ function ActivationSeal({ failed }: { failed: boolean }) {
   );
 }
 
-function Pane({ children, onBack }: { children: React.ReactNode; onBack?: () => void }) {
+function Pane({ children, onBack, tight }: { children: React.ReactNode; onBack?: () => void; tight?: boolean }) {
   return (
     <motion.div
-      className="relative flex flex-1 flex-col px-7 pb-10 pt-16 min-h-0 overflow-y-auto no-scrollbar"
+      className={`relative flex flex-1 flex-col px-7 min-h-0 overflow-y-auto no-scrollbar ${tight ? "pb-6 pt-10" : "pb-10 pt-16"}`}
       initial={{ opacity: 0, x: 16 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -16 }}
