@@ -2,7 +2,7 @@ import { accountFromSignedMessage, createAccount, type BenzoAccount } from "@ben
 import { IndexedDbKVStore, Keychain, newSalt, passphraseWrappingKey, prfWrappingKey } from "@benzo/wallet";
 import type { Hex } from "viem";
 import { AUTH_CHANGED_EVENT } from "./api";
-import { registerEercAccount } from "./eerc";
+import { ensureGasFunded, registerEercAccount } from "./eerc";
 import { isRegisteredOnEerc } from "./handleRegistry";
 import { derivePasskeySecret, hasPasskey, registerPasskey } from "./passkey";
 import { DEMO_MODE } from "../demo/flag";
@@ -269,6 +269,9 @@ export async function activatePrivateBalance(): Promise<PrivateBalanceActivation
       if (await isRegisteredOnEerc(account.address)) {
         return { alreadyRegistered: true };
       }
+      // A brand-new wallet has no AVAX; drip gas + USDC from the faucet before the
+      // first on-chain register() so activation doesn't die on "insufficient funds".
+      await ensureGasFunded(account.address);
       const txHash = await registerEercAccount(account);
       return { alreadyRegistered: !txHash, txHash };
     })()

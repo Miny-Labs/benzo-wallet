@@ -51,6 +51,30 @@ export const EERC_CIRCUIT_URLS: CircuitURLs = {
   burn: { wasm: circuitUrl("burn", "wasm"), zkey: circuitUrl("burn", "zkey") },
 };
 
+// A fresh self-custody wallet holds no AVAX, so its first eERC register() would
+// revert on gas. Ask the testnet faucet (proxied at /api/faucet) to drip a little
+// gas + USDC, then wait for it to land. The faucet is balance-gated and
+// rate-limited server-side, so importing an already-funded key is a no-op.
+const FAUCET_MIN_GAS_WEI = 10_000_000_000_000_000n; // 0.01 AVAX
+
+export async function ensureGasFunded(address: Address): Promise<void> {
+  const client = getPublicClient();
+  if ((await client.getBalance({ address })) >= FAUCET_MIN_GAS_WEI) return;
+  try {
+    await fetch("/api/faucet", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ address }),
+    });
+  } catch {
+    // Faucet unreachable — fall through; register() will surface a clear error.
+  }
+  for (let i = 0; i < 20; i++) {
+    if ((await client.getBalance({ address })) >= FAUCET_MIN_GAS_WEI) return;
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+}
+
 export function createViemClients(account: BenzoAccount) {
   const viemAccount = privateKeyToAccount(account.evmPrivateKey);
   return {
