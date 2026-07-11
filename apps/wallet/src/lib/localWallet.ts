@@ -21,8 +21,25 @@ let activeAccount: BenzoAccount | null = null;
 const WALLET_TYPE_KEY = "benzo.wallet.type";
 const RECOVERY_STATE_KEY = "benzo.recovery.v1";
 
-type WalletType = "passkey" | "passphrase";
+type WalletType = "passkey" | "passphrase" | "device";
 type RecoveryBinding = "passkey-prf" | "manual-backup";
+
+// A per-device secret (localStorage) HKDF-stretched into a wrapping key. This is
+// the "device" wallet's opener: the keychain auto-unlocks on every load with NO
+// prompt — no passkey scan, no passcode — the MetaMask-unlocked / Base feel.
+// Tradeoff: the sealed key is reachable by anything with DOM access on this
+// origin, so it's a testnet-grade default; a passcode/passkey can be layered on
+// as an opt-in upgrade later.
+const DEVICE_SECRET_KEY = "benzo.wallet.deviceSecret.v1";
+
+function deviceWrappingKey(): Uint8Array {
+  let hex = localStorage.getItem(DEVICE_SECRET_KEY);
+  if (!hex) {
+    hex = toHex(crypto.getRandomValues(new Uint8Array(32)));
+    localStorage.setItem(DEVICE_SECRET_KEY, hex);
+  }
+  return prfWrappingKey(fromHex(hex));
+}
 
 interface StoredRecoveryState {
   version: 1;
@@ -101,7 +118,7 @@ function writeRecoveryState(next: StoredRecoveryState): void {
 
 function currentWalletType(): WalletType | null {
   const stored = localStorage.getItem(WALLET_TYPE_KEY);
-  return stored === "passkey" || stored === "passphrase" ? stored : null;
+  return stored === "passkey" || stored === "passphrase" || stored === "device" ? stored : null;
 }
 
 function updateRecoveryState(patch: Partial<StoredRecoveryState> & Pick<StoredRecoveryState, "walletType" | "binding">): void {
@@ -266,6 +283,23 @@ export async function activatePrivateBalance(): Promise<PrivateBalanceActivation
   return eercRegistrationInFlight;
 }
 
+// Default create path: one tap, no passkey/passcode prompt. Generates the seed
+// and seals it under the device key so the wallet auto-opens on every load.
+export async function createWalletAuto(): Promise<BenzoAccount> {
+  const kv = await getStore();
+  const masterSeed = crypto.getRandomValues(new Uint8Array(32));
+  const account = accountFromSignedMessage(masterSeed);
+  const secrets = secretsFromAccount(account, masterSeed);
+
+  activeKeychain = await Keychain.create({ kv, wrappingKey: deviceWrappingKey(), secrets, overwrite: true });
+  activeAccount = account;
+
+  localStorage.setItem(WALLET_TYPE_KEY, "device");
+  writeRecoveryState({ version: 1, walletType: "device", binding: "manual-backup", createdAt: Date.now() });
+  notifyWalletChanged();
+  return account;
+}
+
 export async function createWallet(passphrase: string): Promise<BenzoAccount> {
   const kv = await getStore();
   const salt = newSalt();
@@ -344,6 +378,23 @@ export async function unlockWalletWithPasskey(): Promise<BenzoAccount> {
   return account;
 }
 
+// Silent unlock for "device" wallets — no prompt. Returns false for legacy
+// passkey/passphrase wallets (they still open through the LockGate).
+export async function tryAutoUnlock(): Promise<boolean> {
+  if (isWalletUnlocked()) return true;
+  if (currentWalletType() !== "device") return false;
+  try {
+    const kv = await getStore();
+    const kc = await Keychain.unlock({ kv, wrappingKey: deviceWrappingKey() });
+    activeKeychain = kc;
+    activeAccount = accountFromSecrets(kc.secrets);
+    notifyWalletChanged();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function lockWallet(): void {
   activeKeychain?.lock();
   activeKeychain = null;
@@ -390,12 +441,11 @@ export async function importWallet(importedText: string, passphrase?: string): P
     localStorage.setItem(WALLET_TYPE_KEY, "passphrase");
     updateRecoveryState({ walletType: "passphrase", binding: "manual-backup" });
   } else {
-    await registerPasskey({ userName: "imported-wallet" });
-    const prfOutput = await derivePasskeySecret();
-    const wrappingKey = prfWrappingKey(prfOutput);
-    activeKeychain = await Keychain.create({ kv, wrappingKey, secrets, overwrite: true });
-    localStorage.setItem(WALLET_TYPE_KEY, "passkey");
-    updateRecoveryState({ walletType: "passkey", binding: "manual-backup" });
+    // No passcode -> seal under the device key so the imported wallet auto-opens
+    // with no prompt (no passkey scan).
+    activeKeychain = await Keychain.create({ kv, wrappingKey: deviceWrappingKey(), secrets, overwrite: true });
+    localStorage.setItem(WALLET_TYPE_KEY, "device");
+    updateRecoveryState({ walletType: "device", binding: "manual-backup" });
   }
 
   activeAccount = accountFromSecrets(secrets);

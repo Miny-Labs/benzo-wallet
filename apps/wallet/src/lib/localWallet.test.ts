@@ -52,11 +52,15 @@ vi.mock("./handleRegistry", () => ({
 import {
   activatePrivateBalance,
   createWallet,
+  createWalletAuto,
   createWalletWithPasskey,
   exportWallet,
+  getLocalAccount,
   getLocalRecoveryStatus,
+  isWalletUnlocked,
   lockWallet,
   markWalletBackupConfirmed,
+  tryAutoUnlock,
   unlockWalletWithPasskey,
 } from "./localWallet";
 
@@ -268,5 +272,27 @@ describe("local wallet recovery", () => {
       }
     }
     expect(sessionStorage.getItem("benzo.softSession.v1")).toBeNull();
+  });
+
+  it("device wallet: creates + silently auto-unlocks with no passkey/passcode prompt", async () => {
+    const account = await createWalletAuto();
+    expect(getLocalAccount()).not.toBeNull();
+    expect(localStorage.getItem("benzo.wallet.type")).toBe("device");
+    expect(passkeyMocks.registerPasskey).not.toHaveBeenCalled();
+    expect(passkeyMocks.derivePasskeySecret).not.toHaveBeenCalled();
+
+    // A reload drops the in-memory session; tryAutoUnlock re-opens it silently.
+    lockWallet();
+    expect(isWalletUnlocked()).toBe(false);
+    expect(await tryAutoUnlock()).toBe(true);
+    expect(getLocalAccount()?.address).toBe(account.address);
+    expect(passkeyMocks.derivePasskeySecret).not.toHaveBeenCalled();
+  });
+
+  it("does not auto-unlock a legacy passkey wallet (LockGate still gates it)", async () => {
+    await createWalletWithPasskey("legacy-user");
+    lockWallet();
+    expect(await tryAutoUnlock()).toBe(false);
+    expect(isWalletUnlocked()).toBe(false);
   });
 });
