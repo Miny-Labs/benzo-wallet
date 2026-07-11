@@ -4,7 +4,8 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://benzo-api-dzv6bwbpba-ue.a.run.app/:path*" },
+    { "source": "/api/:path*", "destination": "https://api.benzo.space/:path*" },
+    { "source": "/circuits/:path*", "destination": "https://benzonet-api.benzo.space/circuits/:path*" },
     { "source": "/((?!api/|assets/|circuits/).*)", "destination": "/index.html" }
   ]
 }
