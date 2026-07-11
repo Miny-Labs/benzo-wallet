@@ -43,7 +43,7 @@ export function useSendStream() {
         const baseUnits = usdcToBaseUnits(amount).toString();
         const cs = await sendClientSide(recipient, baseUnits, memo);
         if (cs?.txHash) {
-          const r: SettleResult = { status: "settled", txHash: cs.txHash, prover: cs.prover, amount: baseUnits, onChain: true };
+          const r: SettleResult = { status: "settled", txHash: cs.txHash, prover: cs.prover, amount: baseUnits, onChain: true, provingMs: cs.provingMs };
           saveLocalHistory({
             id: cs.txHash,
             type: "send",
@@ -56,7 +56,7 @@ export function useSendStream() {
             txHash: cs.txHash,
           });
           setReceipt(r);
-          apply({ phase: "confirmed", txHash: cs.txHash, onChain: true });
+          apply({ phase: "confirmed", txHash: cs.txHash, onChain: true, provingMs: cs.provingMs });
           return r;
         }
         throw new Error("Local-first send failed to return transaction hash.");

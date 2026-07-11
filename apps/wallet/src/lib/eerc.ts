@@ -176,7 +176,7 @@ export async function transferPrivateUsdc(
   to: Address,
   amount: bigint,
   message?: string,
-): Promise<{ txHash: Hex }> {
+): Promise<{ txHash: Hex; provingMs: number }> {
   if (!USDC_TOKEN_ADDRESS) throw new Error("USDC token is not configured.");
   const eerc = await createEerc(account);
   if (!eerc) throw new Error("eERC contracts are not configured.");
@@ -188,6 +188,11 @@ export async function transferPrivateUsdc(
     functionName: "auditorPublicKey",
     args: [],
   } as never) as bigint[];
+  // provingMs wraps the SDK's eERC op — which generates the Groth16 proof
+  // (snarkjs) and broadcasts the tx in one call, so it captures the client-side
+  // proving cost. It excludes the setup above (registration/balance/auditor
+  // reads); the SDK doesn't expose proof-gen separately from the broadcast.
+  const proveStartedAt = performance.now();
   const result = await eerc.transfer(
     to,
     amount,
@@ -197,14 +202,14 @@ export async function transferPrivateUsdc(
     USDC_TOKEN_ADDRESS,
     message,
   );
-  return { txHash: result.transactionHash };
+  return { txHash: result.transactionHash, provingMs: Math.round(performance.now() - proveStartedAt) };
 }
 
 export async function shieldPublicUsdc(
   account: BenzoAccount,
   amount: bigint,
   message?: string,
-): Promise<{ approvalTxHash?: Hex; registrationTxHash?: Hex; txHash: Hex }> {
+): Promise<{ approvalTxHash?: Hex; registrationTxHash?: Hex; txHash: Hex; provingMs: number }> {
   if (!USDC_TOKEN_ADDRESS) throw new Error("USDC token is not configured.");
   if (amount <= 0n) throw new Error("Enter an amount greater than zero.");
   const eerc = await createEerc(account);
@@ -215,15 +220,18 @@ export async function shieldPublicUsdc(
 
   const registrationTxHash = await ensureEercRegistered(eerc, account.address);
   const approvalTxHash = await ensureUsdcAllowance(account, amount);
+  // provingMs wraps the deposit proof-gen + broadcast only (see transferPrivateUsdc);
+  // the registration + ERC-20 approval above are excluded.
+  const proveStartedAt = performance.now();
   const result = await eerc.deposit(amount, USDC_TOKEN_ADDRESS, BigInt(USDC_DECIMALS), message);
-  return { approvalTxHash, registrationTxHash, txHash: result.transactionHash };
+  return { approvalTxHash, registrationTxHash, txHash: result.transactionHash, provingMs: Math.round(performance.now() - proveStartedAt) };
 }
 
 export async function unshieldPrivateUsdc(
   account: BenzoAccount,
   amount: bigint,
   message?: string,
-): Promise<{ registrationTxHash?: Hex; txHash: Hex }> {
+): Promise<{ registrationTxHash?: Hex; txHash: Hex; provingMs: number }> {
   if (!USDC_TOKEN_ADDRESS) throw new Error("USDC token is not configured.");
   if (amount <= 0n) throw new Error("Enter an amount greater than zero.");
   const eerc = await createEerc(account);
@@ -232,6 +240,8 @@ export async function unshieldPrivateUsdc(
   const balance = await readEercBalanceParts(eerc, account.address, USDC_TOKEN_ADDRESS);
   if (amount > balance.decryptedBalance) throw new Error(INSUFFICIENT_PRIVATE_USDC_ERROR);
   const auditor = await readAuditorPublicKey(eerc);
+  // provingMs wraps the withdraw proof-gen + broadcast only (see transferPrivateUsdc).
+  const proveStartedAt = performance.now();
   const result = await eerc.withdraw(
     amount,
     balance.encryptedBalance,
@@ -240,7 +250,7 @@ export async function unshieldPrivateUsdc(
     USDC_TOKEN_ADDRESS,
     message,
   );
-  return { registrationTxHash, txHash: result.transactionHash };
+  return { registrationTxHash, txHash: result.transactionHash, provingMs: Math.round(performance.now() - proveStartedAt) };
 }
 
 async function ensureEercRegistered(eerc: EERC, address: Address): Promise<Hex | undefined> {
