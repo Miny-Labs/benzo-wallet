@@ -266,7 +266,10 @@ async function ensureEscrowAllowance(
     abi: erc20Abi,
     functionName: "approve",
     args: [escrow, amount],
-    account: getAddress(account.address),
+    // Local signer account (not the bare address) so writeContract signs
+    // on-device via eth_sendRawTransaction instead of the RPC-only
+    // eth_sendTransaction that public RPCs reject. See eerc.ensureUsdcAllowance.
+    account: walletClient.account,
   });
   const hash = await walletClient.writeContract(request);
   await publicClient.waitForTransactionReceipt({ hash });

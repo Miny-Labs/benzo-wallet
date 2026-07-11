@@ -277,7 +277,12 @@ async function ensureUsdcAllowance(account: BenzoAccount, amount: bigint): Promi
     abi: erc20Abi,
     functionName: "approve",
     args: [ENCRYPTED_ERC_ADDRESS, amount],
-    account: account.address,
+    // Use the LOCAL signer account, not the bare address. Passing the address
+    // makes viem treat it as a JSON-RPC account, so writeContract falls back to
+    // eth_sendTransaction (RPC-side signing) — which public RPCs like Fuji reject
+    // ("the method eth_sendTransaction is not available"). The local account
+    // signs on-device and submits via eth_sendRawTransaction.
+    account: walletClient.account,
   });
   const hash = await walletClient.writeContract(request);
   await publicClient.waitForTransactionReceipt({ hash });
