@@ -1,18 +1,17 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowLeft, Eye, Fingerprint, Key, KeyRound, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Eye, Key, KeyRound, ShieldAlert, ShieldCheck } from "lucide-react";
 import { LogoMark } from "../ui/Logo";
 import { Button, Input, useToast } from "../ui/primitives";
 import { fadeUp, stagger, EASE } from "../ui/motion";
 import { useWallet } from "../lib/store";
-import { isWebAuthnAvailable } from "../lib/passkey";
-import { activatePrivateBalance, createWallet, createWalletWithPasskey, importWallet } from "../lib/localWallet";
+import { activatePrivateBalance, createWallet, createWalletAuto, importWallet } from "../lib/localWallet";
 
 type Step = "welcome" | "create_passcode" | "import" | "activating";
 
 const POINTS = [
-  { icon: <ShieldCheck size={18} />, title: "Local custody", body: "Secrets are kept on your device, locked by passkey or passcode." },
-  { icon: <KeyRound size={18} />, title: "No hosted accounts", body: "No usernames, no Google logins. Pure self-custody." },
+  { icon: <ShieldCheck size={18} />, title: "Yours instantly", body: "Your keys are made on this device the moment you tap create. No login, no accounts." },
+  { icon: <KeyRound size={18} />, title: "Self-custody", body: "No usernames, no Google logins, no passwords to remember." },
   { icon: <Eye size={18} />, title: "Private by default", body: "Zero-knowledge proofs keep your balances and payouts hidden." },
 ];
 
@@ -21,19 +20,10 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   const [passphrase, setPassphrase] = useState("");
   const [confirmPassphrase, setConfirmPassphrase] = useState("");
   const [importedText, setImportedText] = useState("");
-  const [lockMethod, setLockMethod] = useState<"passkey" | "passphrase">("passkey");
   const [busy, setBusy] = useState<boolean>(false);
   const [err, setErr] = useState<string | null>(null);
   const toast = useToast();
   const { refresh } = useWallet();
-
-  const isPasskeyCapable = isWebAuthnAvailable();
-
-  useEffect(() => {
-    if (!isPasskeyCapable) {
-      setLockMethod("passphrase");
-    }
-  }, [isPasskeyCapable]);
 
   // Activation seals the shielded balance on-chain (register-on-first-use). It is
   // the ONLY thing between "wallet created" and Home — there is no backup gate.
@@ -52,22 +42,17 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
     }
   }
 
-  // One tap: silently generate the seed + passkey and go straight to activation →
-  // Home. Backup is a later, non-blocking step in Profile — never a gate here.
-  // Devices without WebAuthn can't derive a passkey secret, so they fall back to
-  // a passcode-encrypted keychain — creation always has a path.
+  // One tap: silently generate the seed, seal it under the device key (no passkey
+  // scan, no passcode) and go straight to activation → Home. Backup is a later,
+  // non-blocking step in Profile — never a gate here. A passcode is an optional
+  // upgrade via the "Prefer a passcode?" link.
   async function handleCreate() {
-    if (!isPasskeyCapable) {
-      setErr(null);
-      setStep("create_passcode");
-      return;
-    }
     setBusy(true);
     setErr(null);
     try {
-      await createWalletWithPasskey("benzo-local-user");
-    } catch (e) {
-      setErr((e as Error).message.includes("cancel") ? "Passkey cancelled." : "Could not create wallet. Please try again.");
+      await createWalletAuto();
+    } catch {
+      setErr("Could not create wallet. Please try again.");
       setBusy(false);
       return;
     }
@@ -102,18 +87,11 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
       setErr("Please paste your Avalanche Benzo backup JSON or EVM private key.");
       return;
     }
-    if (lockMethod === "passphrase" && passphrase.length < 4) {
-      setErr("Passcode must be at least 4 characters.");
-      return;
-    }
     setBusy(true);
     setErr(null);
     try {
-      if (lockMethod === "passphrase") {
-        await importWallet(importedText, passphrase);
-      } else {
-        await importWallet(importedText);
-      }
+      // Imported wallets seal under the device key too — they auto-open with no prompt.
+      await importWallet(importedText);
     } catch (e) {
       setErr((e as Error).message);
       setBusy(false);
@@ -163,11 +141,14 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
             {err ? <p className="mt-4 text-center text-[13px] text-danger" data-testid="onboarding-error">{err}</p> : null}
             <div className="mt-6 space-y-3">
               <Button full size="lg" loading={busy} onClick={handleCreate} data-testid="onboarding-create">
-                {isPasskeyCapable ? <Fingerprint size={18} /> : null} Create new wallet
+                Create new wallet
               </Button>
               <Button full variant="secondary" size="lg" disabled={busy} onClick={() => { setStep("import"); setErr(null); }} data-testid="onboarding-import">
                 Import existing wallet
               </Button>
+              <button type="button" disabled={busy} onClick={() => { setStep("create_passcode"); setErr(null); }} className="w-full pt-1 text-center text-[13px] text-muted underline-offset-2 outline-none transition hover:underline disabled:opacity-50 focus-visible:underline" data-testid="onboarding-passcode-link">
+                Prefer a passcode? Add one instead
+              </button>
             </div>
           </Pane>
         )}
@@ -228,36 +209,6 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
               </div>
 
               {err ? <p className="mt-2 text-[13px] text-danger" data-testid="import-error">{err}</p> : null}
-
-              {isPasskeyCapable && (
-                <div className="mt-4 flex gap-2">
-                  <button
-                    onClick={() => setLockMethod("passkey")}
-                    className={`flex-1 py-2 px-3 rounded-xl border text-xs font-semibold transition ${lockMethod === "passkey" ? "border-accent bg-accent/10 text-accent" : "border-hair text-muted"}`}
-                  >
-                    Lock with Passkey
-                  </button>
-                  <button
-                    onClick={() => setLockMethod("passphrase")}
-                    className={`flex-1 py-2 px-3 rounded-xl border text-xs font-semibold transition ${lockMethod === "passphrase" ? "border-accent bg-accent/10 text-accent" : "border-hair text-muted"}`}
-                  >
-                    Lock with Passcode
-                  </button>
-                </div>
-              )}
-
-              {lockMethod === "passphrase" && (
-                <div className="mt-4">
-                  <Input
-                    type="password"
-                    label="Choose a passcode for this wallet"
-                    value={passphrase}
-                    onChange={(e) => setPassphrase(e.target.value)}
-                    placeholder="At least 4 characters"
-                    data-testid="import-passcode-input"
-                  />
-                </div>
-              )}
             </div>
 
             <Button full size="lg" onClick={handleImport} loading={busy} data-testid="import-submit">

@@ -33,7 +33,7 @@ const ShareProof = lazy(() => import("./screens/ShareProof").then((m) => ({ defa
 const InviteExternal = lazy(() => import("./screens/InviteExternal").then((m) => ({ default: m.InviteExternal })));
 const Claim = lazy(() => import("./screens/Claim").then((m) => ({ default: m.Claim })));
 import { Onboarding } from "./screens/Onboarding";
-import { walletExists, isWalletUnlocked } from "./lib/localWallet";
+import { walletExists, isWalletUnlocked, tryAutoUnlock } from "./lib/localWallet";
 import { DEMO_MODE } from "./demo/flag";
 
 const TABS = [
@@ -170,10 +170,11 @@ export function App() {
     async function checkWallet() {
       const exists = await walletExists();
       setOnboarded(exists);
-      // Keys live only in the sealed keychain — never in web storage — so a
-      // reload starts LOCKED and re-unlocks through the keychain (a quick passkey
-      // tap, or the passcode). The in-memory session never survives a refresh.
-      setLocked(!isWalletUnlocked());
+      // The in-memory session never survives a refresh, so we re-open on load.
+      // "device" wallets auto-open SILENTLY (no passkey/passcode prompt); legacy
+      // passkey/passphrase wallets fall back to the LockGate.
+      const unlocked = exists && !isWalletUnlocked() ? await tryAutoUnlock() : isWalletUnlocked();
+      setLocked(!unlocked);
       setChecking(false);
     }
     checkWallet();
