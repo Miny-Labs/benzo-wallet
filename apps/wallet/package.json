@@ -9,7 +9,9 @@
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview --port 5175",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run --maxWorkers=1 --minWorkers=1"
+    "test": "vitest run --maxWorkers=1 --minWorkers=1",
+    "stage:circuits": "node scripts/stage-circuits.mjs",
+    "check:circuits": "node scripts/check-circuits.mjs"
   },
   "dependencies": {
     "@avalabs/eerc-sdk": "^1.0.2",
