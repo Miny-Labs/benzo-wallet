@@ -5,7 +5,7 @@
   "framework": "vite",
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://api.benzo.space/:path*" },
-    { "source": "/circuits/:path*", "destination": "https://benzonet-api.benzo.space/circuits/:path*" },
+    { "source": "/circuits/:path*", "destination": "https://api.benzo.space/circuits/:path*" },
     { "source": "/((?!api/|assets/|circuits/).*)", "destination": "/index.html" }
   ]
 }
