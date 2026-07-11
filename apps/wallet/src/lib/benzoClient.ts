@@ -38,14 +38,14 @@ export async function sendClientSide(
   to: Address | BenzoRecipient,
   amountBaseUnits: string,
   memo?: string,
-): Promise<{ txHash?: string; prover: "local" } | null> {
+): Promise<{ txHash?: string; provingMs?: number; prover: "local" } | null> {
   const account = getLocalAccount();
   if (!account) return null;
   const address = typeof to === "string" ? to : to.address;
   if (!address) return null;
   await activatePrivateBalance();
   const result = await transferPrivateUsdc(account, address, BigInt(amountBaseUnits), memo);
-  return { txHash: result.txHash, prover: "local" };
+  return { txHash: result.txHash, provingMs: result.provingMs, prover: "local" };
 }
 
 export async function activatePrivateBalanceClientSide(): Promise<{ txHash?: string; alreadyRegistered: boolean } | null> {
@@ -69,7 +69,7 @@ export async function claimHandleClientSide(
 export async function shieldPublicUsdcClientSide(
   amountBaseUnits: string,
   memo?: string,
-): Promise<{ approvalTxHash?: string; registrationTxHash?: string; txHash?: string; prover: "local" } | null> {
+): Promise<{ approvalTxHash?: string; registrationTxHash?: string; txHash?: string; provingMs?: number; prover: "local" } | null> {
   const account = getLocalAccount();
   if (!account) return null;
   const result = await shieldPublicUsdc(account, BigInt(amountBaseUnits), memo);
@@ -79,12 +79,11 @@ export async function shieldPublicUsdcClientSide(
 export async function unshieldPrivateUsdcClientSide(
   amountBaseUnits: string,
   memo?: string,
-): Promise<{ registrationTxHash?: string; txHash?: string; prover: "local" } | null> {
+): Promise<{ registrationTxHash?: string; txHash?: string; provingMs?: number; prover: "local" } | null> {
   const account = getLocalAccount();
   if (!account) return null;
   const result = await unshieldPrivateUsdc(account, BigInt(amountBaseUnits), memo);
   return { ...result, prover: "local" };
-
 }
 
 export async function clientSideReadsAvailable(): Promise<boolean> {

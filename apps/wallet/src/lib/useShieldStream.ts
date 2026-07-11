@@ -61,7 +61,7 @@ export function useShieldStream() {
             ? await shieldPublicUsdcClientSide(baseUnits, memo)
             : await unshieldPrivateUsdcClientSide(baseUnits, memo);
         if (cs?.txHash) {
-          const r: SettleResult = { status: "settled", txHash: cs.txHash, prover: cs.prover, amount: baseUnits, onChain: true };
+          const r: SettleResult = { status: "settled", txHash: cs.txHash, prover: cs.prover, amount: baseUnits, onChain: true, provingMs: cs.provingMs };
           const meta = HISTORY_META[mode];
           saveLocalHistory({
             id: cs.txHash,
@@ -75,7 +75,7 @@ export function useShieldStream() {
             txHash: cs.txHash,
           });
           setReceipt(r);
-          apply({ phase: "confirmed", txHash: cs.txHash, onChain: true });
+          apply({ phase: "confirmed", txHash: cs.txHash, onChain: true, provingMs: cs.provingMs });
           return r;
         }
         throw new Error(mode === "shield" ? "Shield failed to return transaction hash." : "Cash out failed to return transaction hash.");

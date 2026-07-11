@@ -120,6 +120,7 @@ describe("eERC client-side shield/unshield", () => {
       approvalTxHash: undefined,
       registrationTxHash: undefined,
       txHash: TX_HASH,
+      provingMs: expect.any(Number),
     });
 
     expect(eercMocks.deposit).toHaveBeenCalledWith(1_000_000n, USDC_TOKEN_ADDRESS, 6n, "memo");
@@ -145,6 +146,7 @@ describe("eERC client-side shield/unshield", () => {
 
     await expect(transferPrivateUsdc(account, to, 250_000n, "memo")).resolves.toEqual({
       txHash: TX_HASH,
+      provingMs: expect.any(Number),
     });
 
     expect(eercMocks.register).toHaveBeenCalledTimes(1);
