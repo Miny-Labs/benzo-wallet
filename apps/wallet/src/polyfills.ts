@@ -5,6 +5,7 @@
 // `ReferenceError: Buffer is not defined`. Import this FIRST in main.tsx so the
 // global is set before any other module's top-level code (or the on-demand
 // proving chunk) runs.
+// biome-ignore lint/style/useNodejsImportProtocol: this is the npm `buffer` browser polyfill, NOT Node's built-in — `node:buffer` would not resolve in the browser bundle.
 import { Buffer } from "buffer";
 
 if (typeof (globalThis as { Buffer?: unknown }).Buffer === "undefined") {
