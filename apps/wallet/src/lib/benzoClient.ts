@@ -148,7 +148,7 @@ export async function createInviteClientSide(
 
 /**
  * Refund an unclaimed gift back to the sender after expiry, straight against the
- * escrow. The giftId is recovered from the stored claim secret — no backend.
+ * escrow. The giftId is recovered from the stored claim secret, no backend.
  */
 export async function refundInviteClientSide(
   claimSecretHex: string,

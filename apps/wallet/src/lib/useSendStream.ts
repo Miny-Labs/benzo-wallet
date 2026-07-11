@@ -32,7 +32,7 @@ export function useSendStream() {
 
   const run = useCallback(
     async (to: string, amount: string, memo: string | undefined, prover: ProverKind, _proverAvailable = false, requestId?: string) => {
-      // DEMO MODE: scripted walk of the payment state machine — no proving, no RPC.
+      // DEMO MODE: scripted walk of the payment state machine, no proving, no RPC.
       if (DEMO_MODE) return demoRunSend(to, amount, memo, dispatch, setReceipt);
       dispatch({ type: "RESET" });
       setReceipt(null);
@@ -81,7 +81,7 @@ async function resolvePrivateRecipient(to: string): Promise<`0x${string}`> {
   if (isValidEvmAddress(trimmed)) return normalizeEvmAddress(trimmed) as `0x${string}`;
   const decoded = decodeRecipient(trimmed);
   if (decoded?.address) return decoded.address;
-  // A bare @handle resolves on-chain via HandleRegistry over Fuji RPC — no BFF
+  // A bare @handle resolves on-chain via HandleRegistry over Fuji RPC, no BFF
   // call sits on the send path, so this succeeds with the backend unreachable.
   const resolved = await resolveHandleOnChain(trimmed);
   return resolved.address;

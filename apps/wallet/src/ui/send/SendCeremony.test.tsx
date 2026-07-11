@@ -16,7 +16,7 @@ function renderCeremony(state: PaymentState) {
   return render(<SendCeremony state={state} receipt={receipt} onDone={vi.fn()} onRetry={vi.fn()} />);
 }
 
-describe("SendCeremony — centered 3D coin ceremony", () => {
+describe("SendCeremony, centered 3D coin ceremony", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 

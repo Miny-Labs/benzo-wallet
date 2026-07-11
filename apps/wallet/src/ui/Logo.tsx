@@ -25,7 +25,7 @@ export function Logo({ size = 28, className = "", title = "Benzo" }: { size?: nu
 
 /**
  * Avalanche network mark (the chain Benzo settles on). Red disc + the Avalanche
- * twin-peak "A" — used wherever we surface the network (picker, status, credit).
+ * twin-peak "A", used wherever we surface the network (picker, status, credit).
  * A faithful in-house representation; drop in the official brand SVG anytime.
  */
 export function AvalancheMark({ size = 18, className = "" }: { size?: number; className?: string }) {

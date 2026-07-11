@@ -70,13 +70,13 @@ export function BalanceHero({
       {arrived ? <ArrivingCoin /> : null}
       {/* One tight figure: `$4,820.50`. `tnum` (tabular-nums) forced the comma and
           the decimal point to a full digit-width advance, which read as gaps
-          around the `$`, the thousands comma, and the cents — proportional
+          around the `$`, the thousands comma, and the cents, proportional
           figures keep the separators snug. The count-up changes the digit COUNT
           frame-to-frame anyway, so tabular alignment bought nothing here. */}
       <div className="font-display text-hero mt-1.5 flex items-baseline tracking-tight" aria-label={fmtUsd(baseUnits)}>
         <span className="text-hero-sub mr-px font-semibold">$</span>
         <span>{dollars.replace(/^\$/, "")}</span>
-        {/* Cents share the dollars' ink + baseline — the decimal is part of one
+        {/* Cents share the dollars' ink + baseline, the decimal is part of one
             figure, not a muted afterthought (Home critique #52). */}
         <span className="text-hero-sub">.{cents}</span>
       </div>

@@ -144,7 +144,7 @@ export function Card({
 }
 
 /**
- * A near-solid off-white reading surface for long lists / forms / settings — so
+ * A near-solid off-white reading surface for long lists / forms / settings, so
  * text and buttons never sit on the bright cloud edges of the sky video. Screens
  * wrap their scrollable body in a `<Surface>` (or use the `.surface` class).
  */

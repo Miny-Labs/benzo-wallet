@@ -207,7 +207,7 @@ export async function claimHandleOnChain(
   });
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") {
-    // A reverted claim must not report success — the registry owner was not updated.
+    // A reverted claim must not report success, the registry owner was not updated.
     throw new Error("handle_claim_failed");
   }
   return { handle: normalized, txHash, address: account.address };

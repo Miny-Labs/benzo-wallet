@@ -1,7 +1,7 @@
 /**
  * Shared screen chrome: the Home top bar (logo + network pill + eye + bell) and
  * the sub-screen header (optional back chevron + title). The network affordance is
- * a compact PILL (name + Avalanche mark), not a globe — a globe reads as
+ * a compact PILL (name + Avalanche mark), not a globe, a globe reads as
  * language/web, not "which chain". See ui/NetworkPill.
  */
 import { Bell, ChevronLeft } from "lucide-react";

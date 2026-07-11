@@ -1,5 +1,5 @@
 /**
- * NetworkSheet — the network switcher as a bottom sheet (critique #55). Replaces
+ * NetworkSheet, the network switcher as a bottom sheet (critique #55). Replaces
  * the cramped globe popover: each network shows a plain-English RISK label
  * (Test funds only / Permissioned network / Real assets), a checkmark on the
  * active one, and a note that balances + activity differ per network. Switching to
@@ -7,7 +7,7 @@
  * that isn't deployed on this build is disabled with a "Coming soon" badge.
  *
  * Reusable: the header pill (ui/NetworkPill) and Profile's compact network row can
- * both drive it — `<NetworkSheet open onClose />`.
+ * both drive it, `<NetworkSheet open onClose />`.
  */
 import { useCallback, useState } from "react";
 import { AlertTriangle, Check } from "lucide-react";

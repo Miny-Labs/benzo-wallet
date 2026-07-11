@@ -1,5 +1,5 @@
 /**
- * Display/parse helpers for money and identifiers — pure, framework-agnostic, so
+ * Display/parse helpers for money and identifiers, pure, framework-agnostic, so
  * pay.benzo.xyz and work.benzo.xyz render amounts and addresses identically.
  *
  * USDC carries 6 decimals; the protocol moves base units, so the UI converts at

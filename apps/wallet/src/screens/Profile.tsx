@@ -1,5 +1,5 @@
 /**
- * Profile — sectioned settings (critique #58/#60/#61). Instead of a stack of
+ * Profile, sectioned settings (critique #58/#60/#61). Instead of a stack of
  * oversized cards + a duplicate network card, everything sits under clear section
  * headers: Wallet · Verification & limits · Privacy · Contacts · Security ·
  * Network · Recovery & data.
@@ -11,7 +11,7 @@
  * #60 makes Security a real "Set up passkey" action that then REVEALS the lock
  * toggles (no dead disabled toggles pre-setup).
  * #61 turns Recovery & data into a real section plus a separate RED danger area
- * for deletion — verified backup + reauth + typed confirmation, and an honest
+ * for deletion, verified backup + reauth + typed confirmation, and an honest
  * explanation that on-chain assets are NOT removed.
  */
 import { useEffect, useState } from "react";
@@ -72,7 +72,7 @@ export function Profile() {
   const address = summary?.address ?? "";
   const displayHandle = address ? shortAddress(address, 6) : "Local Wallet";
 
-  // An unauthenticated / not-yet-tiered wallet is tier 0 ("Not verified") — never
+  // An unauthenticated / not-yet-tiered wallet is tier 0 ("Not verified"), never
   // default to tier 1 (which would falsely read "Basic verification"). Label and
   // limit derive from the same clamped tier so they can't disagree.
   const kyc = session?.kycTier ?? 0;
@@ -326,11 +326,11 @@ export function Profile() {
                 </div>
               ) : (
                 <div className="border-t border-hair py-3.5">
-                  {/* No dead disabled toggles — a locked explanation + a real action. */}
+                  {/* No dead disabled toggles, a locked explanation + a real action. */}
                   <div className="flex items-start gap-2.5 rounded-xl bg-ink/[0.04] p-3" data-testid="security-locked-note">
                     <Lock size={15} className="mt-px flex-none text-muted" />
                     <p className="text-[12.5px] leading-relaxed text-muted">
-                      Set up a passkey to lock the app and require approval before payments. Your device biometric or PIN unlocks it — nothing leaves this device.
+                      Set up a passkey to lock the app and require approval before payments. Your device biometric or PIN unlocks it, nothing leaves this device.
                     </p>
                   </div>
                   <Button full className="mt-3" loading={settingUp} onClick={setupPasskey} data-testid="setup-passkey">
@@ -376,7 +376,7 @@ export function Profile() {
               </div>
               {testResult ? (
                 <div className={`mb-3 rounded-lg px-3 py-2 text-[12px] font-medium ${testResult === "ok" ? "bg-pos/12 text-pos" : "bg-danger/12 text-danger"}`} data-testid="recovery-test-result">
-                  {testResult === "ok" ? "Recovery works — your backup can restore this wallet." : "Recovery check failed. Re-export and store a fresh backup."}
+                  {testResult === "ok" ? "Recovery works, your backup can restore this wallet." : "Recovery check failed. Re-export and store a fresh backup."}
                 </div>
               ) : null}
               {backupErr ? <div className="mb-3 text-[12px] font-medium text-danger" data-testid="recovery-error">{backupErr}</div> : null}
@@ -419,7 +419,7 @@ export function Profile() {
               <div className="min-w-0 flex-1">
                 <div className="text-[15px] font-semibold text-danger">Delete hosted profile data</div>
                 <p className="mt-1 text-[12.5px] leading-relaxed text-muted">
-                  Clears the Benzo profile data stored for this device and rotates your wallet key. It does <span className="font-semibold text-ink">not</span> remove or move any assets already on-chain — those stay under your current wallet and are only reachable with your recovery backup. Without a backup, this wallet and its funds are lost forever.
+                  Clears the Benzo profile data stored for this device and rotates your wallet key. It does <span className="font-semibold text-ink">not</span> remove or move any assets already on-chain, those stay under your current wallet and are only reachable with your recovery backup. Without a backup, this wallet and its funds are lost forever.
                 </p>
               </div>
             </div>
@@ -432,7 +432,7 @@ export function Profile() {
               <div className="mt-3 space-y-3" data-testid="delete-panel">
                 {!backedUp ? (
                   <div className="rounded-lg bg-amber/12 px-3 py-2 text-[12px] font-medium text-[#9a6b12]" data-testid="delete-needs-backup">
-                    Back up and confirm your recovery key first — otherwise deletion is irreversible.
+                    Back up and confirm your recovery key first, otherwise deletion is irreversible.
                   </div>
                 ) : null}
                 {hasFunds ? (
@@ -469,7 +469,7 @@ export function Profile() {
 
         <Stagger.Item index={8}>
           <p className="px-2 text-center text-[12px] leading-relaxed text-muted">
-            Your balance and payments are private by default — you choose what to prove.
+            Your balance and payments are private by default, you choose what to prove.
           </p>
         </Stagger.Item>
       </Stagger>
@@ -526,7 +526,7 @@ function NetworkSection() {
   return (
     <>
       <Card className="p-4">
-        {/* Compact "Fuji Testnet · Connected" row — no block height here. */}
+        {/* Compact "Fuji Testnet · Connected" row, no block height here. */}
         <button type="button" onClick={() => setSheetOpen(true)} className="flex w-full items-center gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded-lg" data-testid="network-row">
           <NetworkMark network={network} size={34} className="flex-none" />
           <div className="min-w-0 flex-1">
@@ -540,7 +540,7 @@ function NetworkSection() {
           <ChevronRight size={18} className="flex-none text-muted" />
         </button>
 
-        {/* Advanced — chain id / RPC / block height live here only. */}
+        {/* Advanced, chain id / RPC / block height live here only. */}
         <div className="mt-2 border-t border-hair pt-2">
           <button type="button" onClick={() => setAdvanced((v) => !v)} className="flex w-full items-center justify-between rounded py-1 text-[12.5px] font-semibold text-muted outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40" data-testid="network-advanced-toggle">
             Advanced
@@ -550,7 +550,7 @@ function NetworkSection() {
             <div className="space-y-1.5 pb-1 pt-1.5 text-[12px]" data-testid="network-advanced">
               <MetaRow k="Chain ID" v={String(cfg.chainId)} />
               <MetaRow k="RPC" v={<span className="break-all font-mono text-[11px]">{cfg.rpcUrl}</span>} />
-              <MetaRow k="Block height" v={ledger != null ? `#${ledger.toLocaleString()}` : "—"} />
+              <MetaRow k="Block height" v={ledger != null ? `#${ledger.toLocaleString()}` : "-"} />
             </div>
           ) : null}
         </div>

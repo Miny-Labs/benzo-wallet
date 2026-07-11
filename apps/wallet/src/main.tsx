@@ -20,7 +20,7 @@ import "./index.css";
 const Wallet = DEMO_MODE ? DemoWalletProvider : WalletProvider;
 
 // The wagmi config + query cache are bound to a single chain, so they're rebuilt
-// whenever the active network changes. The app shell above/below stays mounted —
+// whenever the active network changes. The app shell above/below stays mounted -
 // the reactive balance path swaps chains through lib/network's live bindings.
 function Web3Providers({ children }: { children: ReactNode }) {
   const { network } = useNetwork();

@@ -2,7 +2,7 @@
  * One activity row - avatar, plain-English line, signed amount, and a soft status
  * pill for in-flight / failed states. Every row now carries a SEMANTIC type icon
  * (received / sent / deposit / withdraw / pending / failed) so the kind of money
- * movement is legible at a glance — not only from the +/− sign (critique #53).
+ * movement is legible at a glance, not only from the +/− sign (critique #53).
  * No tx hashes, no chain words.
  */
 import { motion } from "framer-motion";
@@ -64,7 +64,7 @@ export function ActivityItem({ row, hidden, last }: { row: ActivityRow; hidden?:
         ) : (
           <Avatar name={row.name} tone={row.tone} size={40} />
         )}
-        {/* Semantic type badge — direction, or failed / in-flight when relevant. */}
+        {/* Semantic type badge, direction, or failed / in-flight when relevant. */}
         <span className={`absolute -bottom-0.5 -right-0.5 flex h-[17px] w-[17px] items-center justify-center rounded-full ring-2 ring-card ${badge.cls}`}>
           {badge.icon}
         </span>

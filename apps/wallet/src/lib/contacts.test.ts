@@ -47,11 +47,11 @@ describe("contacts (local-first recipient management)", () => {
     expect(listLocal()).toHaveLength(0);
   });
 
-  it("merges local + BFF contacts — local wins on conflicts, BFF-only appended", () => {
+  it("merges local + BFF contacts, local wins on conflicts, BFF-only appended", () => {
     saveContact(ADDR1, "My Alex");
     const bff = [
-      { handle: ADDR1, name: "Alex Rivera" }, // conflicts with local — local wins
-      { handle: ADDR2, name: "Cleo" }, // not saved locally — appended
+      { handle: ADDR1, name: "Alex Rivera" }, // conflicts with local, local wins
+      { handle: ADDR2, name: "Cleo" }, // not saved locally, appended
     ];
     const merged = mergeContacts(bff);
     expect(merged).toHaveLength(2);

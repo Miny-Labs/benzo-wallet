@@ -48,7 +48,7 @@ export interface DashboardSummary {
   live: boolean;
 }
 
-/** GET /api/live — is the BFF wired to live testnet, and if not, why. */
+/** GET /api/live, is the BFF wired to live testnet, and if not, why. */
 export interface LiveStatusResponse {
   live: boolean;
   mode: "live" | "unavailable";
@@ -109,7 +109,7 @@ export interface CreatePayrollRequest {
   /**
    * The run is assembled from a list of contractors; the BFF COMPUTES each gross
    * from the contractor's stored rate card (`amount` is optional and, when
-   * present, is only an override the server still validates — never blindly summed).
+   * present, is only an override the server still validates, never blindly summed).
    */
   lines: Array<{ counterpartyId: string; amount?: string }>;
   scheduledAt?: string;

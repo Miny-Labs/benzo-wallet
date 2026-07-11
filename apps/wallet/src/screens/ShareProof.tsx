@@ -1,8 +1,8 @@
 /**
- * Create proof of funds — the Benzo differentiator (critique #59). Prove your
+ * Create proof of funds, the Benzo differentiator (critique #59). Prove your
  * balance is at or above a threshold WITHOUT revealing the exact amount. It's a
  * first-class flow, not a profile row: pick the minimum, name who it's for, set an
- * expiry and whether it can be re-shared, and — crucially — see a pre-create
+ * expiry and whether it can be re-shared, and, crucially, see a pre-create
  * DISCLOSURE PREVIEW that spells out exactly what the recipient will and won't
  * learn before any proof is generated.
  *
@@ -48,7 +48,7 @@ export function ShareProof() {
   const assetLabel = env.isTestnet ? `Test ${env.asset}` : env.asset;
   const who = recipient.trim() || "The recipient";
   // `usdcToBaseUnits` throws on an over-precise input (e.g. "10.1234567"); the user
-  // types freely, so guard it — a bad in-progress value shows 0.00, never crashes.
+  // types freely, so guard it, a bad in-progress value shows 0.00, never crashes.
   const threshold = (() => {
     if (!valid) return `0.00 ${env.asset}`;
     try {
@@ -151,7 +151,7 @@ export function ShareProof() {
           </button>
         </div>
 
-        {/* Pre-create disclosure preview — exactly what is (and isn't) revealed. */}
+        {/* Pre-create disclosure preview, exactly what is (and isn't) revealed. */}
         <div className="mt-5 rounded-2xl bg-accent/[0.06] p-4" data-testid="proof-disclosure">
           <div className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-[0.05em] text-[#4a2fa0]">
             <Eye size={13} /> What they'll learn
@@ -194,7 +194,7 @@ export function ShareProof() {
               You can prove you hold at least {threshold}
             </div>
             <div className="max-w-[290px] text-sm text-muted">
-              <span className="font-semibold text-ink">{who}</span> will learn only that your balance clears this amount —
+              <span className="font-semibold text-ink">{who}</span> will learn only that your balance clears this amount -
               never the exact figure or your payment history.
             </div>
             {onDevice && onChain ? (

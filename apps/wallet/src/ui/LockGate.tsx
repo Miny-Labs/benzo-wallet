@@ -20,7 +20,7 @@ export function LockGate({ onUnlock }: { onUnlock: () => void }) {
   }, []);
 
   // On a successful unlock the lock morphs OPEN and the gate lifts away, revealing
-  // Home underneath — no "Verifying…" copy. Hold briefly so the morph reads, then
+  // Home underneath, no "Verifying…" copy. Hold briefly so the morph reads, then
   // hand off to the shell (immediately under reduced motion).
   function completeUnlock() {
     setSuccess(true);

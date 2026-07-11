@@ -1,7 +1,7 @@
 /**
  * Receive - your Benzo wallet address + QR. A top-level tab (no back button). The
  * copy is network-honest: on a testnet it warns loudly that these are test funds,
- * and the privacy panel states the ACTUAL deposit behaviour — funds arrive as
+ * and the privacy panel states the ACTUAL deposit behaviour, funds arrive as
  * public USDC and become private once shielded, never a false "auto-private"
  * promise (critique #54).
  */
@@ -47,8 +47,8 @@ export function Deposit() {
         await navigator.share({ title: "My Benzo address", text });
         return;
       } catch (e) {
-        // Tapping Cancel on the native share sheet rejects with AbortError — a
-        // dismissal, not a failure — so bail out quietly with no copy/toast.
+        // Tapping Cancel on the native share sheet rejects with AbortError, a
+        // dismissal, not a failure, so bail out quietly with no copy/toast.
         if ((e as Error)?.name === "AbortError") return;
         // Any real failure (e.g. this payload can't be shared) falls through to copy.
       }
@@ -59,7 +59,7 @@ export function Deposit() {
 
   return (
     <Screen>
-      {/* Receive is a top-level tab (BottomNav) — no back button. */}
+      {/* Receive is a top-level tab (BottomNav), no back button. */}
       <ScreenHeader title="Receive" back={false} />
       <div className="px-5 pt-1">
         <p className="text-[14px] font-semibold text-ink" data-testid="receive-subtitle">
@@ -74,7 +74,7 @@ export function Deposit() {
           <AlertTriangle size={15} className="mt-px flex-none" />
           <span>
             {env.isTestnet
-              ? "Testnet only. Do not send real USDC or assets from other networks — they cannot be recovered."
+              ? "Testnet only. Do not send real USDC or assets from other networks, they cannot be recovered."
               : `Only send ${env.asset} on ${env.name}. Assets from other networks may be lost.`}
           </span>
         </div>
@@ -117,12 +117,12 @@ export function Deposit() {
           </div>
           {copyState === "blocked" ? (
             <div role="status" aria-live="polite" className="w-full text-center text-[11.5px] font-semibold text-danger" data-testid="deposit-copy-status">
-              Copy blocked. The full address is shown above — select it to copy manually.
+              Copy blocked. The full address is shown above, select it to copy manually.
             </div>
           ) : null}
         </div>
 
-        {/* Info panel — asset, network, and the HONEST deposit-privacy behaviour
+        {/* Info panel, asset, network, and the HONEST deposit-privacy behaviour
             (replaces the old floating "Received balance stays private" badge). */}
         <div className="mt-4 rounded-2xl border border-hair bg-card p-4" data-testid="receive-info">
           <InfoRow k="Asset" v={assetLabel} />
@@ -131,7 +131,7 @@ export function Deposit() {
             <ShieldCheck size={16} className="mt-px flex-none text-accent" />
             <div className="text-[12.5px] leading-relaxed text-muted" data-testid="receive-privacy">
               {env.asset} you receive arrives <span className="font-semibold text-ink">public</span> on {env.name}. Move it into your
-              private balance to shield it — after that, your balance and payments stay private on-chain.
+              private balance to shield it, after that, your balance and payments stay private on-chain.
             </div>
           </div>
         </div>

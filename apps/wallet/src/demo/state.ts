@@ -1,5 +1,5 @@
 /**
- * The in-memory demo store — the single source of truth for the seeded balance
+ * The in-memory demo store, the single source of truth for the seeded balance
  * and activity feed while DEMO MODE is on. It is a tiny reactive singleton (a
  * subscribe/notify emitter) so a scripted send can decrement the balance and
  * prepend a row, and the wallet UI re-renders. Lazily initialized on first read

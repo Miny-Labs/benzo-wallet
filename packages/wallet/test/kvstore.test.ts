@@ -1,5 +1,5 @@
 /**
- * MemoryKVStore contract test — get/set/delete/keys and value isolation (a
+ * MemoryKVStore contract test, get/set/delete/keys and value isolation (a
  * mutation of a returned buffer must not corrupt the stored copy). The
  * IndexedDbKVStore shares the interface but needs a browser; it's covered by the
  * keychain round-trip in the app, not here.

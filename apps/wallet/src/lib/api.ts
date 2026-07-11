@@ -216,10 +216,10 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
       if (res.status === 401) {
         // A backend 401 is a non-event for a self-custody wallet: keys, balance,
         // and private send are local/on-chain, so we just log and move on. No
-        // auth bus, no eject — the wallet never authenticates to a backend to
+        // auth bus, no eject, the wallet never authenticates to a backend to
         // exist. (Log only the method; a path segment can carry a secret token.)
         console.warn(
-          `Benzo API returned 401 (${method}); ignoring — the device wallet works offline.`,
+          `Benzo API returned 401 (${method}); ignoring, the device wallet works offline.`,
         );
       }
       throw new Error(detail);

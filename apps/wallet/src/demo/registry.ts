@@ -1,7 +1,7 @@
 /**
  * Offline stand-ins for the on-chain reads that a few screens make outside the
  * wallet store (registration pre-check, the Profile ledger heartbeat, and the
- * balance proof). Each is a pure computation — no viem client, no RPC.
+ * balance proof). Each is a pure computation, no viem client, no RPC.
  */
 import type { Address } from "viem";
 import { DEMO_UNREGISTERED_ADDRESS } from "./seed";

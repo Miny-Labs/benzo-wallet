@@ -26,7 +26,7 @@ type RecoveryBinding = "passkey-prf" | "manual-backup";
 
 // A per-device secret (localStorage) HKDF-stretched into a wrapping key. This is
 // the "device" wallet's opener: the keychain auto-unlocks on every load with NO
-// prompt — no passkey scan, no passcode — the MetaMask-unlocked / Base feel.
+// prompt, no passkey scan, no passcode, the MetaMask-unlocked / Base feel.
 // Tradeoff: the sealed key is reachable by anything with DOM access on this
 // origin, so it's a testnet-grade default; a passcode/passkey can be layered on
 // as an opt-in upgrade later.
@@ -378,7 +378,7 @@ export async function unlockWalletWithPasskey(): Promise<BenzoAccount> {
   return account;
 }
 
-// Silent unlock for "device" wallets — no prompt. Returns false for legacy
+// Silent unlock for "device" wallets, no prompt. Returns false for legacy
 // passkey/passphrase wallets (they still open through the LockGate).
 export async function tryAutoUnlock(): Promise<boolean> {
   if (isWalletUnlocked()) return true;

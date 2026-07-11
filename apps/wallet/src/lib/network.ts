@@ -14,7 +14,7 @@ const env = import.meta.env as unknown as Record<string, string | undefined>;
 
 function deploymentNetwork(value: string | undefined): DeploymentNetwork {
   // The consumer wallet only ships the public chains. `benzonet` (the permissioned
-  // business L1) is intentionally NOT reachable here — it folds back to Fuji.
+  // business L1) is intentionally NOT reachable here, it folds back to Fuji.
   if (value === "avalanche") return value;
   return "fuji";
 }
@@ -29,7 +29,7 @@ const PRIVATE_GIFT_ESCROW_PLACEHOLDER = "0x0000000000000000000000000000000000000
 const FUJI_EERC_ACTIVITY_START_BLOCK = "56879304";
 const FUJI_CURRENT_EERC_ADDRESS = "0x9e16ed3b799541b4929f7e2014904c65e81035b1";
 
-// Deployment-wide knobs (not per-network) — resolved once from env.
+// Deployment-wide knobs (not per-network), resolved once from env.
 export const EERC_CONVERTER_MODE = (env.VITE_EERC_CONVERTER_MODE ?? "true") !== "false";
 export const USDC_DECIMALS = Number(env.VITE_USDC_DECIMALS ?? "6");
 export const EERC_USDC_TOKEN_ID = BigInt(env.VITE_EERC_USDC_TOKEN_ID ?? "1");
@@ -46,7 +46,7 @@ function rpcFor(network: DeploymentNetwork): string {
   return env.VITE_FUJI_RPC_URL ?? generic ?? fuji.rpcUrls.default.http[0];
 }
 
-/** Fully resolved, self-contained facts for one network. Pure — no globals. */
+/** Fully resolved, self-contained facts for one network. Pure, no globals. */
 export interface NetworkConfig {
   network: DeploymentNetwork;
   chain: Chain;
@@ -128,7 +128,7 @@ export function isDeploymentNetwork(value: unknown): value is DeploymentNetwork 
 export function getStoredNetwork(): DeploymentNetwork | null {
   try {
     const raw = globalThis.localStorage?.getItem(NETWORK_STORAGE_KEY);
-    // A previously-stored "benzonet" is no longer offered in the wallet — treat it
+    // A previously-stored "benzonet" is no longer offered in the wallet, treat it
     // as unset so it falls back to Fuji rather than stranding a user on it.
     return isDeploymentNetwork(raw) && raw !== "benzonet" ? raw : null;
   } catch {
@@ -140,7 +140,7 @@ function persistNetwork(network: DeploymentNetwork): void {
   try {
     globalThis.localStorage?.setItem(NETWORK_STORAGE_KEY, network);
   } catch {
-    // Storage unavailable — the selection stays in-memory for this session.
+    // Storage unavailable, the selection stays in-memory for this session.
   }
 }
 
@@ -150,7 +150,7 @@ function persistNetwork(network: DeploymentNetwork): void {
 // that read them INSIDE a function (eerc/gift/handle/activity clients, api
 // headers) observe every switch automatically via live bindings, so the whole
 // client-side balance/transfer path swaps networks without touching those files.
-// The two module-init capturers — wagmi.tsx + chain.ts — rebuild explicitly.
+// The two module-init capturers, wagmi.tsx + chain.ts, rebuild explicitly.
 
 let active: NetworkConfig = resolveNetworkConfig(getStoredNetwork() ?? ENV_NETWORK);
 

@@ -1,5 +1,5 @@
 /**
- * Contact detail — view-first (critique #57). Opens showing WHO this is: name, handle,
+ * Contact detail, view-first (critique #57). Opens showing WHO this is: name, handle,
  * and address as separate read-only rows, quick Pay / Request, and the payment history
  * with them. Editing is behind an explicit Edit affordance; Remove is a red, confirmed
  * action and only offered for locally-saved contacts (a BFF-managed contact can't be
@@ -74,7 +74,7 @@ export function ContactDetail() {
   const [handle, setHandle] = useState(() => contact?.handle ?? "");
 
   // ActivityRow only carries a display `name`, so match history to this person by
-  // the name it was recorded under OR the handle label — matching on both survives
+  // the name it was recorded under OR the handle label, matching on both survives
   // contacts saved without a name (rows keyed by handle) and isn't tied to the live
   // edit field, so history doesn't blank while you're typing a new name.
   const rows = useMemo(() => {
@@ -149,7 +149,7 @@ export function ContactDetail() {
           </Card>
         </Stagger.Item>
 
-        {/* Details — view-first, separated read-only rows; Edit reveals the fields. */}
+        {/* Details, view-first, separated read-only rows; Edit reveals the fields. */}
         <Stagger.Item index={1}>
           <Card className="p-4" data-testid="contact-detail-details">
             <div className="flex items-center justify-between">
@@ -204,7 +204,7 @@ export function ContactDetail() {
           </Card>
         </Stagger.Item>
 
-        {/* Remove — red, confirmed, local contacts only. */}
+        {/* Remove, red, confirmed, local contacts only. */}
         {isLocal ? (
           <Stagger.Item index={2}>
             {!confirmRemove ? (
@@ -218,7 +218,7 @@ export function ContactDetail() {
             ) : (
               <Card className="border-danger/30 bg-danger/[0.04] p-4" data-testid="contact-detail-remove-confirm">
                 <div className="text-[14px] font-semibold text-ink">Remove {contact.name}?</div>
-                <div className="mt-1 text-[13px] text-muted">This only removes them from this device's contacts — your payment history stays.</div>
+                <div className="mt-1 text-[13px] text-muted">This only removes them from this device's contacts, your payment history stays.</div>
                 <div className="mt-3 flex gap-2">
                   <Button variant="danger" size="sm" onClick={remove} data-testid="contact-detail-remove-confirm-yes">
                     Remove

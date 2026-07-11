@@ -3,7 +3,7 @@
  * C-Chain) into React state, persisted to localStorage and defaulting to the env
  * value. `setNetwork` re-resolves the module-level address bundle + RPC (see
  * lib/network.ts) so every client-side read swaps chains, and carries a per-network
- * presentation theme so the switch is *felt* — the ambient video + accent retint.
+ * presentation theme so the switch is *felt*, the ambient video + accent retint.
  */
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import type { DeploymentNetwork } from "@benzo/config";
@@ -24,7 +24,7 @@ export interface NetworkTheme {
 }
 
 // Three visually distinct environments: brand purple (Fuji testnet), a developer
-// teal (the BenzoNet L1), and an Avalanche crimson for mainnet — the "real funds"
+// teal (the BenzoNet L1), and an Avalanche crimson for mainnet, the "real funds"
 // cue. Values mirror the OKLCH tokens in index.css.
 export const NETWORK_THEME: Record<DeploymentNetwork, NetworkTheme> = {
   fuji: {
@@ -55,7 +55,7 @@ export const NETWORK_THEME: Record<DeploymentNetwork, NetworkTheme> = {
 
 // The consumer wallet ships only the PUBLIC Avalanche chains: Fuji to try it
 // risk-free, C-Chain mainnet for real money. The permissioned BenzoNet L1 is a
-// business network (validator/participant allowlists) — it lives in the console.
+// business network (validator/participant allowlists), it lives in the console.
 export const NETWORK_OPTIONS: ReadonlyArray<{ network: DeploymentNetwork; label: string }> = [
   { network: "fuji", label: "Testnet" },
   { network: "avalanche", label: "Mainnet" },
