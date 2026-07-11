@@ -247,7 +247,22 @@ export async function shieldPublicUsdc(
   // provingMs wraps the deposit proof-gen + broadcast only (see transferPrivateUsdc);
   // the registration + ERC-20 approval above are excluded.
   const proveStartedAt = performance.now();
-  const result = await eerc.deposit(amount, USDC_TOKEN_ADDRESS, BigInt(USDC_DECIMALS), message);
+  let result: Awaited<ReturnType<typeof eerc.deposit>> | undefined;
+  for (let attempt = 0; result === undefined; attempt++) {
+    try {
+      result = await eerc.deposit(amount, USDC_TOKEN_ADDRESS, BigInt(USDC_DECIMALS), message);
+    } catch (err) {
+      // Fuji's public RPC is load-balanced: the approve above may already be
+      // visible on one node while the SDK re-reads the allowance from a lagging
+      // one and wrongly throws "Insufficient approval amount!". The allowance IS
+      // on-chain, so retry a few times to let the read become consistent.
+      if (attempt < 4 && /insufficient approval/i.test((err as Error)?.message ?? "")) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        continue;
+      }
+      throw err;
+    }
+  }
   return { approvalTxHash, registrationTxHash, txHash: result.transactionHash, provingMs: Math.round(performance.now() - proveStartedAt) };
 }
 
