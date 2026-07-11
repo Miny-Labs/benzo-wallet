@@ -45,14 +45,31 @@ export class IndexedDbKVStore implements KVStore {
   static async open(dbName = "benzo-wallet", storeName = "keychain"): Promise<IndexedDbKVStore> {
     const idb: IDBFactory | undefined = (globalThis as { indexedDB?: IDBFactory }).indexedDB;
     if (!idb) throw new Error("IndexedDbKVStore: no IndexedDB in this environment (use MemoryKVStore)");
-    const db = await new Promise<IDBDatabase>((resolve, reject) => {
-      const req = idb.open(dbName, 1);
-      req.onupgradeneeded = () => {
-        if (!req.result.objectStoreNames.contains(storeName)) req.result.createObjectStore(storeName);
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
+
+    const openAt = (version?: number) =>
+      new Promise<IDBDatabase>((resolve, reject) => {
+        const req = version === undefined ? idb.open(dbName) : idb.open(dbName, version);
+        req.onupgradeneeded = () => {
+          if (!req.result.objectStoreNames.contains(storeName)) req.result.createObjectStore(storeName);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+        req.onblocked = () =>
+          reject(new Error("IndexedDbKVStore: upgrade blocked by another open tab — close other Benzo tabs and retry"));
+      });
+
+    // Open at the DB's CURRENT version first (creating it at v1 if new). A
+    // `benzo-wallet` DB left by an earlier build can already exist without this
+    // store; opening at a fixed `version: 1` then never fires onupgradeneeded, so
+    // the store stays missing and every transaction throws NotFoundError — the
+    // boot hang this guards against. If the store is absent, reopen at version+1
+    // so onupgradeneeded runs and adds it, without dropping existing data.
+    let db = await openAt();
+    if (!db.objectStoreNames.contains(storeName)) {
+      const nextVersion = db.version + 1;
+      db.close();
+      db = await openAt(nextVersion);
+    }
     return new IndexedDbKVStore(db, storeName);
   }
 
