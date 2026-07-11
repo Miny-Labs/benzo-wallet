@@ -80,6 +80,9 @@ export function useShieldStream() {
         }
         throw new Error(mode === "shield" ? "Shield failed to return transaction hash." : "Cash out failed to return transaction hash.");
       } catch (err) {
+        // Log the raw error (dev tools) before it's mapped to a friendly message —
+        // the mapped copy hides the real cause (revert, rate limit, rpc, etc.).
+        console.error(`[benzo] ${mode} failed:`, err);
         dispatch({
           type: "FAIL",
           error: mapError(err, mode === "shield" ? "Couldn't make USDC private right now. Your money is safe - please try again." : "Couldn't cash out right now. Your money is safe - please try again."),

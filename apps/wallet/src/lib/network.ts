@@ -33,7 +33,11 @@ const FUJI_CURRENT_EERC_ADDRESS = "0x9e16ed3b799541b4929f7e2014904c65e81035b1";
 export const EERC_CONVERTER_MODE = (env.VITE_EERC_CONVERTER_MODE ?? "true") !== "false";
 export const USDC_DECIMALS = Number(env.VITE_USDC_DECIMALS ?? "6");
 export const EERC_USDC_TOKEN_ID = BigInt(env.VITE_EERC_USDC_TOKEN_ID ?? "1");
-export const EERC_ACTIVITY_LOG_WINDOW_BLOCKS = BigInt(env.VITE_EERC_ACTIVITY_LOG_WINDOW_BLOCKS ?? "10000");
+// Fuji's public RPC caps eth_getLogs at 2048 blocks per request (returns -32602,
+// which viem surfaces as "Missing or invalid parameters"), so the activity scan
+// must window under that. Default 2000; override per-network via env if a chain
+// allows wider ranges.
+export const EERC_ACTIVITY_LOG_WINDOW_BLOCKS = BigInt(env.VITE_EERC_ACTIVITY_LOG_WINDOW_BLOCKS ?? "2000");
 
 const baseChains: Record<DeploymentNetwork, Chain> = { fuji, benzonet, avalanche };
 

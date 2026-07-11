@@ -61,6 +61,8 @@ export function useSendStream() {
         }
         throw new Error("Local-first send failed to return transaction hash.");
       } catch (err) {
+        // Raw error to dev tools before the friendly mapping hides the cause.
+        console.error("[benzo] send failed:", err);
         dispatch({ type: "FAIL", error: mapError(err, "Couldn't send right now. Your money is safe - please try again.") });
         return null;
       }
