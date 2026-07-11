@@ -27,7 +27,7 @@ import type { ActivityRow } from "../lib/api";
 const isDeposit = (row: ActivityRow) => row.type === "shield" || row.type === "cashIn";
 const isWithdraw = (row: ActivityRow) => row.type === "unshield" || row.type === "cashOut";
 
-/** Prefix-agnostic short form for a reference — a 0x tx hash, a bare hex hash, or
+/** Prefix-agnostic short form for a reference, a 0x tx hash, a bare hex hash, or
  *  a local id. Unlike shortAddress it never assumes a 2-char "0x" prefix, so a
  *  non-EVM id isn't sliced at the wrong offset. */
 function shortReference(ref: string): string {
@@ -35,7 +35,7 @@ function shortReference(ref: string): string {
 }
 
 /** Did the row's owner actually pay a network fee? A plain incoming transfer is
- *  free to the recipient, but a deposit (shield/cashIn — direction "in") and
+ *  free to the recipient, but a deposit (shield/cashIn, direction "in") and
  *  anything outgoing pay gas. Fee ≠ direction. */
 function paidNetworkFee(row: ActivityRow): boolean {
   if (isDeposit(row)) return true;
@@ -49,7 +49,7 @@ function isFailedLikeRow(row: ActivityRow): boolean {
   return /couldn'?t send|could not send|couldn'?t add|could not add|failed|not submitted|no on-chain settlement/i.test(note);
 }
 
-/** A SPECIFIC, plain-English title for this receipt — never a generic "Details". */
+/** A SPECIFIC, plain-English title for this receipt, never a generic "Details". */
 function titleFor(row: ActivityRow, failed: boolean): string {
   if (failed) return "Payment failed";
   if (isDeposit(row)) return "Money added";
@@ -134,7 +134,7 @@ export function TxDetail() {
         await navigator.share({ title: "Benzo payment receipt", text });
         return;
       } catch {
-        /* dismissed — fall through to copy */
+        /* dismissed, fall through to copy */
       }
     }
     const ok = await copyTextToClipboard(text);
@@ -179,7 +179,7 @@ export function TxDetail() {
 
         {failed ? (
           <div className="mt-6 rounded-[var(--radius-card)] bg-danger/[0.06] p-4 text-[13px] leading-relaxed text-ink" data-testid="txdetail-failed-note">
-            This payment didn't go through. No money left your wallet and nothing was recorded on-chain — you can safely try again.
+            This payment didn't go through. No money left your wallet and nothing was recorded on-chain, you can safely try again.
           </div>
         ) : null}
 
@@ -209,7 +209,7 @@ export function TxDetail() {
               </button>
             }
           />
-          <DRow k="Fee" v={<span className="text-muted">{paidNetworkFee(row) ? "Network fee (paid in AVAX)" : "None — you received"}</span>} />
+          <DRow k="Fee" v={<span className="text-muted">{paidNetworkFee(row) ? "Network fee (paid in AVAX)" : "None, you received"}</span>} />
         </div>
 
         {/* actions */}
@@ -233,8 +233,8 @@ export function TxDetail() {
         </div>
       </div>
 
-      {/* Pre-share disclosure preview — exactly what the recipient learns, and what
-          stays private — shown BEFORE anything is shared (#56). */}
+      {/* Pre-share disclosure preview, exactly what the recipient learns, and what
+          stays private, shown BEFORE anything is shared (#56). */}
       <Sheet open={disclose} onClose={() => setDisclose(false)} title="Share proof of payment">
         <p className="text-[13.5px] leading-relaxed text-muted">
           You're about to share a receipt for this payment. Here's exactly what it reveals.

@@ -1,5 +1,5 @@
 /**
- * Shell chrome coordination — currently just BottomNav visibility. Send is a
+ * Shell chrome coordination, currently just BottomNav visibility. Send is a
  * FLOATING action, not a tab, and the nav must disappear for the whole focused
  * send flow (review → passkey → processing → success/failure). Rather than teach
  * App about each screen's internal step, screens declare their intent with
@@ -23,7 +23,7 @@ const ShellCtx = createContext<ShellContextValue>({
 export function ShellProvider({ children }: { children: ReactNode }) {
   // Ref-count hide requests, not a single boolean: if two screens both hide the
   // nav (e.g. an overlay opened over the send flow), the nav stays hidden until
-  // BOTH release — otherwise the first unmount reveals it under the second.
+  // BOTH release, otherwise the first unmount reveals it under the second.
   const [hideCount, setHideCount] = useState(0);
   const setBottomNavHidden = useCallback((hidden: boolean) => {
     setHideCount((n) => Math.max(0, n + (hidden ? 1 : -1)));

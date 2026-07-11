@@ -3,7 +3,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { createConfig, http } from "wagmi";
 import { resolveNetworkConfig } from "./network";
 
-/** Build a wagmi config bound to a single network — rebuilt whenever the user switches. */
+/** Build a wagmi config bound to a single network, rebuilt whenever the user switches. */
 export function createWagmiConfig(network: DeploymentNetwork) {
   const { chain, rpcUrl } = resolveNetworkConfig(network);
   // No injected/browser-extension connector: this is a self-custody wallet that

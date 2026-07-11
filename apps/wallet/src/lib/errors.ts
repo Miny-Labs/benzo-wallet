@@ -26,7 +26,7 @@ function errorText(error: unknown, depth = 0): string {
 }
 
 // EIP-1193 user-rejection is code 4001 (ethers uses "ACTION_REJECTED"). Match it
-// as a DISCRETE code value, walking the cause chain — never as a substring of the
+// as a DISCRETE code value, walking the cause chain, never as a substring of the
 // assembled text, or a message like "block 4001 not found" would be mislabelled
 // as a cancellation in a money flow.
 function isUserRejection(error: unknown, depth = 0): boolean {

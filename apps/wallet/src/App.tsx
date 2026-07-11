@@ -15,7 +15,7 @@ import { spring } from "./ui/motion";
 import { Component, lazy, Suspense, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { useNetwork } from "./lib/networkContext";
 import { useWallet } from "./lib/store";
-// Screens are lazy-loaded so each route ships as its own chunk — only the first
+// Screens are lazy-loaded so each route ships as its own chunk, only the first
 // view's code is parsed on load, the rest arrive on navigation. (Named exports,
 // so each import() is mapped to a `default` for React.lazy.)
 const Home = lazy(() => import("./screens/Home").then((m) => ({ default: m.Home })));
@@ -113,7 +113,7 @@ function useIsDesktop() {
  * <ShellProvider> so a screen can call `useHideBottomNav()` to drop the nav for a
  * focused flow (Send: review → passkey → processing → success/failure). `main`
  * carries the `.pb-nav` inset so the nav (and its protruding FAB) never covers
- * content — Profile used to get clipped at the bottom.
+ * content, Profile used to get clipped at the bottom.
  */
 function Shell({ children }: { children: ReactNode }) {
   const { bottomNavHidden } = useShell();
@@ -159,7 +159,7 @@ export function App() {
   const loc = useLocation();
   const isDesktop = useIsDesktop();
   const { theme } = useNetwork();
-  // DEMO MODE boots straight into an unlocked shell — no onboarding, no lock,
+  // DEMO MODE boots straight into an unlocked shell, no onboarding, no lock,
   // no passkey. (These initializers fold to `false/true/true` in normal builds.)
   const [onboarded, setOnboarded] = useState(DEMO_MODE);
   const [locked, setLocked] = useState(!DEMO_MODE);
@@ -204,7 +204,7 @@ export function App() {
       data-network={theme.short}
       style={
         {
-          // Retint the whole shell to the active network — every bg-accent /
+          // Retint the whole shell to the active network, every bg-accent /
           // text-accent / shadow-glow follows this cascaded override.
           "--color-accent": theme.accent,
           "--color-accent-soft": theme.accentSoft,

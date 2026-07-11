@@ -12,7 +12,7 @@ type Step = "welcome" | "create_passcode" | "import" | "activating";
 const POINTS = [
   { icon: <Eye size={18} />, title: "Private by default", body: "Balances and amounts are sealed on-chain with zero-knowledge proofs." },
   { icon: <KeyRound size={18} />, title: "Private USDC on Avalanche", body: "Send shielded USDC that settles on-chain in seconds." },
-  { icon: <ShieldCheck size={18} />, title: "Yours in one tap", body: "Self-custody instantly — keys stay on this device, no login." },
+  { icon: <ShieldCheck size={18} />, title: "Yours in one tap", body: "Self-custody instantly, keys stay on this device, no login." },
 ];
 
 export function Onboarding({ onDone }: { onDone: () => void }) {
@@ -26,7 +26,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   const { refresh } = useWallet();
 
   // Activation seals the shielded balance on-chain (register-on-first-use). It is
-  // the ONLY thing between "wallet created" and Home — there is no backup gate.
+  // the ONLY thing between "wallet created" and Home, there is no backup gate.
   async function runActivation() {
     setBusy(true);
     setErr(null);
@@ -44,7 +44,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
 
   // One tap: silently generate the seed, seal it under the device key (no passkey
   // scan, no passcode) and go straight to activation → Home. Backup is a later,
-  // non-blocking step in Profile — never a gate here. A passcode is an optional
+  // non-blocking step in Profile, never a gate here. A passcode is an optional
   // upgrade via the "Prefer a passcode?" link.
   async function handleCreate() {
     setBusy(true);
@@ -90,14 +90,14 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
     setBusy(true);
     setErr(null);
     try {
-      // Imported wallets seal under the device key too — they auto-open with no prompt.
+      // Imported wallets seal under the device key too, they auto-open with no prompt.
       await importWallet(importedText);
     } catch (e) {
       setErr((e as Error).message);
       setBusy(false);
       return;
     }
-    // They already hold their backup — never show the backup screen on import.
+    // They already hold their backup, never show the backup screen on import.
     toast({ title: "Wallet imported successfully!", tone: "success" });
     setStep("activating");
     await runActivation();
@@ -124,7 +124,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
                 Private by default.
               </motion.h1>
               <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }} className="mt-2 max-w-[290px] text-[14px] text-muted">
-                Send and receive USDC on Avalanche — balances and amounts encrypted end-to-end.
+                Send and receive USDC on Avalanche, balances and amounts encrypted end-to-end.
               </motion.p>
               <motion.div variants={stagger} initial="hidden" animate="show" className="mt-5 w-full space-y-2">
                 {POINTS.map((p) => (

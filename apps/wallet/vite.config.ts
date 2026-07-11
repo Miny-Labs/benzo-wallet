@@ -16,7 +16,7 @@ export default defineConfig({
   build: {
     // Split the always-loaded vendor libs into separate, cacheable chunks that
     // download in parallel. The heavy proving machinery (@avalabs/eerc-sdk,
-    // snarkjs, ffjavascript) is NOT listed here — it is reached only through
+    // snarkjs, ffjavascript) is NOT listed here, it is reached only through
     // dynamic import()s, so Rollup emits it as an on-demand async chunk that
     // never lands in the initial payload.
     rollupOptions: {

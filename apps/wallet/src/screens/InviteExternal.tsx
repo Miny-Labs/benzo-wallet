@@ -97,7 +97,7 @@ export function InviteExternal() {
                 <Gift size={18} />
               </div>
               <p className="text-[13px] text-ink">
-                Send money to anyone, even if they're not on Benzo yet{recipient ? ` (${recipient})` : ""}. The amount is locked in an on-chain escrow and released only when they claim the link — unclaimed funds come back to you.
+                Send money to anyone, even if they're not on Benzo yet{recipient ? ` (${recipient})` : ""}. The amount is locked in an on-chain escrow and released only when they claim the link, unclaimed funds come back to you.
               </p>
             </div>
 
@@ -194,7 +194,7 @@ function ShareLink({ result, onAnother }: { result: InviteResult; onAnother: () 
 
       <p className="mt-4 text-[12.5px] text-muted">
         {result.onChain
-          ? `Escrowed on-chain. Unclaimed funds return to you in ${daysLeft(result.expiresAt)} days — refund anytime after that.`
+          ? `Escrowed on-chain. Unclaimed funds return to you in ${daysLeft(result.expiresAt)} days, refund anytime after that.`
           : `Unclaimed funds return to you in ${daysLeft(result.expiresAt)} days. This link is not funded on-chain.`}
       </p>
       <button onClick={onAnother} className="mt-4 rounded text-[13px] font-semibold text-accent outline-none focus-visible:ring-2 focus-visible:ring-accent/40">

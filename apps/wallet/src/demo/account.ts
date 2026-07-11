@@ -1,5 +1,5 @@
 /**
- * The demo identity. A deterministic account derived offline from a fixed seed —
+ * The demo identity. A deterministic account derived offline from a fixed seed -
  * so it has a real, well-formed EVM address + eERC keys (Receive QR, Request
  * links, and Profile all render truthfully), yet it never touches a chain. No
  * passkey, no keychain, no signature.

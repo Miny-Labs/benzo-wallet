@@ -95,7 +95,7 @@ describe("local wallet recovery", () => {
     expect(account.address).toBe(expectedAccount.address);
     expect(account.spendSk).toBe(expectedAccount.spendSk);
     expect(passkeyMocks.registerPasskey).toHaveBeenCalledWith({ userName: "alex", displayName: "alex" });
-    // One-tap create must NOT authenticate to any backend — a self-custody wallet
+    // One-tap create must NOT authenticate to any backend, a self-custody wallet
     // exists purely on-device (no forced SIWE in the lifecycle).
     expect(fetchMock).not.toHaveBeenCalled();
 
@@ -261,7 +261,7 @@ describe("local wallet recovery", () => {
 
     await createWalletWithPasskey("alex");
 
-    // No plaintext keys anywhere in session/local storage — the sealed keychain
+    // No plaintext keys anywhere in session/local storage, the sealed keychain
     // (IndexedDB) is the only place secrets live, so XSS can't lift a raw key.
     const expected = accountFromSignedMessage(passkeyMocks.secret);
     for (const store of [sessionStorage, localStorage]) {

@@ -1,5 +1,5 @@
 /**
- * `KVStore` — the tiny async key→bytes persistence seam the keychain writes its
+ * `KVStore`, the tiny async key→bytes persistence seam the keychain writes its
  * sealed blob to. Abstracted so the same `Keychain` runs on the user's device
  * (IndexedDB) and headlessly in Node/tests (in-memory), and so a host app can
  * plug its own store (Capacitor, React Native, OPFS) without touching wallet
@@ -13,7 +13,7 @@ export interface KVStore {
   keys(): Promise<string[]>;
 }
 
-/** In-memory store — Node, tests, and ephemeral sessions. Never persisted. */
+/** In-memory store, Node, tests, and ephemeral sessions. Never persisted. */
 export class MemoryKVStore implements KVStore {
   private readonly map = new Map<string, Uint8Array>();
   async get(key: string): Promise<Uint8Array | null> {
@@ -55,13 +55,13 @@ export class IndexedDbKVStore implements KVStore {
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
         req.onblocked = () =>
-          reject(new Error("IndexedDbKVStore: upgrade blocked by another open tab — close other Benzo tabs and retry"));
+          reject(new Error("IndexedDbKVStore: upgrade blocked by another open tab, close other Benzo tabs and retry"));
       });
 
     // Open at the DB's CURRENT version first (creating it at v1 if new). A
     // `benzo-wallet` DB left by an earlier build can already exist without this
     // store; opening at a fixed `version: 1` then never fires onupgradeneeded, so
-    // the store stays missing and every transaction throws NotFoundError — the
+    // the store stays missing and every transaction throws NotFoundError, the
     // boot hang this guards against. If the store is absent, reopen at version+1
     // so onupgradeneeded runs and adds it, without dropping existing data.
     let db = await openAt();

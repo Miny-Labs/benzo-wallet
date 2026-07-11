@@ -46,7 +46,7 @@ describe("wallet deployment drift guard", () => {
     expect(VERIFIER_ID).toBe(DEPLOYMENT.contracts.verifiers.transfer);
   });
 
-  it("folds a benzonet build back to Fuji — the consumer wallet ships only public chains", async () => {
+  it("folds a benzonet build back to Fuji, the consumer wallet ships only public chains", async () => {
     // BenzoNet is the permissioned business L1 (console-only). The wallet must never
     // resolve to it, even if a build env asks for it.
     const { ACTIVE_CHAIN, NETWORK } = await loadNetwork({ VITE_BENZO_NETWORK: "benzonet" });

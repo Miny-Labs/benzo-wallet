@@ -227,7 +227,7 @@ describe("Profile network switcher", () => {
     fireEvent.click(screen.getByTestId("network-row"));
     fireEvent.click(screen.getByTestId("network-option-avalanche"));
 
-    // Confirm step first — not switched yet.
+    // Confirm step first, not switched yet.
     expect(screen.getByTestId("network-confirm")).toBeInTheDocument();
     expect(net.getActiveNetwork()).toBe("fuji");
 

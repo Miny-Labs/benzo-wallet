@@ -136,7 +136,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         return false;
       }
-      // The "session" is derived locally from the device account — no backend
+      // The "session" is derived locally from the device account, no backend
       // round-trip, no fabricated hosted profile. It never claims a KYC tier the
       // user hasn't earned; the prover genuinely runs on-device. A backend index,
       // if ever needed, is authenticated lazily per-request (see lib/api).

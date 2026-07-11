@@ -5,7 +5,7 @@
  * when the BFF isn't live.
  *
  * Send lives on the central nav FAB, so it is NOT repeated as a glowing pill here
- * (critique #52 — dedupe Send). The quick-action row carries the affordances the
+ * (critique #52, dedupe Send). The quick-action row carries the affordances the
  * FAB doesn't: Receive, Request, and the Benzo differentiator, Prove.
  */
 import { ArrowDownLeft, ArrowUpRight, HandCoins, ShieldCheck } from "lucide-react";
@@ -37,7 +37,7 @@ function QuickAction({
       whileHover={{ y: -3 }}
       onClick={onClick}
       data-testid={testid}
-      // ~96px tall — inside the 88-104px band the critique asks for. Equal-weight
+      // ~96px tall, inside the 88-104px band the critique asks for. Equal-weight
       // secondary cards; the purple glow belongs to the nav Send FAB alone.
       className="flex h-24 flex-1 flex-col items-center justify-center gap-2 rounded-[20px] bg-card text-[13px] font-semibold text-ink shadow-[0_6px_18px_rgba(25,40,55,0.05)] transition outline-none hover:shadow-[0_8px_22px_rgba(25,40,55,0.09)] focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
     >
@@ -70,7 +70,7 @@ export function Home() {
           <Card className="relative overflow-hidden p-5">
             <div className="text-[13px] font-medium text-muted">Private balance</div>
             <BalanceHero baseUnits={balance?.baseUnits ?? "0"} hidden={hidden} loading={loading} arrived={justSent} />
-            {/* Denomination / "not real money" context — load-bearing on testnet. */}
+            {/* Denomination / "not real money" context, load-bearing on testnet. */}
             <BalanceDenomination className="mt-1" />
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <PrivateChip label={COPY.privateOnChain} />
@@ -111,7 +111,7 @@ export function Home() {
           </Card>
         </Stagger.Item>
 
-        {/* Quick actions — Send is the nav FAB, so it is not duplicated here. */}
+        {/* Quick actions, Send is the nav FAB, so it is not duplicated here. */}
         <Stagger.Item index={1}>
           <div className="mt-4 flex gap-2.5">
             <QuickAction label="Receive" testid="action-receive" icon={<ArrowDownLeft size={18} />} onClick={() => nav("/deposit")} />

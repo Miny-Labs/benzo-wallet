@@ -70,7 +70,7 @@ describe("ContactDetail", () => {
   it("removes the contact from local storage after confirming", () => {
     renderDetail("@mansi");
 
-    // Remove is a red, confirmed action now — the first tap only reveals the confirm.
+    // Remove is a red, confirmed action now, the first tap only reveals the confirm.
     fireEvent.click(screen.getByTestId("contact-detail-remove"));
     expect(JSON.parse(localStorage.getItem(CONTACTS_LS_KEY) ?? "[]")).toHaveLength(1);
     fireEvent.click(screen.getByTestId("contact-detail-remove-confirm-yes"));

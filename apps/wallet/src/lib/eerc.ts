@@ -86,7 +86,7 @@ function loadEERC(): Promise<typeof EERC> {
     eercCtorPromise = import("@avalabs/eerc-sdk")
       .then((m) => m.EERC)
       .catch((err) => {
-        // Never cache a rejected import — clear it so the next encrypted op
+        // Never cache a rejected import, clear it so the next encrypted op
         // retries instead of being stuck on the same failed load all session.
         eercCtorPromise = null;
         throw err;
@@ -188,7 +188,7 @@ export async function transferPrivateUsdc(
     functionName: "auditorPublicKey",
     args: [],
   } as never) as bigint[];
-  // provingMs wraps the SDK's eERC op — which generates the Groth16 proof
+  // provingMs wraps the SDK's eERC op, which generates the Groth16 proof
   // (snarkjs) and broadcasts the tx in one call, so it captures the client-side
   // proving cost. It excludes the setup above (registration/balance/auditor
   // reads); the SDK doesn't expose proof-gen separately from the broadcast.

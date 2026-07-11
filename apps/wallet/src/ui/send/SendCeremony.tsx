@@ -1,14 +1,14 @@
 /**
- * The send ceremony (S0) — the flagship full-viewport coin. A full-screen overlay
+ * The send ceremony (S0), the flagship full-viewport coin. A full-screen overlay
  * driven by the shared payment state machine (@benzo/ui): a genuine 3D coin sits
  * CENTERED and tumbles on its axes while it works. Through encrypt + settle it
  * JITTERS (a rapid micro-shake) and throws off air/speed streaks that intensify as
- * the load ramps up — the honest "this is proving/settling under load" state, held
+ * the load ramps up, the honest "this is proving/settling under load" state, held
  * as long as the machine takes. On verify/confirmed the coin EXPLODES into a
  * confetti overdrive burst, then settles into the verifiable receipt. On error it
- * falters and dims — no celebration.
+ * falters and dims, no celebration.
  *
- * The animation is a slave to the machine — never a timer — so it tells the truth
+ * The animation is a slave to the machine, never a timer, so it tells the truth
  * about proving/settlement. The one exception is the per-phase FLOOR: a fast local
  * proof can jump submitting→confirmed in a blink, so each phase is held on screen
  * for at least SEND_PHASE_FLOOR_MS before advancing (walked one step at a time),
@@ -64,7 +64,7 @@ const PHASE_TO_PAYMENT: Record<CeremonyPhase, PaymentPhase> = {
 };
 
 /**
- * Consumer-facing stage copy for whatever phase is on screen. Plain English only —
+ * Consumer-facing stage copy for whatever phase is on screen. Plain English only -
  * "Preparing your private payment" → "Waiting for confirmation" → "Payment
  * complete". The settle sub is network-aware ("Fuji Testnet is confirming"); the
  * error sub is the real message off the state machine.
@@ -156,7 +156,7 @@ export function SendCeremony({
     >
       <PhaseRail step={failed ? step : PHASE_STEP[phase]} failed={failed} reduce={reduce} />
 
-      {/* The coin stage — full-bleed so the burst can throw confetti to the edges. */}
+      {/* The coin stage, full-bleed so the burst can throw confetti to the edges. */}
       <div className="relative flex w-full flex-1 items-center justify-center">
         <CoinStage phase={phase} reduce={reduce} />
         <AnimatePresence>
@@ -204,7 +204,7 @@ export function SendCeremony({
 /**
  * Drive the on-screen cinematic phase off the machine, but never faster than the
  * per-phase floor. We walk PHASE_ORDER one step at a time and hold each step for
- * SEND_PHASE_FLOOR_MS before advancing — so even an instant submitting→confirmed
+ * SEND_PHASE_FLOOR_MS before advancing, so even an instant submitting→confirmed
  * still plays the full working sequence. Failures interrupt immediately (no floor),
  * and reduced-motion snaps straight to the real phase (nothing cinematic to hold).
  */
@@ -279,7 +279,7 @@ function PhaseRail({ step, failed, reduce }: { step: number; failed: boolean; re
  *  - encrypt + settle ("working"): the 3D coin, jittering + throwing speed
  *    streaks that intensify from encrypt → settle.
  *  - verify: the coin bursts (AnimatePresence exit) into a confetti overdrive.
- *  - error: a dimmed failure mark — no coin, no confetti.
+ *  - error: a dimmed failure mark, no coin, no confetti.
  */
 function CoinStage({ phase, reduce }: { phase: CeremonyPhase; reduce: boolean }) {
   const working = phase === "encrypt" || phase === "settle";
@@ -305,7 +305,7 @@ function CoinStage({ phase, reduce }: { phase: CeremonyPhase; reduce: boolean })
             className="relative flex items-center justify-center"
             initial={reduce ? false : { scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            // The coin "explodes" — pop + fade out just as the confetti fires.
+            // The coin "explodes", pop + fade out just as the confetti fires.
             exit={reduce ? { opacity: 0 } : { scale: 1.55, opacity: 0 }}
             transition={{ duration: reduce ? 0 : 0.28, ease: EASE }}
           >
@@ -367,7 +367,7 @@ function Coin3D({ reduce, boost }: { reduce: boolean; boost: boolean }) {
             animate={spin}
             transition={spinT}
           >
-            {/* Milled edge — a stack of discs between the two faces. */}
+            {/* Milled edge, a stack of discs between the two faces. */}
             {layers.map(({ z, key }) => (
               <span
                 key={key}
@@ -379,7 +379,7 @@ function Coin3D({ reduce, boost }: { reduce: boolean; boost: boolean }) {
               />
             ))}
 
-            {/* Front face — embossed $. */}
+            {/* Front face, embossed $. */}
             <CoinFace z={THICK / 2}>
               <span
                 className="font-display leading-none"
@@ -393,7 +393,7 @@ function Coin3D({ reduce, boost }: { reduce: boolean; boost: boolean }) {
               </span>
             </CoinFace>
 
-            {/* Back face — the Benzo mark. */}
+            {/* Back face, the Benzo mark. */}
             <CoinFace z={THICK / 2} back>
               <span
                 className="font-display leading-none"
@@ -469,7 +469,7 @@ function JitterWrapper({ reduce, boost, children }: { reduce: boolean; boost: bo
 }
 
 // -------------------------------------------------------------- speed streaks
-/** Air/speed streaks radiating outward past the coin — motion lines that intensify
+/** Air/speed streaks radiating outward past the coin, motion lines that intensify
  *  as the work ramps up. Never rendered under reduced motion. */
 function SpeedStreaks({ boost }: { boost: boolean }) {
   const count = boost ? 16 : 10;
@@ -645,7 +645,7 @@ function VerifyReveal({ receipt, reduce }: { receipt: SendReceipt; reduce: boole
                 className="mt-2 flex flex-wrap items-center justify-center gap-2"
                 data-testid="receipt-advanced"
               >
-                {/* Cryptographic detail lives here — witness/prover/proof-time —
+                {/* Cryptographic detail lives here, witness/prover/proof-time -
                     never in the everyday stage copy above. */}
                 <span className="rounded-full bg-ink/[0.05] px-2.5 py-1 text-[11px] font-semibold text-muted">{COPY.proofOnDevice}</span>
                 {typeof receipt.provingMs === "number" ? (

@@ -27,7 +27,7 @@ type Step = "form" | "confirm";
 type Kind = RecipientKind;
 
 /** A bare word (letters/digits/underscore, no `0x`/`bzr_`/`@`/pure-number
- *  scheme) reads as a handle-in-progress — we show an `@` adornment and treat it
+ *  scheme) reads as a handle-in-progress, we show an `@` adornment and treat it
  *  as `@handle`, so a typed "mansi" matches the saved "@mansi" contact and
  *  classifies as a private send, exactly like tapping the chip. */
 function looksLikeBareHandle(raw: string): boolean {
@@ -119,7 +119,7 @@ export function Send() {
   const valid = recipientReady && !checkingPrivateBalance && !lowPrivate;
 
   const inFlight = state.phase !== "idle";
-  // Send is a floating action, not a tab — drop the BottomNav for the focused flow
+  // Send is a floating action, not a tab, drop the BottomNav for the focused flow
   // (review → passkey → processing → success/failure). The form step keeps it.
   useHideBottomNav(step === "confirm" || inFlight);
 
@@ -157,7 +157,7 @@ export function Send() {
 
   function done() {
     reset();
-    // Hand the destination a flag so the balance count-up plays as an arrival —
+    // Hand the destination a flag so the balance count-up plays as an arrival -
     // the coin the ceremony flew lands in the BalanceHero.
     nav("/", { state: { justSent: true } });
   }
@@ -169,7 +169,7 @@ export function Send() {
         {step === "form" ? (
           <>
             {/* Focus is tracked on the whole control (not just the input) so tabbing
-                from the field INTO a dropdown option keeps the list open — collapse
+                from the field INTO a dropdown option keeps the list open, collapse
                 only when focus leaves the control entirely (keyboard-accessible). */}
             <div
               className="relative"
@@ -230,7 +230,7 @@ export function Send() {
               </div>
             ) : null}
 
-            {/* Just the top few saved people as quick chips — the dropdown handles
+            {/* Just the top few saved people as quick chips, the dropdown handles
                 the long tail once you start typing. */}
             {contacts.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-2" data-testid="send-quick-contacts">

@@ -1,5 +1,5 @@
 /**
- * Seed data for DEMO MODE — the fake-but-realistic state the wallet boots into:
+ * Seed data for DEMO MODE, the fake-but-realistic state the wallet boots into:
  * a private + public balance, a handful of contacts, and a mixed activity feed.
  * All amounts are USDC base units (6 decimals). Nothing here is fetched.
  */
@@ -42,7 +42,7 @@ export function seedContactsIntoLocalStorage(): void {
   try {
     localStorage.setItem(CONTACTS_LS_KEY, JSON.stringify(DEMO_CONTACTS));
   } catch {
-    /* storage unavailable — Send falls back to no chips */
+    /* storage unavailable, Send falls back to no chips */
   }
 }
 

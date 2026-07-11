@@ -31,13 +31,13 @@ export function fmtUsd(minor: string | bigint): string {
   return s.startsWith("-") ? `-$${s.slice(1)}` : `$${s}`;
 }
 
-/** "10.00 USDC" — the inline, unit-explicit form for send/review/rows so an amount
+/** "10.00 USDC", the inline, unit-explicit form for send/review/rows so an amount
  *  is never mistaken for a raw dollar figure. */
 export function fmtUsdc(minor: string | bigint): string {
   return `${usdFromBaseUnits(minor)} USDC`;
 }
 
-/** "10.00 USDC ≈ $10.00" — the review form (USDC is the asset; $ is the reference). */
+/** "10.00 USDC ≈ $10.00", the review form (USDC is the asset; $ is the reference). */
 export function fmtUsdcApproxUsd(minor: string | bigint): string {
   return `${usdFromBaseUnits(minor)} USDC ≈ ${fmtUsd(minor)}`;
 }
@@ -69,7 +69,7 @@ export function splitAmount(minor: string | bigint): { dollars: string; cents: s
 export function relativeTime(tsSeconds: number, nowMs = Date.now()): string {
   const diff = Math.floor(nowMs / 1000) - tsSeconds;
   if (diff < 45) return "now";
-  // floor, not round — otherwise 3570–3599s rounds up to "60 min ago" right before
+  // floor, not round, otherwise 3570–3599s rounds up to "60 min ago" right before
   // the ≥3600 branch takes over, so the minutes reading never reaches 60.
   if (diff < 3600) return `${Math.max(1, Math.floor(diff / 60))} min ago`;
   if (diff < 86_400) return `${Math.round(diff / 3600)}h ago`;
@@ -86,7 +86,7 @@ export function relativeTime(tsSeconds: number, nowMs = Date.now()): string {
 export function activityRowTime(tsSeconds: number, nowMs = Date.now()): string {
   const diff = Math.floor(nowMs / 1000) - tsSeconds;
   if (diff < 45) return "now";
-  // floor, not round — otherwise 3570–3599s rounds up to "60 min ago" right before
+  // floor, not round, otherwise 3570–3599s rounds up to "60 min ago" right before
   // the ≥3600 branch takes over, so the minutes reading never reaches 60.
   if (diff < 3600) return `${Math.max(1, Math.floor(diff / 60))} min ago`;
   const d = new Date(tsSeconds * 1000);

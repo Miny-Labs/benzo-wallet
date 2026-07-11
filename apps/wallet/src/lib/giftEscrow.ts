@@ -18,7 +18,7 @@ import { PRIVATE_GIFT_ESCROW_ADDRESS } from "./network";
 // A gift is TRUSTLESS on-chain escrow: createGift pulls the sender's public
 // ERC20 into the contract; the recipient claims it into their encrypted eERC
 // balance with a signature from an ephemeral key that travels in the link
-// fragment (never a server). The BFF is never custody — a recipient can read a
+// fragment (never a server). The BFF is never custody, a recipient can read a
 // gift's status and claim it over RPC with the backend unreachable. Refund
 // returns the escrowed token to the sender after expiry.
 
@@ -289,7 +289,7 @@ function giftIdFromReceipt(logs: readonly unknown[] | undefined): bigint | undef
 
 /**
  * Escrow `amount` of `token` on-chain: mint an ephemeral claim key, approve the
- * escrow, and call createGift. Funds leave the sender into the contract — this
+ * escrow, and call createGift. Funds leave the sender into the contract, this
  * is real escrow, not a backend IOU. Returns the giftId + the ephemeral private
  * key (which the caller packs into the link fragment).
  */
@@ -320,7 +320,7 @@ export async function createGiftOnChain(
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   if (receipt.status !== "success") throw new Error("gift_create_failed");
 
-  // The MINED GiftCreated event is authoritative for the gift id — never fall
+  // The MINED GiftCreated event is authoritative for the gift id, never fall
   // back to the simulation result, which can be stale if another createGift is
   // mined first, pointing the claim link at the wrong gift.
   const giftId = giftIdFromReceipt(receipt.logs);

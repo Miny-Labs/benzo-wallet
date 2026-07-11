@@ -1,5 +1,5 @@
 /**
- * Network-env model — the wallet's trust vocabulary for the active chain, mirrored
+ * Network-env model, the wallet's trust vocabulary for the active chain, mirrored
  * from the console's `NETWORK_ENV`. This is the single place that decides how a
  * network is *presented* for safety: what it's called, whether it holds real
  * money, and which tone (amber vs green) it earns.

@@ -245,7 +245,7 @@ describe("claimGiftOnChain", () => {
     });
 
     // The signature is the ephemeral key over the exact contract digest, binding
-    // recipient + amountPCT — recovering it yields the gift's claimAddress.
+    // recipient + amountPCT, recovering it yields the gift's claimAddress.
     const digest = computeClaimDigest(getAddress(ESCROW), CHAIN_ID, 7n, RECIPIENT, amountPCT);
     await expect(recoverAddress({ hash: digest, signature: sig })).resolves.toBe(claimAddress);
 

@@ -3,7 +3,7 @@ import type { MemberId, OrgId, ShieldedAddress, StellarAddress, Timestamp } from
 /** KYB lifecycle for the business entity. */
 export type KybStatus = "unverified" | "pending" | "approved" | "rejected";
 
-/** A business tenant — the top-level account everything hangs off. */
+/** A business tenant, the top-level account everything hangs off. */
 export interface Org {
   id: OrgId;
   name: string;
@@ -93,7 +93,7 @@ export interface Member {
   name?: string;
   role: Role;
   status: MemberStatus;
-  /** member's MVK public scalar (hex) — lets them decode in-scope notes */
+  /** member's MVK public scalar (hex), lets them decode in-scope notes */
   mvkPublic?: string;
   /** signer G-address for multisig authorization (treasurer/approver) */
   signerAddress?: StellarAddress;

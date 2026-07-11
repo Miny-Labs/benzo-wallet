@@ -27,7 +27,7 @@ describe("NetworkSheet", () => {
     renderSheet();
     expect(screen.getByTestId("network-sheet-fuji")).toHaveTextContent("Test funds only");
     expect(screen.getByTestId("network-sheet-avalanche")).toHaveTextContent("Real assets");
-    // The permissioned BenzoNet L1 is a business network — never offered in the wallet.
+    // The permissioned BenzoNet L1 is a business network, never offered in the wallet.
     expect(screen.queryByTestId("network-sheet-benzonet")).not.toBeInTheDocument();
     expect(screen.getByTestId("network-sheet-note")).toHaveTextContent("Balances and activity differ per network");
     // Fuji is active → checkmark, mainnet is not.
@@ -38,7 +38,7 @@ describe("NetworkSheet", () => {
     const onClose = renderSheet();
 
     fireEvent.click(screen.getByTestId("network-sheet-avalanche"));
-    // Not switched yet — the confirm step appears first.
+    // Not switched yet, the confirm step appears first.
     expect(screen.getByTestId("network-sheet-confirm")).toBeInTheDocument();
     expect(net.getActiveNetwork()).toBe("fuji");
     expect(onClose).not.toHaveBeenCalled();

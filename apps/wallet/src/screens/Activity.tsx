@@ -50,7 +50,7 @@ export function Activity() {
   return (
     <Screen>
       {/* Activity is a top-level tab (reachable from the BottomNav and Home's
-          "Activity" button) — a top-level destination shows no back button. */}
+          "Activity" button), a top-level destination shows no back button. */}
       <ScreenHeader title="Activity" back={false} />
       <div className="px-5">
         {hasHistory ? (

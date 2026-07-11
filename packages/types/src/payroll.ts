@@ -13,7 +13,7 @@ export type PayrollLineStatus = "pending" | "paid" | "failed";
 /** Where the payroll roster came from. */
 export type PayrollSource = "manual" | "csv" | "merge" | "gusto";
 
-/** Batch lifecycle — one approval, one batched shielded settlement. */
+/** Batch lifecycle, one approval, one batched shielded settlement. */
 export type PayrollStatus =
   | "draft"
   | "needs_approval"
@@ -24,7 +24,7 @@ export type PayrollStatus =
 
 export interface PayrollLine {
   counterpartyId: CounterpartyId;
-  /** per-recipient gross, minor units (string) — COMPUTED server-side from the
+  /** per-recipient gross, minor units (string), COMPUTED server-side from the
    *  contractor's stored rate at run assembly, hidden on-chain at settlement. */
   amount: string;
   /** the rate card the gross was computed from (for the payslip/record audit trail) */
@@ -65,7 +65,7 @@ export interface PayrollBatch {
   externalId?: string;
   /** recorded maker-checker approvals (who approved which step) */
   approvals?: Approval[];
-  /** "Payroll funded ✓" — a real Groth16 org-proof-of-balance (vk_id ORGBAL),
+  /** "Payroll funded ✓", a real Groth16 org-proof-of-balance (vk_id ORGBAL),
    *  proving the treasury covers this run's TOTAL without revealing the treasury
    *  or the total. `funded:false` => an over-budget run, provably blocked. */
   fundedProof?: { funded: boolean; onChain: boolean; provenAt: Timestamp };

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The reactive layer on top of the deployment drift guard: selecting a network at
 // runtime must swap the resolved eERC address bundle + chain, persist the choice,
-// and notify subscribers — all without a reload.
+// and notify subscribers, all without a reload.
 
 const KEY = "benzo.network";
 

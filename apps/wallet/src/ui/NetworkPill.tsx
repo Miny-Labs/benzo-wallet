@@ -1,10 +1,10 @@
 /**
- * NetworkPill — the header network affordance. A globe reads as "language / web",
+ * NetworkPill, the header network affordance. A globe reads as "language / web",
  * not "which chain am I on", so the top bar shows a compact PILL instead: the
  * Avalanche mark + the network's trust name ("Fuji Testnet"), toned amber for a
  * testnet and green only for mainnet (see lib/networkEnv). Tapping it opens the
- * NetworkSheet — a bottom sheet with per-network risk labels + a mainnet confirm
- * (critique #55) — and retints the shell.
+ * NetworkSheet, a bottom sheet with per-network risk labels + a mainnet confirm
+ * (critique #55), and retints the shell.
  *
  * Reusable: drop `<NetworkPill />` anywhere a header needs the network affordance.
  */
