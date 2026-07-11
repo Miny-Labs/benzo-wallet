@@ -41,6 +41,7 @@ vi.mock("./passkey", () => ({
 
 vi.mock("./eerc", () => ({
   registerEercAccount: activationMocks.registerEercAccount,
+  ensureGasFunded: vi.fn(async () => undefined),
 }));
 
 vi.mock("./handleRegistry", () => ({
