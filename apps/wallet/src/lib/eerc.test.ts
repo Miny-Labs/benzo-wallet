@@ -57,7 +57,7 @@ describe("transferPublicUsdc", () => {
     });
 
     expect(mocks.privateKeyToAccount).toHaveBeenCalledWith(account.evmPrivateKey);
-    expect(mocks.http).toHaveBeenCalledWith("https://rpc.example");
+    expect(mocks.http).toHaveBeenCalledWith("https://rpc.example", expect.objectContaining({ retryCount: 5 }));
     expect(mocks.writeContract).toHaveBeenCalledWith({
       account: { address: "0x2222222222222222222222222222222222222222" },
       address: mocks.tokenAddress,
