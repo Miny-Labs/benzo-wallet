@@ -19,6 +19,7 @@ const eercMocks = vi.hoisted(() => {
   const withdraw = vi.fn();
   const transfer = vi.fn();
   const calculateTotalBalance = vi.fn();
+  const generateDecryptionKey = vi.fn(async () => `0x${"a".repeat(64)}`);
 
   class MockEERC {
     client = publicClient;
@@ -29,6 +30,7 @@ const eercMocks = vi.hoisted(() => {
     withdraw = withdraw;
     transfer = transfer;
     calculateTotalBalance = calculateTotalBalance;
+    generateDecryptionKey = generateDecryptionKey;
   }
 
   return {
@@ -36,6 +38,7 @@ const eercMocks = vi.hoisted(() => {
     calculateTotalBalance,
     deposit,
     fetchPublicKey,
+    generateDecryptionKey,
     publicClient,
     register,
     transfer,
