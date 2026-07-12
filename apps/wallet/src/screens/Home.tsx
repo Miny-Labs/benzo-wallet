@@ -8,8 +8,7 @@
  * (critique #52, dedupe Send). The quick-action row carries the affordances the
  * FAB doesn't: Receive, Request, and the Benzo differentiator, Prove.
  */
-import { useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, HandCoins, ShieldCheck, X } from "lucide-react";
+import { ArrowDownLeft, ArrowRight, ArrowUpRight, HandCoins, ShieldCheck } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useWallet } from "../lib/store";
@@ -22,8 +21,6 @@ import { Card } from "../ui/primitives";
 import { UsdcMark } from "../ui/UsdcMark";
 import { COPY } from "../lib/copy";
 import { ActivityItem } from "../ui/ActivityItem";
-
-const AIRDROP_DISMISS_KEY = "benzo.airdrop.dismissed.v1";
 
 function formatUsdc(baseUnits: string): string {
   const n = Number(baseUnits) / 10 ** USDC_DECIMALS;
@@ -69,23 +66,15 @@ export function Home() {
   // airdrop is invisible and a new user thinks the wallet is empty. Surface it
   // explicitly with a one-tap path into the shield flow. It self-clears once the
   // public balance is shielded (baseUnits -> 0); the dismiss is for early hiding.
-  const [airdropDismissed, setAirdropDismissed] = useState(() => {
-    try {
-      return localStorage.getItem(AIRDROP_DISMISS_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
+  // The faucet airdrops test USDC to the PUBLIC balance on wallet creation, but
+  // the hero shows the PRIVATE balance ($0 until shielded), so the public funds
+  // were invisible and a new user thought the wallet was empty. Surface the
+  // public balance as a clean, tappable row that leads straight into shielding.
   const shieldableUnits = BigInt(publicBalance?.baseUnits ?? "0");
-  const showAirdrop = !chainUnavailable && !airdropDismissed && shieldableUnits > 0n;
-  const dismissAirdrop = () => {
-    setAirdropDismissed(true);
-    try {
-      localStorage.setItem(AIRDROP_DISMISS_KEY, "1");
-    } catch {
-      // best-effort; the banner still hides for this session
-    }
-  };
+  const showPublicBalance = !chainUnavailable && shieldableUnits > 0n;
+  // "Airdropped" framing only fits a brand-new wallet; once there's activity the
+  // same public balance is just funds waiting to be made private.
+  const freshAirdrop = showPublicBalance && history.length === 0;
 
   return (
     <Screen>
@@ -97,43 +86,34 @@ export function Home() {
         </div>
       ) : null}
 
-      {showAirdrop ? (
+      {showPublicBalance ? (
         <div className="px-5 pb-1">
-          <motion.div
+          <motion.button
+            type="button"
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
-            data-testid="airdrop-banner"
-            className="relative flex items-center gap-3 overflow-hidden rounded-[18px] border border-accent/15 bg-gradient-to-br from-accent/[0.09] to-accent/[0.03] p-3.5"
+            whileTap={{ scale: 0.99 }}
+            onClick={() => nav("/shield?mode=shield")}
+            data-testid="public-balance-card"
+            className="group flex w-full items-center gap-3 rounded-[18px] border border-accent/15 bg-gradient-to-br from-accent/[0.08] to-accent/[0.02] p-3.5 text-left outline-none transition hover:border-accent/25 focus-visible:ring-2 focus-visible:ring-accent/40"
           >
             <span className="flex-none">
               <UsdcMark size={38} />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-[14px] font-semibold text-ink">
-                You've been airdropped {formatUsdc(publicBalance?.baseUnits ?? "0")} USDC
+              <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-muted">Public balance</div>
+              <div className="text-[19px] font-bold leading-tight text-ink">
+                ${formatUsdc(publicBalance?.baseUnits ?? "0")}{" "}
+                <span className="text-[12.5px] font-semibold text-muted">USDC</span>
               </div>
-              <div className="mt-0.5 text-[12.5px] leading-snug text-muted">
-                Test funds to try Benzo. Make it private to start spending.
+              <div className="mt-0.5 text-[12px] leading-snug text-muted">
+                {freshAirdrop ? "Airdropped to try Benzo — make it private to spend" : "Tap to make it private and hide the amount"}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => nav("/shield?mode=shield")}
-              data-testid="airdrop-make-private"
-              className="flex-none rounded-full bg-accent px-3.5 py-2 text-[12.5px] font-semibold text-white shadow-[var(--shadow-glow)] outline-none transition hover:brightness-110 focus-visible:ring-2 focus-visible:ring-accent/50"
-            >
-              Make it private
-            </button>
-            <button
-              type="button"
-              onClick={dismissAirdrop}
-              aria-label="Dismiss"
-              data-testid="airdrop-dismiss"
-              className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full text-muted outline-none transition hover:bg-ink/[0.06] hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40"
-            >
-              <X size={13} />
-            </button>
-          </motion.div>
+            <span className="flex-none inline-flex items-center gap-1 self-center rounded-full bg-accent px-3 py-2 text-[12.5px] font-semibold text-white shadow-[var(--shadow-glow)] transition group-hover:brightness-110">
+              Make private <ArrowRight size={13} />
+            </span>
+          </motion.button>
         </div>
       ) : null}
 

@@ -54,20 +54,25 @@ function BottomNav() {
       {TABS.slice(0, 2).map((t) => (
         <NavBtn key={t.to} {...t} on={active(t.to)} onClick={() => nav(t.to)} />
       ))}
-      {/* center FAB → Send (the primary action) */}
-      <motion.button
-        whileTap={{ scale: 0.9 }}
-        whileHover={{ y: -2 }}
-        onClick={() => {
-          if (!chainUnavailable) nav("/send");
-        }}
-        disabled={chainUnavailable}
-        aria-label="Send money"
-        data-testid="fab-send"
-        className="-mt-7 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-[var(--shadow-glow)] outline-none disabled:cursor-not-allowed disabled:bg-ink/[0.08] disabled:text-muted disabled:shadow-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
-      >
-        <SendGlyph size={24} className={chainUnavailable ? "text-muted" : "text-white"} />
-      </motion.button>
+      {/* center FAB → Send (the primary action). Labelled "Send" like every other
+          tab so it reads as an action, not a mystery button (critique: Send was
+          undiscoverable as an unlabelled glyph). */}
+      <div className="flex flex-col items-center">
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          whileHover={{ y: -2 }}
+          onClick={() => {
+            if (!chainUnavailable) nav("/send");
+          }}
+          disabled={chainUnavailable}
+          aria-label="Send money"
+          data-testid="fab-send"
+          className="-mt-7 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-[var(--shadow-glow)] outline-none disabled:cursor-not-allowed disabled:bg-ink/[0.08] disabled:text-muted disabled:shadow-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+        >
+          <SendGlyph size={24} className={chainUnavailable ? "text-muted" : "text-white"} />
+        </motion.button>
+        <span className={`mt-1 text-[11px] font-semibold ${active("/send") ? "text-accent" : "text-muted"}`}>Send</span>
+      </div>
       {TABS.slice(2).map((t) => (
         <NavBtn key={t.to} {...t} on={active(t.to)} onClick={() => nav(t.to)} />
       ))}

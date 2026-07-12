@@ -123,7 +123,14 @@ export function Shield() {
     try {
       if (shouldLockOnSend() && !(await requireUnlock())) return;
       await run(mode, amount, memo || undefined, plan.kind, false);
+      // A just-confirmed deposit/withdraw is not always visible on the
+      // load-balanced Fuji RPC immediately, so a single refresh often reads the
+      // stale pre-shield balance and Home shows $0 until the 15s tick or a manual
+      // reload. Poll a few times so the new balance lands within a couple seconds.
       void refresh();
+      for (const delay of [1500, 3500, 6500, 10_000]) {
+        setTimeout(() => void refreshBalance(), delay);
+      }
     } finally {
       setFiring(false);
     }
