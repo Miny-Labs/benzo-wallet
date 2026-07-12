@@ -78,11 +78,11 @@ export async function ensureGasFunded(address: Address): Promise<void> {
 export function createViemClients(account: BenzoAccount) {
   const viemAccount = privateKeyToAccount(account.evmPrivateKey);
   return {
-    publicClient: createPublicClient({ chain: ACTIVE_CHAIN, transport: http(RPC_URL) }),
+    publicClient: createPublicClient({ chain: ACTIVE_CHAIN, transport: http(RPC_URL, { retryCount: 5, retryDelay: 800, timeout: 25_000 }) }),
     walletClient: createWalletClient({
       account: viemAccount,
       chain: ACTIVE_CHAIN,
-      transport: http(RPC_URL),
+      transport: http(RPC_URL, { retryCount: 5, retryDelay: 800, timeout: 25_000 }),
     }),
   };
 }
@@ -95,7 +95,7 @@ let sharedPublicClient: PublicClient | null = null;
 let sharedPublicClientChainId: number | null = null;
 export function getPublicClient(): PublicClient {
   if (!sharedPublicClient || sharedPublicClientChainId !== ACTIVE_CHAIN.id) {
-    sharedPublicClient = createPublicClient({ chain: ACTIVE_CHAIN, transport: http(RPC_URL) });
+    sharedPublicClient = createPublicClient({ chain: ACTIVE_CHAIN, transport: http(RPC_URL, { retryCount: 5, retryDelay: 800, timeout: 25_000 }) });
     sharedPublicClientChainId = ACTIVE_CHAIN.id;
   }
   return sharedPublicClient;
