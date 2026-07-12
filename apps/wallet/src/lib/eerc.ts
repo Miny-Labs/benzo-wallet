@@ -123,7 +123,7 @@ export async function createEerc(account: BenzoAccount): Promise<EERC | null> {
   if (!ENCRYPTED_ERC_ADDRESS || !REGISTRAR_ADDRESS) return null;
   const EERCClass = await loadEERC();
   const { publicClient, walletClient } = createViemClients(account);
-  return new EERCClass(
+  const eerc = new EERCClass(
     publicClient,
     walletClient,
     ENCRYPTED_ERC_ADDRESS,
@@ -132,6 +132,17 @@ export async function createEerc(account: BenzoAccount): Promise<EERC | null> {
     EERC_CIRCUIT_URLS,
     account.eercDecryptionKey,
   );
+  // The eERC SDK does NOT use the `decryptionKey` we pass to the constructor for
+  // anything that touches chain state: register() derives its OWN key via
+  // generateDecryptionKey() (a deterministic wallet signature) and binds the
+  // on-chain public key + ElGamal-encrypted balance to THAT key. If we then
+  // decrypt with our own `account.eercDecryptionKey`, calculateTotalBalance()'s
+  // eGCT verify fails and every private balance reads $0. So let the SDK derive
+  // and install its own key (and matching publicKey) up front — the signature is
+  // local (self-custody key) and deterministic, so it's stable across sessions
+  // and matches whatever key registration used.
+  await eerc.generateDecryptionKey();
+  return eerc;
 }
 
 function eercPublicClient(eerc: EERC): PublicClient {
